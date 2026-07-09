@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../main.dart' show localeService;
@@ -31,6 +30,7 @@ class _ScanFrameOverlayState extends State<ScanFrameOverlay>
 
   late final AnimationController _pulse;
   late final Animation<double>   _glowAnim;
+  int _pulseCycles = 0;
 
   Rect? _frame; // null → varsayılan frameRect kullan
 
@@ -44,10 +44,23 @@ class _ScanFrameOverlayState extends State<ScanFrameOverlay>
     _pulse = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
+    );
     _glowAnim = Tween<double>(begin: 0.60, end: 1.0).animate(
       CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
     );
+    // ISINMA DÜZELTMESİ: süresiz repeat(reverse:true) kamera önizlemesinin
+    // üstünde ekranı her karede (60-120 fps) yeniden boyatıyor ve cihazı
+    // ısıtıyordu. Dikkat çekme etkisi ilk 3 gidiş-dönüşte tamamlanıyor;
+    // sonra animasyon TAM parlaklıkta durur → boşta frame üretimi biter.
+    _pulse.addStatusListener((s) {
+      if (s == AnimationStatus.completed) {
+        _pulseCycles += 1;
+        if (_pulseCycles < 3) _pulse.reverse();
+      } else if (s == AnimationStatus.dismissed) {
+        _pulse.forward();
+      }
+    });
+    _pulse.forward();
   }
 
   @override
@@ -69,49 +82,46 @@ class _ScanFrameOverlayState extends State<ScanFrameOverlay>
 
         return Stack(
           children: [
-            // 1 — Animasyonlu çerçeve + blur
+            // 1 — Çerçeve dışı karartma — STATİK ve BLUR'SUZ.
+            // Eskiden AnimatedBuilder içinde tam ekran BackdropFilter vardı:
+            // canlı kamera dokusu her karede değiştiği için blur her karede
+            // yeniden hesaplanıyor, GPU'yu sürekli meşgul edip telefonu
+            // ısıtıyordu. Düz karartma aynı odak etkisini bedavaya verir.
+            ClipPath(
+              clipper: _DonutClipper(frame: frame, radius: 28),
+              child: Container(
+                  color: Colors.black.withValues(alpha: 0.30)),
+            ),
+            // 2 — Yalnız kenarlık parlaması animasyonlu (ucuz CustomPaint;
+            // pulse 3 döngü sonra zaten duruyor).
             AnimatedBuilder(
               animation: _glowAnim,
-              builder: (_, __) {
-                final f = _currentFrame(size);
-                return Stack(
-                  children: [
-                    ClipPath(
-                      clipper: _DonutClipper(frame: f, radius: 28),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-                        child: Container(
-                            color: Colors.black.withValues(alpha: 0.18)),
-                      ),
-                    ),
-                    CustomPaint(
-                      painter: _BorderPainter(
-                        frameRect:     f,
-                        cornerRadius:  28,
-                        borderOpacity: _glowAnim.value,
-                      ),
-                      child: _CornerBrackets(frameRect: f, radius: 28),
-                    ),
-                    Positioned(
-                      left: 16, right: 16,
-                      top: f.top - 32,
-                      child: Text(
-                        localeService.tr('take_clear_photo'),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.88),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
+              builder: (_, __) => CustomPaint(
+                painter: _BorderPainter(
+                  frameRect:     frame,
+                  cornerRadius:  28,
+                  borderOpacity: _glowAnim.value,
+                ),
+                child: _CornerBrackets(frameRect: frame, radius: 28),
+              ),
+            ),
+            // 3 — İpucu yazısı (statik).
+            Positioned(
+              left: 16, right: 16,
+              top: frame.top - 32,
+              child: Text(
+                localeService.tr('take_clear_photo'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.88),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.2,
+                ),
+              ),
             ),
 
-            // 2 — Yeniden boyutlandırma kolları (animasyonsuz)
+            // 4 — Yeniden boyutlandırma kolları (animasyonsuz)
             _leftHandle(frame, size),
             _rightHandle(frame, size),
             _topHandle(frame, size),

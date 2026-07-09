@@ -5892,7 +5892,19 @@ KURALLAR:
 - Gereksiz uzun cümle yok, sınav diliyle net.
 - Aynı konunun farklı alt başlıklarına dağıt; tek bir alt konuya yığma.
 - $outLangInstr
-- "explanation" alanı 1-2 cümle, doğru şıkkın neden doğru olduğunu kısaca anlat.
+- "explanation" alanı ADIM ADIM DETAYLI ÇÖZÜM olsun — ders kitabı kalitesinde:
+  • Her adım AYRI SATIRDA, "Adım 1: …", "Adım 2: …" biçiminde yazılır
+    (satırları \\n ile ayır). Adımları tek paragrafa SIKIŞTIRMA — cümleler
+    ve ifadeler iç içe geçmesin.
+  • Her adımda hangi kural/kavram/formülün uygulandığını söyle; hesaplı
+    sorularda işlemi açıkça göster (örn. "Adım 2: v = x / t = 120 / 2 = 60").
+  • Sözel/kavramsal sorularda da en az 2-3 adım: kavramı açıkla → şıkları
+    değerlendir (yanlışların neden yanlış olduğunu kısaca söyle) → doğruyu
+    gerekçelendir.
+  • Son satır: "Doğru cevap: <şık harfi>" + kısa gerekçe.
+- Matematik/fen gösterimi DÜZ UNICODE olsun: alt indis ₀-₉ (H₂O, CO₂),
+  üst indis (x², 10⁻³), ok →, çarpım ×, bölme ÷, ± ≤ ≥ ≠ √ π Δ.
+  LaTeX (\\frac, ^, _, \$) ve markdown (**, #) YASAK. Ondalıklar virgüllü: 3,14.
 - Sadece geçerli JSON döndür, başka metin yok.$examRule
 
 Format:
@@ -5902,7 +5914,7 @@ Format:
       "q": "Soru metni…",
       "options": [${optLetters.map((l) => '"şık $l"').join(', ')}],
       "correct": 0,
-      "explanation": "Kısa açıklama."
+      "explanation": "Adım 1: …\\nAdım 2: …\\nAdım 3: …\\nDoğru cevap: A — …"
     }
   ]
 }''';
@@ -5918,7 +5930,9 @@ Format:
             prompt:
                 'Yukarıdaki profile + konuya $count soruluk MCQ üret. Sadece JSON.',
             system: systemPrompt,
-            maxTokens: 4096,
+            // Adım adım detaylı çözümler için genişletildi (4096 → 8192) —
+            // kısa limit uzun explanation'larda JSON'u ortadan kesiyordu.
+            maxTokens: 8192,
           );
         } catch (e) {
           _log('_generateRawMcq multi-provider hata ($e) → Gemini');
@@ -5930,7 +5944,7 @@ Format:
           systemPrompt: systemPrompt,
           userMessage:
               'Yukarıdaki profile + konuya $count soruluk MCQ üret. Sadece JSON.',
-          maxTokens: 4096,
+          maxTokens: 8192,
           temperature: 0.4,
           thinkingBudget: 0,
           responseMimeType: 'application/json',

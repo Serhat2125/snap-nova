@@ -133,6 +133,9 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  # Fragment shader'lar — dönen 3D dünya küresi (Düello Arenası hero kartı).
+  shaders:
+    - shaders/globe.frag
   assets:
     - lib/assets/9ejrn (1).jpg
     - lib/assets/invite_hero.jpeg

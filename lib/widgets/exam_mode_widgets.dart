@@ -21,6 +21,23 @@ import '../theme/app_theme.dart';
 const kExamModeAccent = Color(0xFF0F766E);
 const kExamModeConfirmGreen = Color(0xFF10B981);
 
+/// Ülkenin sınav kataloğundan "(LGS, TYT, AYT…)" biçiminde kısaltma ipucu —
+/// kart üzerindeki sabit TR listesi yerine her ülkede kendi sınavları görünür.
+String examModeHintFor(String? countryCode) {
+  final groups = examGroupsFor(countryCode);
+  if (groups == null || groups.isEmpty) return '';
+  final ordered = groups.toList();
+  // Kart metninde KPSS, DGS'den önce yazılır; seçim dialog'undaki
+  // (eğitim kademesi sıralı) katalog sırası değişmez.
+  final di = ordered.indexWhere((g) => g.key == 'dgs');
+  final ki = ordered.indexWhere((g) => g.key == 'kpss');
+  if (di >= 0 && ki > di) {
+    ordered.insert(di, ordered.removeAt(ki));
+  }
+  final names = ordered.take(5).map((g) => g.displayName).join(', ');
+  return '($names${ordered.length > 5 ? '…' : ''})';
+}
+
 /// "Sınav modu açmak ister misin? (LGS, YKS, KPSS…)" kartı — [titleOverride]
 /// verilirse (kaydedilmiş/kalıcı sınav varken) onun yerine gösterilir.
 /// [compact] → Dünya Sıralaması varyantı: ikon yok, beyaz zemin, daha ince
@@ -29,11 +46,15 @@ class ExamModeCard extends StatelessWidget {
   final VoidCallback onTap;
   final String? titleOverride;
   final bool compact;
+  /// Ülkeye özgü sınav kısaltmaları, örn. "(LGS, TYT, AYT…)" —
+  /// bkz. [examModeHintFor]. Boşsa TR varsayılanı gösterilir.
+  final String examsHint;
   const ExamModeCard({
     super.key,
     required this.onTap,
     this.titleOverride,
     this.compact = false,
+    this.examsHint = '',
   });
 
   @override
@@ -47,9 +68,9 @@ class ExamModeCard extends StatelessWidget {
           padding: EdgeInsets.symmetric(
               horizontal: 16, vertical: compact ? 12 : 14),
           decoration: BoxDecoration(
-            color: compact
-                ? Colors.white
-                : kExamModeAccent.withValues(alpha: 0.08),
+            // Her iki varyantta da iç TAM BEYAZ (kullanıcı isteği; eskiden
+            // normal varyant teal tonluydu).
+            color: Colors.white,
             borderRadius: BorderRadius.circular(compact ? 14 : 18),
             // Kompakt varyantta çizgi YEŞİL — hero çerçevesiyle uyumlu.
             border: Border.all(
@@ -58,58 +79,52 @@ class ExamModeCard extends StatelessWidget {
                     : kExamModeAccent.withValues(alpha: 0.30),
                 width: compact ? 1.4 : 1.2),
           ),
+          // 🎯 ikonu kaldırıldı (kullanıcı isteği) — kart yalnız metin + ok.
           child: Row(
             children: [
-              if (!compact) ...[
-                Container(
-                  width: 38, height: 38,
-                  decoration: BoxDecoration(
-                    color: kExamModeAccent.withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: const Text('🎯', style: TextStyle(fontSize: 18)),
-                ),
-                const SizedBox(width: 12),
-              ],
               Expanded(
-                child: compact && titleOverride == null
-                    // Kompakt varyant: büyük başlık + altında parantez
-                    // içinde sınav adları (ayrı satır).
-                    ? Column(
+                child: titleOverride != null
+                    ? Text(
+                        titleOverride!,
+                        style: GoogleFonts.inter(
+                          fontSize: compact ? 15 : 13.5,
+                          fontWeight: FontWeight.w800,
+                          // Zemin her zaman beyaz → yazı sabit koyu
+                          // (koyu temada da okunur kalsın).
+                          color: const Color(0xFF111111),
+                          height: 1.3,
+                        ),
+                      )
+                    // Başlık + sınav kısaltmaları TAMAMEN AYRI bir alt
+                    // satırda, kartın içinde (iki varyantta da aynı düzen).
+                    : Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Sınav Modunu Seçebilirsin'.tr(),
+                            (compact
+                                    ? 'Sınav Modunu Seçebilirsin'
+                                    : 'Sınav moduyla devam etmek ister misin?')
+                                .tr(),
                             style: GoogleFonts.inter(
-                              fontSize: 15,
+                              fontSize: compact ? 15 : 13.5,
                               fontWeight: FontWeight.w800,
                               color: const Color(0xFF111111),
                               height: 1.25,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 3),
                           Text(
-                            '(LGS, YKS, KPSS…)',
+                            examsHint.isNotEmpty
+                                ? examsHint
+                                : '(LGS, YKS, KPSS…)',
                             style: GoogleFonts.inter(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFF6B7280),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: kExamModeAccent,
+                              letterSpacing: 0.2,
                             ),
                           ),
                         ],
-                      )
-                    : Text(
-                        titleOverride ??
-                            '${'Sınav modu açmak ister misin?'.tr()} (LGS, YKS, KPSS…)',
-                        style: GoogleFonts.inter(
-                          fontSize: compact ? 15 : 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: compact
-                              ? const Color(0xFF111111)
-                              : AppPalette.textPrimary(context),
-                          height: 1.3,
-                        ),
                       ),
               ),
               const SizedBox(width: 6),
@@ -329,14 +344,14 @@ class _ExamModeSectionState extends State<ExamModeSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (widget.showHeader)
+        // "İstersen bu seçeneklerle de yarışabilirsin" başlığı kaldırıldı
+        // (kullanıcı isteği) — kartın kendi başlığı yeterli; yalnız
+        // kayıtlı sınav varken üst başlık gösterilir.
+        if (widget.showHeader && pinned != null)
           Padding(
             padding: const EdgeInsets.only(left: 2, bottom: 8, top: 2),
             child: Text(
-              (pinned == null
-                      ? 'İstersen bu seçeneklerle de yarışabilirsin'
-                      : 'Aşağıdaki sınav moduyla devam edebilirsin')
-                  .tr(),
+              'Aşağıdaki sınav moduyla devam edebilirsin'.tr(),
               style: GoogleFonts.inter(
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
@@ -346,7 +361,11 @@ class _ExamModeSectionState extends State<ExamModeSection> {
             ),
           ),
         pinned == null
-            ? ExamModeCard(onTap: _handleGeneric, compact: widget.compact)
+            ? ExamModeCard(
+                onTap: _handleGeneric,
+                compact: widget.compact,
+                examsHint: examModeHintFor(widget.countryCode),
+              )
             : ExamModeCard(
                 titleOverride: pinned.displayName,
                 compact: widget.compact,

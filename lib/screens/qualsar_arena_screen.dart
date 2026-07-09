@@ -41,7 +41,9 @@ import '../services/deep_link_service.dart';
 import '../services/achievement_service.dart';
 import 'bilgi_ligi_screen.dart';
 import 'bilgi_ligi_quiz_screen.dart';
+import '../features/league/league_demo_students.dart';
 import '../widgets/exam_mode_widgets.dart';
+import '../widgets/rotating_globe.dart';
 import 'invite_accept_screen.dart';
 import '../features/leaderboard/providers/location_controller.dart';
 import '../features/leaderboard/widgets/location_selection_sheet.dart';
@@ -3403,6 +3405,805 @@ Widget _notifItem(String emoji, String text, String time, [bool unread = false])
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ÜLKE ÇAPINDA 2.5D HERO — kullanıcının ülkesinin silueti, ekstrüzyonla
+//  derinlik verilmiş (sahte-3D) şekilde çizilir. Şimdilik TR + DE dolu;
+//  başka ülkelerde kart klasik beyaz satıra düşer. Yeni ülke eklemek =
+//  _countryHeroShapes'e basitleştirilmiş (lon,lat) poligonu + stil eklemek.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Basitleştirilmiş ülke sınırları — [poligon][nokta][lon, lat].
+/// TR iki parça (Anadolu + Trakya), DE tek parça.
+const Map<String, List<List<List<double>>>> _countryHeroShapes = {
+  'tr': [
+    // Anadolu
+    [
+      [26.35, 40.03], [27.30, 40.36], [28.78, 40.39], [29.93, 40.72],
+      [29.10, 41.00], [29.60, 41.17], [31.40, 41.30], [32.40, 41.74],
+      [33.75, 41.98], [35.10, 42.03], [36.30, 41.30], [37.30, 41.13],
+      [37.88, 41.00], [38.40, 40.92], [39.73, 41.00], [40.50, 41.03],
+      [41.55, 41.52], [42.60, 41.58], [43.47, 41.12], [43.66, 40.11],
+      [44.30, 40.05], [44.80, 39.70], [44.48, 39.00], [44.02, 38.40],
+      [44.30, 37.97], [44.25, 37.40], [44.79, 37.15], [43.50, 37.25],
+      [42.35, 37.10], [41.30, 37.08], [40.70, 37.10], [39.50, 36.70],
+      [38.00, 36.90], [37.10, 36.70], [36.65, 36.23], [36.35, 36.00],
+      [35.98, 35.82], [35.78, 36.28], [36.19, 36.60], [35.90, 36.75],
+      [35.30, 36.55], [34.55, 36.75], [33.90, 36.28], [32.84, 36.02],
+      [32.00, 36.53], [30.70, 36.88], [29.65, 36.17], [29.10, 36.63],
+      [28.25, 36.85], [27.36, 36.68], [27.42, 37.03], [27.26, 37.35],
+      [27.25, 37.87], [26.80, 38.25], [26.30, 38.35], [26.70, 38.70],
+      [26.62, 39.30], [26.93, 39.50], [26.07, 39.48], [26.18, 39.95],
+    ],
+    // Trakya
+    [
+      [28.03, 41.98], [29.00, 41.25], [28.98, 41.00], [27.50, 40.97],
+      [26.75, 40.40], [26.20, 40.03], [26.35, 40.55], [26.04, 40.73],
+      [26.33, 41.71],
+    ],
+  ],
+  'de': [
+    [
+      [7.20, 53.35], [8.00, 53.70], [8.50, 53.55], [8.90, 53.90],
+      [8.60, 54.30], [8.30, 54.75], [8.40, 55.05], [9.40, 54.85],
+      [10.15, 54.45], [11.20, 54.50], [11.10, 54.00], [12.10, 54.18],
+      [13.40, 54.68], [14.20, 53.90], [14.40, 53.30], [14.15, 52.85],
+      [14.60, 52.30], [14.75, 51.50], [14.98, 51.00], [14.30, 50.88],
+      [13.00, 50.50], [12.30, 50.20], [12.55, 49.90], [13.40, 49.40],
+      [13.83, 48.77], [13.50, 48.58], [12.90, 47.72], [12.20, 47.70],
+      [11.60, 47.59], [11.10, 47.40], [10.45, 47.40], [10.20, 47.28],
+      [9.75, 47.55], [9.13, 47.67], [8.60, 47.60], [7.60, 47.55],
+      [7.58, 48.12], [7.80, 48.60], [8.23, 48.97], [7.00, 49.19],
+      [6.35, 49.46], [6.12, 50.13], [6.00, 50.75], [5.95, 51.04],
+      [6.20, 51.50], [6.75, 51.90], [7.07, 52.39], [6.68, 52.55],
+      [7.05, 52.64], [7.20, 53.20],
+    ],
+  ],
+};
+
+/// Ülke başına hero stili — üst yüz gradyanı, yan (derinlik) rengi, bayrak/ad.
+const Map<String, ({List<Color> face, Color side, String flag, String name})>
+    _countryHeroStyles = {
+  'tr': (
+    face: [Color(0xFFEF3B4A), Color(0xFFC1121F)],
+    side: Color(0xFF6E0A12),
+    flag: '🇹🇷',
+    name: 'Türkiye',
+  ),
+  'de': (
+    face: [Color(0xFF3A3A40), Color(0xFFD00000), Color(0xFFFFCE00)],
+    side: Color(0xFF141416),
+    flag: '🇩🇪',
+    name: 'Almanya',
+  ),
+};
+
+/// Ülke siluetini 2.5D (ekstrüzyon + gölge + gradyan yüz) çizen painter.
+class _CountryReliefPainter extends CustomPainter {
+  final List<List<List<double>>> polygons;
+  final List<Color> faceColors;
+  final Color sideColor;
+  const _CountryReliefPainter({
+    required this.polygons,
+    required this.faceColors,
+    required this.sideColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Sınır kutusu
+    double minLon = double.infinity, maxLon = -double.infinity;
+    double minLat = double.infinity, maxLat = -double.infinity;
+    for (final poly in polygons) {
+      for (final p in poly) {
+        if (p[0] < minLon) minLon = p[0];
+        if (p[0] > maxLon) maxLon = p[0];
+        if (p[1] < minLat) minLat = p[1];
+        if (p[1] > maxLat) maxLat = p[1];
+      }
+    }
+    // Enlem düzeltmesi — orta enlemde cos ölçeği (harita basık görünmesin).
+    final k = math.cos(((minLat + maxLat) / 2) * math.pi / 180);
+    final w = (maxLon - minLon) * k;
+    final h = maxLat - minLat;
+    const pad = 22.0;
+    const depth = 12.0; // ekstrüzyon kalınlığı (px)
+    final scale = math.min(
+        (size.width - pad * 2) / w, (size.height - pad * 2 - depth) / h);
+    final ox = (size.width - w * scale) / 2;
+    final oy = (size.height - depth - h * scale) / 2;
+    Offset map(List<double> p) =>
+        Offset(ox + (p[0] - minLon) * k * scale, oy + (maxLat - p[1]) * scale);
+
+    final path = Path();
+    for (final poly in polygons) {
+      path.moveTo(map(poly.first).dx, map(poly.first).dy);
+      for (int i = 1; i < poly.length; i++) {
+        final o = map(poly[i]);
+        path.lineTo(o.dx, o.dy);
+      }
+      path.close();
+    }
+
+    // 1) Yumuşak zemin gölgesi — kütle havada duruyormuş hissi.
+    canvas.drawPath(
+      path.shift(const Offset(0, depth + 7)),
+      Paint()
+        ..color = Colors.black.withValues(alpha: 0.38)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+    );
+    // 2) Ekstrüzyon — silueti aşağı kaydırılmış koyu katmanlarla kalınlaştır
+    //    (en derin katman en koyu; yukarı çıktıkça açılır).
+    for (double d = depth; d > 0; d -= 1.0) {
+      canvas.drawPath(
+        path.shift(Offset(0, d)),
+        Paint()
+          ..color =
+              Color.lerp(sideColor, Colors.black, (d / depth) * 0.35)!,
+      );
+    }
+    // 3) Üst yüz — dikey gradyan + ince ışık konturu.
+    canvas.drawPath(
+      path,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: faceColors,
+        ).createShader(path.getBounds()),
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1
+        ..color = Colors.white.withValues(alpha: 0.55),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CountryReliefPainter old) => false;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ARKADAŞLARINLA YARIŞ HERO — iki oyuncu kendi odasında (mavi/pembe), ortada
+//  VS görseli (assets/library_icons/duello_friends_hero.jpg). Her oyuncunun
+//  başının üstünde 3 sn'de bir değişen avatar + kullanıcı adı rozeti; isimler
+//  kullanıcının ÜLKESİNİN isim havuzundan gelir (Almanya'da Alman isimleri).
+// ═══════════════════════════════════════════════════════════════════════════════
+class _FriendsVsHero extends StatefulWidget {
+  final String countryCode;
+  final VoidCallback onTap;
+  const _FriendsVsHero({required this.countryCode, required this.onTap});
+
+  @override
+  State<_FriendsVsHero> createState() => _FriendsVsHeroState();
+}
+
+class _FriendsVsHeroState extends State<_FriendsVsHero> {
+  static const _avatars = <String>[
+    '🦊', '🐼', '🦁', '🐨', '🦉', '🐧', '🦄', '🐢', '🐬', '🦋', '🐯', '🐸',
+  ];
+  Timer? _timer;
+  int _tick = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Rastgelelik açılışa göre değişsin diye başlangıç ofseti.
+    _tick = DateTime.now().millisecondsSinceEpoch ~/ 3000;
+    _timer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted) setState(() => _tick++);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Widget _nameChip({required int seed, required Color accent}) {
+    final name = LeagueDemoStudents.sampleName(widget.countryCode, seed);
+    final avatar = _avatars[seed.abs() % _avatars.length];
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 350),
+      child: Container(
+        key: ValueKey(seed),
+        padding: const EdgeInsets.fromLTRB(4, 3, 10, 3),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(color: accent.withValues(alpha: 0.9), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: accent.withValues(alpha: 0.45),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // "Profil fotoğrafı" — avatar rozeti.
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: accent, width: 1),
+              ),
+              alignment: Alignment.center,
+              child: Text(avatar, style: const TextStyle(fontSize: 12)),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              name,
+              style: _sans(
+                size: 11,
+                weight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 180,
+          width: double.infinity,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(
+                'assets/library_icons/duello_friends_hero.jpg',
+                fit: BoxFit.cover,
+              ),
+              // Sol oyuncunun başının üstü — mavi taraf.
+              Positioned(
+                left: 10,
+                top: 8,
+                child: _nameChip(
+                  seed: _tick * 2 + 1,
+                  accent: const Color(0xFF38BDF8),
+                ),
+              ),
+              // Sağ oyuncunun başının üstü — pembe taraf.
+              Positioned(
+                right: 10,
+                top: 8,
+                child: _nameChip(
+                  seed: _tick * 2 + 900001,
+                  accent: const Color(0xFFF472B6),
+                ),
+              ),
+              // Alt karartma + başlık — diğer hero kartlarla aynı düzen.
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(14, 34, 14, 10),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Color(0xCC140A18)],
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ARKADAŞLARINLA YARIŞ'.tr(),
+                        style: _serif(
+                          size: 19,
+                          weight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Arkadaşını davet et, karşılıklı yarışın.'.tr(),
+                        style: _sans(
+                          size: 11.5,
+                          weight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.92),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  DÜNYA ÇAPINDA ÇİPLERİ — dönen kürenin sağındaki/solundaki boş üst
+//  alanlarda 3 sn'de bir birlikte yenilenen kullanıcı rozetleri: avatar +
+//  kullanıcı adı, altında BAYRAK + ülke adı. İsim, seçilen ülkenin isim
+//  havuzundan gelir (Japon kullanıcıya Japon isim, Brezilyalıya Brezilya…).
+// ═══════════════════════════════════════════════════════════════════════════════
+class _WorldVsChips extends StatefulWidget {
+  const _WorldVsChips();
+
+  @override
+  State<_WorldVsChips> createState() => _WorldVsChipsState();
+}
+
+class _WorldVsChipsState extends State<_WorldVsChips> {
+  static const _avatars = <String>[
+    '🦊', '🐼', '🦁', '🐨', '🦉', '🐧', '🦄', '🐢', '🐬', '🦋', '🐯', '🐸',
+  ];
+  static const _countries = <String>[
+    'tr', 'de', 'fr', 'gb', 'es', 'it', 'us', 'br', 'mx', 'ar', 'eg', 'sa',
+    'in', 'pk', 'id', 'jp', 'kr', 'cn', 'ru', 'ua', 'pl', 'nl', 'ca', 'au',
+    'gr', 'az', 'kz', 'ma', 'ng', 'co', 'th', 'vn', 'se', 'ch',
+  ];
+  Timer? _timer;
+  int _tick = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = DateTime.now().millisecondsSinceEpoch ~/ 3000;
+    _timer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted) setState(() => _tick++);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  String _countryName(String cc) {
+    final lc = cc == 'gb' ? 'uk' : cc;
+    for (final c in kAllCountries) {
+      if (c.key == lc) return c.name;
+    }
+    return cc.toUpperCase();
+  }
+
+  Widget _chip({required int seed, required Color accent}) {
+    final cc = _countries[seed.abs() % _countries.length];
+    final name = LeagueDemoStudents.sampleName(cc, seed);
+    // Kompakt rozet — küre görünümünü kapatmasın diye küçük tutulur.
+    return Container(
+      padding: const EdgeInsets.fromLTRB(3, 2, 7, 2),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: accent.withValues(alpha: 0.85), width: 1),
+        boxShadow: [
+          BoxShadow(color: accent.withValues(alpha: 0.30), blurRadius: 5),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 16,
+            height: 16,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: accent, width: 0.8),
+            ),
+            alignment: Alignment.center,
+            child: Text(_avatars[seed.abs() % _avatars.length],
+                style: const TextStyle(fontSize: 9)),
+          ),
+          const SizedBox(width: 4),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(name,
+                  style: _sans(
+                      size: 8.5,
+                      weight: FontWeight.w800,
+                      color: Colors.white)),
+              Text('${flagEmojiFor(cc)} ${_countryName(cc)}',
+                  style: _sans(
+                      size: 7,
+                      weight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.78))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 400),
+      child: Row(
+        key: ValueKey(_tick),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _chip(seed: _tick * 2 + 5, accent: const Color(0xFF38BDF8)),
+          const Spacer(),
+          _chip(seed: _tick * 2 + 340007, accent: const Color(0xFFF472B6)),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ÜLKE ÇAPINDA VS ÇİPLERİ — ülke kartındaki zoom'lu kürenin üstünde, solda
+//  ve sağda 5 sn'de bir birlikte yenilenen (avatar + kullanıcı adı + İL)
+//  rozetleri ve ortada VS ibaresi. İsimler VE şehirler kullanıcının
+//  ülkesine göre: TR'de Türkçe isim + 81 il, DE'de Alman isim + Alman
+//  şehirleri, FR'de Fransız isim + Fransız şehirleri…
+// ═══════════════════════════════════════════════════════════════════════════════
+class _CountryVsChips extends StatefulWidget {
+  final String countryCode;
+  const _CountryVsChips({required this.countryCode});
+
+  @override
+  State<_CountryVsChips> createState() => _CountryVsChipsState();
+}
+
+class _CountryVsChipsState extends State<_CountryVsChips> {
+  static const _avatars = <String>[
+    '🦊', '🐼', '🦁', '🐨', '🦉', '🐧', '🦄', '🐢', '🐬', '🦋', '🐯', '🐸',
+  ];
+  Timer? _timer;
+  int _tick = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = DateTime.now().millisecondsSinceEpoch ~/ 5000;
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) setState(() => _tick++);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Widget _chip({required int seed, required Color accent}) {
+    final name = LeagueDemoStudents.sampleName(widget.countryCode, seed);
+    final city = LeagueDemoStudents.sampleCity(widget.countryCode, seed + 31);
+    return Container(
+      padding: const EdgeInsets.fromLTRB(4, 3, 10, 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.50),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.9), width: 1.2),
+        boxShadow: [
+          BoxShadow(color: accent.withValues(alpha: 0.40), blurRadius: 8),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: accent, width: 1),
+            ),
+            alignment: Alignment.center,
+            child: Text(_avatars[seed.abs() % _avatars.length],
+                style: const TextStyle(fontSize: 12)),
+          ),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(name,
+                  style: _sans(
+                      size: 10.5,
+                      weight: FontWeight.w800,
+                      color: Colors.white)),
+              if (city.isNotEmpty)
+                Text(city,
+                    style: _sans(
+                        size: 8.5,
+                        weight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.75))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Çipler + VS her turda BİRLİKTE belirir (AnimatedSwitcher key=_tick).
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 400),
+      child: Row(
+        key: ValueKey(_tick),
+        children: [
+          _chip(seed: _tick * 2 + 11, accent: const Color(0xFF38BDF8)),
+          const Spacer(),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFF6A00), Color(0xFFDB2777)],
+              ),
+              borderRadius: BorderRadius.circular(100),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFDB2777).withValues(alpha: 0.5),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
+            child: Text(
+              'VS',
+              style: _serif(
+                  size: 12, weight: FontWeight.w900, color: Colors.white),
+            ),
+          ),
+          const Spacer(),
+          _chip(seed: _tick * 2 + 700003, accent: const Color(0xFFF472B6)),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  GRUPLA YARIŞ HERO — sınıfta telefonlarıyla yarışan grup fotoğrafı
+//  (assets/library_icons/duello_group_hero.jpg) + SAĞDA CANLI sıralama
+//  paneli. Panel görsele gömülü DEĞİL: isimler kullanıcının ülkesinin isim
+//  havuzundan gelir, 5 sn'de bir yenilenir; tüm yazılar .tr() ile uygulama
+//  dilinde.
+// ═══════════════════════════════════════════════════════════════════════════════
+class _GroupRaceHero extends StatefulWidget {
+  final String countryCode;
+  final VoidCallback onTap;
+  const _GroupRaceHero({required this.countryCode, required this.onTap});
+
+  @override
+  State<_GroupRaceHero> createState() => _GroupRaceHeroState();
+}
+
+class _GroupRaceHeroState extends State<_GroupRaceHero> {
+  static const _avatars = <String>[
+    '🦊', '🐼', '🦁', '🐨', '🦉', '🐧', '🦄', '🐢', '🐬', '🦋', '🐯', '🐸',
+  ];
+  static const _barColors = <Color>[
+    Color(0xFF34D399), Color(0xFF38BDF8), Color(0xFFA78BFA),
+  ];
+  Timer? _timer;
+  int _tick = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = DateTime.now().millisecondsSinceEpoch ~/ 5000;
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) setState(() => _tick++);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Bu turun 3 yarışmacısı — isimler ülke havuzundan, puanlar azalan.
+    final names = List.generate(
+        3, (i) => LeagueDemoStudents.sampleName(widget.countryCode, _tick * 3 + i + 7));
+    final top = 880 + (_tick * 37) % 100;
+    final scores = [top, top - 70 - (_tick * 13) % 50, top - 150 - (_tick * 29) % 60];
+
+    // Değişen EĞLENCELİ grup adı — ülkeye/dile göre havuzdan (Koalalar,
+    // Cadılar, Moğol İstilası…); isimlerle birlikte her turda yenilenir.
+    final groupName = LeagueDemoStudents.sampleGroupName(
+        widget.countryCode, _tick);
+
+    Widget row(int i) {
+      final ratio = scores[i] / scores[0];
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 11,
+                  height: 11,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: _barColors[i].withValues(alpha: 0.9),
+                        width: 0.8),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(_avatars[(_tick + i * 4) % _avatars.length],
+                      style: const TextStyle(fontSize: 6)),
+                ),
+                const SizedBox(width: 3),
+                Expanded(
+                  child: Text(
+                    '${i + 1}. ${names[i]}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _sans(
+                        size: 7.5,
+                        weight: FontWeight.w700,
+                        color: Colors.white),
+                  ),
+                ),
+                Text('${scores[i]}',
+                    style: _sans(
+                        size: 7.5,
+                        weight: FontWeight.w800,
+                        color: _barColors[i])),
+              ],
+            ),
+            const SizedBox(height: 1.5),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: LinearProgressIndicator(
+                value: ratio,
+                minHeight: 2,
+                backgroundColor: Colors.white.withValues(alpha: 0.15),
+                valueColor: AlwaysStoppedAnimation(_barColors[i]),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          height: 180,
+          width: double.infinity,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(
+                'assets/library_icons/duello_group_hero.jpg',
+                fit: BoxFit.cover,
+              ),
+              // Alt karartma + başlık (sol tarafta — sağda panel var).
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Color(0xCC101418)],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 14,
+                right: 124, // sağdaki küçük panelin genişliği kadar boşluk
+                bottom: 10,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Uzun başlık dar alana (sağda panel var) sığmazsa
+                    // otomatik küçülür — kesilme/taşma olmaz.
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'ARKADAŞ GRUBUYLA YARIŞ'.tr(),
+                        maxLines: 1,
+                        style: _serif(
+                          size: 17,
+                          weight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Takım kur, birlikte yarışın.'.tr(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _sans(
+                        size: 11,
+                        weight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.92),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // SAĞ ALTTA küçük, yarı şeffaf CANLI sıralama paneli —
+              // başlıktaki grup adı da isimlerle birlikte her turda değişir.
+              Positioned(
+                right: 8,
+                bottom: 8,
+                width: 108,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(7, 5, 7, 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xB3101418), // ~%70 opak (şeffaf)
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.10)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text('🏆', style: TextStyle(fontSize: 9)),
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(
+                              groupName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _sans(
+                                  size: 8.5,
+                                  weight: FontWeight.w800,
+                                  color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      row(0),
+                      row(1),
+                      row(2),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CircleBtn extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
@@ -3688,6 +4489,58 @@ final List<_Subject> _globalDueloSubjects = [
 
 // Kullanıcının eklediği özel dünya dersleri (oturum boyu korunur)
 final List<_Subject> _customWorldSubjects = [];
+
+// ── Özel derslerin kalıcılığı ────────────────────────────────────────────────
+// Kullanıcının "Yeni Bir Ders Ekle" ile oluşturduğu dersler SharedPreferences'a
+// yazılır; uygulama yeniden açılınca da ders şeridinde görünmeye devam eder.
+const String _kCustomSubjectsPrefsKey = 'duelo_custom_subjects_v1';
+bool _customSubjectsLoaded = false;
+
+Future<void> _loadCustomSubjects() async {
+  if (_customSubjectsLoaded) return;
+  _customSubjectsLoaded = true;
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kCustomSubjectsPrefsKey);
+    if (raw == null || raw.isEmpty) return;
+    final list = jsonDecode(raw) as List<dynamic>;
+    final existing = {for (final s in _customWorldSubjects) s.key};
+    for (final e in list) {
+      if (e is! Map<String, dynamic>) continue;
+      final key = (e['key'] ?? '').toString();
+      if (key.isEmpty || existing.contains(key)) continue;
+      final topics = [
+        for (final t in (e['topics'] as List<dynamic>? ?? const []))
+          t.toString(),
+      ];
+      _customWorldSubjects.add(_Subject(
+        key,
+        (e['emoji'] ?? '📘').toString(),
+        (e['name'] ?? key).toString(),
+        topics.length,
+        Color((e['color'] as num? ?? 0xFF2563EB).toInt()),
+        topics,
+      ));
+    }
+  } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
+}
+
+Future<void> _saveCustomSubjects() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final json = jsonEncode([
+      for (final s in _customWorldSubjects)
+        {
+          'key': s.key,
+          'emoji': s.emoji,
+          'name': s.name,
+          'color': s.color.toARGB32(),
+          'topics': s.topics,
+        },
+    ]);
+    await prefs.setString(_kCustomSubjectsPrefsKey, json);
+  } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
+}
 
 // Dünyada en çok konuşulan 20 dil — ikinci yabancı dil / diğer diller picker'ı
 const List<_PickerOption> _topLanguages = [
@@ -5133,9 +5986,6 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
   bool _worldCountryContestMode = false;
   // "Yarışlarım" bölümü açık mı (4 sekme görünür mü).
   bool _racesExpanded = true;
-  // Üst sekme çubuğunda basılı tutulan aksiyon sekmesi (1v1/grup) — basılıyken
-  // beyaz gösterilir.
-  String? _pressedTab;
   bool _showOtherSheet = false;
   bool _draggingFromSheet = false;
   List<_DueloRecord> _records = const [];
@@ -5395,6 +6245,10 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
     _loadRecords();
     _loadDuelColorPrefs();
     _loadDuelOrder();
+    // Kalıcı özel dersler (Yeni Bir Ders Ekle) — yüklenince şerit tazelensin.
+    _loadCustomSubjects().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _loadRecords() async {
@@ -5434,8 +6288,15 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
       // Baz evrensel + fakülteye göre eklenen + kullanıcının eklediği
       return _worldSubjectsForUser();
     }
-    // Ülke modu: kullanıcının seviyesindeki tüm dersler
-    return _subjectsForGrade();
+    // Ülke modu: kullanıcının seviyesindeki tüm dersler + kullanıcının
+    // eklediği özel dersler (dünya moduyla ortak havuz — eklenen ders her
+    // iki kapsamda da şeritte görünür).
+    final base = _subjectsForGrade();
+    final seen = {for (final s in base) s.key};
+    return [
+      ...base,
+      ..._customWorldSubjects.where((s) => !seen.contains(s.key)),
+    ];
   }
 
   List<String> _availableTopics() {
@@ -5457,10 +6318,12 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
 
   // Inline kurulum sihirbazında "Başlat" aktif olması için: ders + konu + soru
   // sayısı seçilmiş olmalı (soru tipi hep varsayılan 'mc' ile geçerli).
-  // Dünya/Ülke Çapında modunda soru tipi/sayısı adımı YOK — ders+konu yeter,
-  // doğrudan eşleştirmeye (_findMatch) geçilir.
+  // Dünya/Ülke Çapında modunda soru TİPİ adımı yok ama soru SAYISI (5/10)
+  // seçilmeli — sonra eşleştirmeye (_findMatch) geçilir.
   bool get _contestSetupReady => _worldCountryContestMode
-      ? (_selectedSubject != null && _selectedTopic != null)
+      ? (_selectedSubject != null &&
+          _selectedTopic != null &&
+          _contestCount != null)
       : (_selectedSubject != null &&
           _selectedTopic != null &&
           _contestCount != null);
@@ -5501,6 +6364,22 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
 
   // Prod: gerçek Firebase matchmaking akışı. Şu an dev modda çağrılmıyor;
   // yayına alırken _findMatch içinde bu fonksiyona geçiş yapın.
+  /// Kullanıcının Bilgi Ligi'nde (Dünya Sıralaması) kayıtlı şehri —
+  /// bilgi_ligi_screen'in yazdığı SharedPreferences anahtarından okunur.
+  /// Kuyruğa yazılır ki ülke-içi düelloda rakip "Rakibin: <şehir>'den"
+  /// olarak GERÇEK kayıtlı şehri görsün. Kayıt yoksa boş döner.
+  Future<String> _myLeagueCity() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('world_ranking_location_v1');
+      if (raw != null && raw.isNotEmpty) {
+        final j = jsonDecode(raw) as Map<String, dynamic>;
+        return (j['city'] ?? '').toString();
+      }
+    } catch (_) {}
+    return '';
+  }
+
   Future<DueloMatchResult?> _runRealMatchmaking({
     required String subjectKey,
     String? topic,
@@ -5524,6 +6403,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
       username: _currentUsername,
       flag: _userFlag(),
       country: _userCountryName(),
+      city: await _myLeagueCity(),
       level: profile.level,
       grade: profile.grade,
       track: profile.track,
@@ -5534,7 +6414,8 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
     );
     return DueloMatchmakingService.findMatch(
       criteria,
-      timeout: Duration(seconds: 12),
+      // 12 sn kullanıcıya uzun geldi → 7 sn (bulunamazsa bot devreye girer).
+      timeout: Duration(seconds: 7),
     );
   }
 
@@ -5724,7 +6605,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
           return;
         }
         // Gerçek matchmaking — DueloMatchmakingService Firestore queue üzerinden
-        // aynı kriterlerdeki başka oyuncuya 12sn boyunca bakar. Bulamazsa null
+        // aynı kriterlerdeki başka oyuncuya 7sn boyunca bakar. Bulamazsa null
         // döner ve aşağıdaki bot havuzuna düşülür (kullanıcı yine de oynar).
         DueloMatchResult? match;
         try {
@@ -5773,7 +6654,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
               subjectName: subjectObj.name,
               topicName: topic ?? '',
               scope: _scope,
-              myName: _currentUsername,
+              myName: _displayUsername(),
               myFlag: _userFlag(),
               myCountry: _userCountryName(),
             ),
@@ -5797,7 +6678,9 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
     }
     // ── /Eşleştirme yarışı dalı ─────────────────────────────────────────────
 
-    const targetCount = 5;
+    // Dünya/Ülke kurulumunda kullanıcının seçtiği soru sayısı (5 veya 10);
+    // seçim yoksa (eski/diğer giriş yolları) 5 ile devam.
+    final targetCount = _contestCount ?? 5;
     const minProceedCount = 3; // <3 soru varsa oyunu hiç başlatma
 
     // Takipli ID tabanlı tekrar bloklama — aynı soru tekrar eklenmesin.
@@ -6022,12 +6905,15 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
     String oppAvatar;
     String oppFlag;
     String oppCountry;
+    String oppCity;
     int oppElo;
     if (match != null) {
       oppName = match.opponentUsername;
       oppAvatar = oppName.isEmpty ? '?' : oppName[0].toUpperCase();
       oppFlag = match.opponentFlag;
       oppCountry = match.opponentCountry;
+      // Rakibin kuyruğa yazdığı GERÇEK kayıtlı şehri (Bilgi Ligi konumu).
+      oppCity = match.opponentCity;
       oppElo = match.opponentElo;
       debugPrint('[Duelo] GERÇEK rakip: @$oppName ($oppCountry)');
     } else {
@@ -6042,6 +6928,8 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
       oppAvatar = opp.avatar;
       oppFlag = opp.flag;
       oppCountry = opp.country;
+      // Bot rakip: aynı bot her zaman aynı şehirde "kayıtlı" görünsün.
+      oppCity = _botCityFor(oppFlag, oppName);
       oppElo = opp.elo;
       debugPrint('[Duelo] Mock rakip (gerçek bulunamadı): @$oppName');
     }
@@ -6065,6 +6953,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
           opponentAvatar: oppAvatar,
           opponentFlag: oppFlag,
           opponentCountry: oppCountry,
+          opponentCity: oppCity,
           opponentElo: oppElo,
           subjectName: subjectObj.name,
           topicName: topic,
@@ -6120,13 +7009,19 @@ Format:
     "opts": {$optsExample},
     "ans": "B",
     "hint": "tek cümle yol gösterici ipucu",
-    "sol": "2-3 cümle çözüm",
+    "sol": "Adım 1: …\\nAdım 2: …\\nAdım 3: …\\nDoğru cevap: B — kısa gerekçe",
     "d": "medium"
   }
 ]
 
 KURALLAR:
 • TAM $count soru.
+• "sol" ADIM ADIM DETAYLI ÇÖZÜM olsun — ders kitabı kalitesinde:
+  her adım AYRI SATIRDA "Adım 1: …" biçiminde (\\n ile ayır), tek
+  paragrafa SIKIŞTIRMA; her adımda uygulanan kural/formülü söyle,
+  hesaplı sorularda işlemi göster; sözel sorularda kavramı açıkla →
+  şıkları değerlendir → doğruyu gerekçelendir; son satır
+  "Doğru cevap: <şık harfi> — kısa gerekçe".
 • ZORLUK KARIŞIK: soruların ~%40'ı KOLAY, ~%40'ı ORTA, ~%20'si ZOR olsun
   ("d": "easy" | "medium" | "hard"). Hepsi seçilen SEVİYE + MÜFREDATA uygun,
   net, öğretici ve KALİTELİ olmalı — yüzeysel/ezber soru yazma.
@@ -6210,7 +7105,6 @@ KURALLAR:
   @override
   Widget build(BuildContext context) {
     if (_matching) return _buildMatchingOverlay();
-    final subjects = _orderedSubjects(_availableSubjects());
     return Scaffold(
       backgroundColor: _pageBgOverride ?? AppPalette.bg(context),
       body: Stack(
@@ -6238,14 +7132,18 @@ KURALLAR:
                               letterSpacing: -0.02)),
                     ),
                   ),
-                  // Renk özelleştirme — diğer sayfalardaki gibi renkli
-                  // "Renk Seç" pill.
+                  // Davetler zili — Sınav Modu altındaki tam-genişlik
+                  // "Davetler" satırı başlık çubuğuna simge olarak taşındı.
+                  _buildInvitesBell(),
+                  SizedBox(width: 8),
+                  // Renk özelleştirme — yalnız simge (yazısız), yuvarlak
+                  // gradient buton.
                   GestureDetector(
                     onTap: () => setState(
                         () => _showColorPicker = !_showColorPicker),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                      width: 36,
+                      height: 36,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
@@ -6257,7 +7155,7 @@ KURALLAR:
                             Color(0xFF2563EB),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(999),
+                        shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.12),
@@ -6266,29 +7164,13 @@ KURALLAR:
                           ),
                         ],
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _showColorPicker
-                                ? Icons.close_rounded
-                                : Icons.palette_rounded,
-                            size: 16,
-                            color: Colors.white,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            _showColorPicker
-                                ? 'Kapat'.tr()
-                                : 'Renk Seç'.tr(),
-                            style: _sans(
-                              size: 12,
-                              weight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        ],
+                      alignment: Alignment.center,
+                      child: Icon(
+                        _showColorPicker
+                            ? Icons.close_rounded
+                            : Icons.palette_rounded,
+                        size: 18,
+                        color: Colors.white,
                       ),
                     ),
                   ),
@@ -6344,37 +7226,40 @@ KURALLAR:
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              // Başlık — 4 sekmenin çerçevesinin ÜSTÜNDE,
+                              // dışında; sekmeler de bu sayede biraz aşağı
+                              // kayar (kullanıcı isteği).
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                    left: 4, top: 12, bottom: 8),
+                                child: Text(
+                                  'NASIL YARIŞMAK İSTERSİN?'.tr(),
+                                  style: _sans(
+                                      size: 11,
+                                      weight: FontWeight.w900,
+                                      color: AppPalette.textPrimary(context),
+                                      letterSpacing: 0.04),
+                                ),
+                              ),
                               // Dünya/Ülke + Arkadaşınla Yarış/Grup — hepsi TEK
                               // çerçeve içinde; basılı olan beyaz, diğerleri
                               // "Ülke Çapında basılı değilken" gibi şeffaf.
                               _buildTopTabs(),
-                              SizedBox(height: 8),
-                              // Sınav Modu — Bilgi Ligi'ndeki (Dünya Sıralaması)
-                              // ile birebir aynı (kaydedilmiş sınav kısayolu
-                              // dahil); AYRI bir çerçeve, Davetler'in hemen
-                              // üstünde. Aynı exam_catalog.dart verisini
-                              // kullanır (lib/widgets/exam_mode_widgets.dart).
-                              ExamModeSection(
-                                countryCode: EduProfile.current?.country,
-                                onSelected: _launchExamModeQuiz,
-                              ),
-                              SizedBox(height: 8),
-                              // Gelen davetler (1v1 + grup) buraya düşer.
-                              _buildInvitesTab(),
-                              SizedBox(height: 8),
-                              Text(
-                                _scope == 'world'
-                                    ? '🌍 Dünyadan aynı seviyede bir rakiple karşılaşırsın. Her iki taraf aynı evrensel dersi/konuyu seçer.'.tr()
-                                    : '🇹🇷 Ülkendeki aynı seviyede bir rakiple karşılaşırsın. Tüm derslerden yarışabilirsin.'.tr(),
-                                style: _sans(
-                                    size: 11,
-                                    color: AppPalette.textSecondary(context),
-                                    height: 1.4),
-                              ),
-                              SizedBox(height: 16),
-                              // "Hangi derste?" başlığı + "Kaydır" ipucu tek
-                              // satırda — _buildSubjectGrid içinde çizilir.
-                              _buildSubjectGrid(subjects),
+                              // Sınav Modu kartı ve kapsam açıklaması İLK
+                              // sayfadan kaldırıldı (kullanıcı isteği):
+                              //  • Sınav Modu kurulum sayfasında zaten var
+                              //    (_examModeAlternativeSection).
+                              //  • "Dünyadan/Ülkendeki aynı seviyede bir
+                              //    rakip..." yazısı, seçilen yarış tipine
+                              //    göre kurulum sayfasında ders sekmelerinin
+                              //    üstünde gösteriliyor.
+                              // "Hangi derste yarışacaksın?" ders grid'i
+                              // gizlendi (kullanıcı isteği): dersler zaten
+                              // Dünya/Ülke Çapında pill'ine basınca açılan
+                              // kurulum sihirbazında seçiliyor, sayfada
+                              // ikinci kez göstermeye gerek kalmadı.
+                              // Geri açmak için: _buildSubjectGrid(subjects)
+                              // (subjects = _orderedSubjects(_availableSubjects())).
                             ],
                           ),
                         );
@@ -6451,7 +7336,9 @@ KURALLAR:
                 ),
               ),
             ),
-            // Alt CTA — sadece ders + konu seçiliyse gösterilir
+            // Alt CTA — sadece ders + konu seçiliyse gösterilir. Ders grid'i
+            // sayfadan gizlendiği için "Önce bir ders seç" yer tutucusu da
+            // kaldırıldı (seçim artık kurulum sihirbazında yapılıyor).
             if (_canStart)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
@@ -6459,24 +7346,6 @@ KURALLAR:
                   label: '🏆 Rakip Bul'.tr(),
                   brand: true,
                   onTap: _findMatch,
-                ),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 17, horizontal: 20),
-                  decoration: BoxDecoration(
-                    color: AppPalette.border(context).withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    _selectedSubject == null
-                        ? 'Önce bir ders seç'.tr()
-                        : 'Şimdi bir konu seç'.tr(),
-                    style: _sans(size: 14, weight: FontWeight.w600, color: AppPalette.textSecondary(context)),
-                  ),
                 ),
               ),
           ],
@@ -6547,7 +7416,155 @@ KURALLAR:
 
   // Dünya/Ülke + Arkadaşınla Yarış/Grup — hepsi TEK segment çerçevesinde,
   // 2 satır. Basılı olan beyaz, diğerleri şeffaf.
+  void _startCountryContest() {
+    setState(() {
+      _scope = 'country';
+      _worldCountryContestMode = true;
+      _enterContestSetup('🇹🇷 ${"Ülke Çapında Yarış".tr()}');
+    });
+  }
+
+  /// Ülkenin YEREL adı — kAllCountries listesinden ('gb' → 'uk' anahtarı).
+  String _countryDisplayName(String cc) {
+    final lc = cc == 'gb' ? 'uk' : cc;
+    for (final c in kAllCountries) {
+      if (c.key == lc) return c.name;
+    }
+    return cc.toUpperCase();
+  }
+
+  /// Ülke Çapında hero kart — Dünya kartındaki ORİJİNAL kürenin (aynı shader
+  /// + NASA dokusu) kullanıcının ülkesine yakınlaşmış, sabit hali. Sınır
+  /// verisi olan ülkelerde (şimdilik TR + DE, _countryHeroShapes) sınırlar
+  /// parlak çizgiyle çizilir; diğer ülkelerde merkezde bayrak işareti.
+  /// Ülke koordinatı bilinmiyorsa null → klasik beyaz satır.
+  Widget? _countryHeroCard() {
+    var cc = (EduProfile.current?.country ?? '').toLowerCase().trim();
+    if (cc == 'uk') cc = 'gb';
+    final anchor = countryAnchor(cc);
+    if (anchor == null) return null;
+    final borders = _countryHeroShapes[cc];
+    final name = _countryDisplayName(cc);
+    return GestureDetector(
+      onTap: _startCountryContest,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          height: 180,
+          width: double.infinity,
+          // Koyu gece-mavisi zemin — küre yüklenene kadar da şık durur.
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF06121F), Color(0xFF0D2B44)],
+            ),
+          ),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: CountryZoomGlobe(
+                  height: 180,
+                  centerLat: anchor.$1,
+                  centerLon: anchor.$2,
+                  borders: borders,
+                  flagCc: cc,
+                ),
+              ),
+              // Sol/sağ kullanıcı rozetleri (ad + İL) + ortada VS — ülkeye
+              // göre isim ve şehirlerle 5 sn'de bir birlikte yenilenir.
+              Positioned(
+                left: 10,
+                right: 10,
+                top: 10,
+                child: _CountryVsChips(countryCode: cc),
+              ),
+              // Alt karartma + başlık — dünya hero kartıyla aynı düzen.
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(14, 34, 14, 10),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Color(0xCC061220)],
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ÜLKE ÇAPINDA YARIŞ'.tr(),
+                        style: _serif(
+                          size: 19,
+                          weight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${flagEmojiFor(cc)} $name · ${'Ülkendeki rakiplerle yarış.'.tr()}',
+                        style: _sans(
+                          size: 11.5,
+                          weight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.92),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 4 yarış tipi ALT ALTA, her biri çerçeve içinde BEYAZ zeminli satır
+  // (kullanıcı isteği — eski 2×2 yan yana pill düzeni kaldırıldı).
   Widget _buildTopTabs() {
+    Widget option({
+      required String emoji,
+      required String label,
+      required VoidCallback onTap,
+    }) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E4E8), width: 0.8),
+          ),
+          child: Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 17)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label.tr(),
+                  style: _sans(
+                      size: 13.5,
+                      weight: FontWeight.w800,
+                      // Zemin sabit beyaz → yazı sabit koyu (dark modda da).
+                      color: const Color(0xFF111111)),
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded,
+                  size: 18, color: const Color(0xFF9AA0A6)),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -6556,54 +7573,128 @@ KURALLAR:
       ),
       child: Column(
         children: [
-          Row(
-            children: [
-              _topTabPill(
-                emoji: '🌍',
-                label: 'Dünya Çapında'.tr(),
-                active: _scope == 'world',
-                onTap: () => setState(() {
-                  _scope = 'world';
-                  _worldCountryContestMode = true;
-                  _enterContestSetup('🌍 ${"Dünya Çapında Yarış".tr()}');
-                }),
+          // Dünya Çapında — HERO kart: GERÇEK NASA dokusuyla tam tur dönen
+          // 3D küre (shaders/globe.frag) + her ülkenin üstünde konumuna
+          // sabit küçük bayrağı. Üstte tam ekran panel açıkken dönüş durur.
+          GestureDetector(
+            onTap: () => setState(() {
+              _scope = 'world';
+              _worldCountryContestMode = true;
+              _enterContestSetup('🌍 ${"Dünya Çapında Yarış".tr()}');
+            }),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Stack(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    height: 180,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF06121F), Color(0xFF0D2B44)],
+                      ),
+                    ),
+                    child: RotatingGlobe(
+                      height: 180,
+                      paused: _contestSetup || _matching || _showOtherSheet,
+                      // Kullanıcının kendi bayrağı nöbete girmeden HEP görünür
+                      // ('uk' → ISO 'gb' normalize).
+                      pinnedCountry: (EduProfile.current?.country ?? 'tr')
+                                  .toLowerCase() ==
+                              'uk'
+                          ? 'gb'
+                          : (EduProfile.current?.country ?? 'tr').toLowerCase(),
+                      fallback: Image.asset(
+                        'assets/library_icons/duello_world_hero.jpg',
+                        width: double.infinity,
+                        height: 180,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  // Kürenin sağındaki/solundaki boş üst alanlar: 3 sn'de bir
+                  // değişen kullanıcı rozetleri (ad + bayrak + ülke).
+                  const Positioned(
+                    left: 10,
+                    right: 10,
+                    top: 10,
+                    child: _WorldVsChips(),
+                  ),
+                  // Alt karartma + başlık — görselin ÜSTÜNDE, kartın altında.
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(14, 34, 14, 10),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Color(0xCC00312B),
+                          ],
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'DÜNYA ÇAPINDA YARIŞ'.tr(),
+                            style: _serif(
+                              size: 19,
+                              weight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Milyonlarca rakiple küresel arenada yarış.'.tr(),
+                            style: _sans(
+                              size: 11.5,
+                              weight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.92),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              _topTabPill(
-                emoji: '🇹🇷',
-                label: 'Ülke Çapında'.tr(),
-                active: _scope == 'country',
-                onTap: () => setState(() {
-                  _scope = 'country';
-                  _worldCountryContestMode = true;
-                  _enterContestSetup('🇹🇷 ${"Ülke Çapında Yarış".tr()}');
-                }),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 4),
-          Row(
-            children: [
-              _topTabPill(
-                emoji: '👤',
-                label: 'Arkadaşınla Yarış'.tr(),
-                active: _pressedTab == '1v1',
-                onTap: () async {
-                  setState(() => _pressedTab = '1v1');
-                  await _open1v1Hub();
-                  if (mounted) setState(() => _pressedTab = null);
-                },
+          // Ülke Çapında — kullanıcının ülkesi TR/DE ise 2.5D siluetli HERO
+          // kart (dünya kartıyla aynı boyut); diğer ülkelerde klasik satır.
+          _countryHeroCard() ??
+              option(
+                emoji: '🇹🇷',
+                label: 'Ülke Çapında Yarış',
+                onTap: _startCountryContest,
               ),
-              _topTabPill(
-                emoji: '👥',
-                label: 'Grup Yarışı'.tr(),
-                active: _pressedTab == 'group',
-                onTap: () async {
-                  setState(() => _pressedTab = 'group');
-                  await _openGroupHub();
-                  if (mounted) setState(() => _pressedTab = null);
-                },
-              ),
-            ],
+          const SizedBox(height: 4),
+          // Arkadaşlarınla Yarış — HERO kart: iki oyuncu kendi odasında,
+          // ortada VS; başlarının üstünde ülkeye göre sürekli değişen
+          // avatar + kullanıcı adı rozetleri (_FriendsVsHero).
+          _FriendsVsHero(
+            countryCode: EduProfile.current?.country ?? 'tr',
+            onTap: () async {
+              await _open1v1Hub();
+            },
+          ),
+          const SizedBox(height: 4),
+          // Grupla Yarış — HERO kart: sınıf fotoğrafı + sağda ülkeye göre
+          // isimlerle 5 sn'de bir yenilenen CANLI sıralama paneli.
+          _GroupRaceHero(
+            countryCode: EduProfile.current?.country ?? 'tr',
+            onTap: () async {
+              await _openGroupHub();
+            },
           ),
         ],
       ),
@@ -7715,8 +8806,11 @@ KURALLAR:
   }
 
   // ─── DAVETLER ────────────────────────────────────────────────────────────────
-  // Gelen 1v1 + grup davetleri buraya düşer. Sayaç rozetiyle tam-genişlik pill.
-  Widget _buildInvitesTab() {
+  // Sağ üst davetler zili — eskiden Sınav Modu'nun altında tam-genişlik
+  // "Davetler" satırıydı, başlık çubuğuna (palet simgesinin soluna) taşındı.
+  // Rozet sayacı aynı iki stream'den (1v1 + grup) beslenir; dokununca aynı
+  // davetler merkezi (_openInvitesHub) açılır.
+  Widget _buildInvitesBell() {
     const orange = Color(0xFFFF6A00);
     return StreamBuilder<List<DueloInvite>>(
       stream: DueloMatchmakingService.watchInvites(),
@@ -7730,52 +8824,49 @@ KURALLAR:
             final has = total > 0;
             return GestureDetector(
               onTap: _openInvitesHub,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-                decoration: BoxDecoration(
-                  color: has
-                      ? orange.withValues(alpha: 0.10)
-                      : AppPalette.card(context),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
                       color: has
-                          ? orange.withValues(alpha: 0.45)
-                          : AppPalette.border(context)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.notifications_rounded,
+                          ? orange.withValues(alpha: 0.12)
+                          : AppPalette.card(context),
+                      border: Border.all(
+                          color: has
+                              ? orange.withValues(alpha: 0.5)
+                              : AppPalette.border(context)),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(Icons.notifications_rounded,
                         size: 18,
                         color:
                             has ? orange : AppPalette.textSecondary(context)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text('Davetler'.tr(),
-                          style: _sans(
-                              size: 12.5,
-                              weight: FontWeight.w800,
-                              color: AppPalette.textPrimary(context))),
-                    ),
-                    if (has)
-                      Container(
+                  ),
+                  if (has)
+                    Positioned(
+                      top: -3,
+                      right: -3,
+                      child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                            horizontal: 4.5, vertical: 1.5),
+                        constraints: const BoxConstraints(minWidth: 16),
                         decoration: BoxDecoration(
                           color: orange,
                           borderRadius: BorderRadius.circular(100),
                         ),
-                        child: Text('$total ${"yeni".tr()}',
+                        child: Text('$total',
+                            textAlign: TextAlign.center,
                             style: _sans(
-                                size: 10,
+                                size: 9.5,
                                 weight: FontWeight.w800,
                                 color: Colors.white)),
                       ),
-                    const SizedBox(width: 4),
-                    Icon(Icons.chevron_right_rounded,
-                        size: 18, color: AppPalette.textSecondary(context)),
-                  ],
-                ),
+                    ),
+                ],
               ),
             );
           },
@@ -8776,12 +9867,17 @@ KURALLAR:
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: AppPalette.border(dctx)),
                           ),
-                          child: Column(
+                          // Klavye açılınca kart daralıyor; sabit bölüm
+                          // (bölücü + ekleme butonları + arama alanı)
+                          // sıkışıp "BOTTOM OVERFLOWED" veriyordu. Kartın
+                          // TAMAMI kaydırılabilir — taşma imkânsız, odaklı
+                          // arama kutusuna Flutter kendisi kaydırır.
+                          child: SingleChildScrollView(
+                            child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              // ~6 arkadaş sığar; fazlası çerçeve içinde kayar.
-                              Flexible(
-                                child: ConstrainedBox(
+                              // ~6 arkadaş sığar; fazlası kendi alanında kayar.
+                              ConstrainedBox(
                                   constraints:
                                       const BoxConstraints(maxHeight: 330),
                                   child: SingleChildScrollView(
@@ -8811,7 +9907,6 @@ KURALLAR:
                                       ],
                                     ),
                                   ),
-                                ),
                               ),
                               Divider(
                                   height: 18,
@@ -8918,6 +10013,7 @@ KURALLAR:
                                     _searchResultRow(dctx, u),
                               ],
                             ],
+                          ),
                           ),
                         ),
                       ),
@@ -10349,11 +11445,82 @@ KURALLAR:
 
   /// "Başlat" — inline panelde seçilen ders/konu/soru tipi/sayı ile ilgili
   /// akışı (arkadaş daveti / grup yarışı / demo) popup'sız başlatır.
+  /// Dünya/Ülke akışında konu seçilince ORTADA açılan küçük pencere —
+  /// sade, tek çerçeve, içi beyaz: "Soru sayısını seç" + 5/10 butonları.
+  /// Seçim yapılınca doğrudan eşleştirme başlar; pencere kapatılırsa
+  /// alttaki Başlat yer tutucusu "Soru sayısını seç" demeye devam eder
+  /// (konuya tekrar dokununca pencere yeniden açılır).
+  Future<void> _askQuestionCount() async {
+    const purple = Color(0xFF7C3AED);
+    final picked = await showDialog<int>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 48),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Soru sayısını seç'.tr(),
+                style: _sans(
+                    size: 14.5,
+                    weight: FontWeight.w800,
+                    color: const Color(0xFF111111)),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  for (final n in const [5, 10]) ...[
+                    if (n != 5) const SizedBox(width: 10),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(ctx).pop(n),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                                color: purple.withValues(alpha: 0.55),
+                                width: 1.4),
+                          ),
+                          child: Text(
+                            '$n ${'soru'.tr()}',
+                            style: _sans(
+                                size: 14,
+                                weight: FontWeight.w800,
+                                color: const Color(0xFF111111)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (picked == null) return;
+    setState(() => _contestCount = picked);
+    await _finishContestSetup();
+  }
+
   Future<void> _finishContestSetup() async {
-    // Dünya/Ülke Çapında: soru tipi/sayısı adımı yok, ders+konu yeter —
-    // paneli kapat ve doğrudan eşleştirmeye (_findMatch) geç.
+    // Dünya/Ülke Çapında: ders + konu + soru sayısı (5/10) seçilince paneli
+    // kapat ve eşleştirmeye (_findMatch) geç — _findMatch _contestCount'u okur.
     if (_worldCountryContestMode) {
-      if (_selectedSubject == null || _selectedTopic == null) return;
+      if (_selectedSubject == null ||
+          _selectedTopic == null ||
+          _contestCount == null) {
+        return;
+      }
       setState(() {
         _contestSetup = false;
         _worldCountryContestMode = false;
@@ -10498,20 +11665,37 @@ KURALLAR:
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Kapsam açıklaması — ders sekmelerinin ÜSTÜNDE, seçilen yarış
+        // tipine göre (ilk sayfadan buraya taşındı). Yalnız Dünya/Ülke
+        // Çapında akışında anlamlı; arkadaş/grup kurulumunda gösterilmez.
+        if (_worldCountryContestMode)
+          Padding(
+            padding: const EdgeInsets.only(left: 2, bottom: 10),
+            child: Text(
+              _scope == 'world'
+                  ? '🌍 Dünyadan aynı seviyede bir rakiple karşılaşırsın. Her iki taraf aynı evrensel dersi/konuyu seçer.'.tr()
+                  : '🇹🇷 Ülkendeki aynı seviyede bir rakiple karşılaşırsın. Tüm derslerden yarışabilirsin.'.tr(),
+              style: _sans(
+                  size: 11.5,
+                  color: AppPalette.textSecondary(context),
+                  height: 1.4),
+            ),
+          ),
         // Başlık + en sağda yeşil "Kaydır" ipucu (aynı hizada).
         Padding(
           padding: const EdgeInsets.only(left: 2, bottom: 8, top: 2),
           child: Row(
             children: [
               Expanded(
-                child: Text('HANGİ DERSTEN YARIŞACAKSIN?'.tr(),
+                child: Text('HANGİ DERSTEN YARIŞMAK İSTERSİN?'.tr(),
                     style: _sans(
                         size: 11,
                         weight: FontWeight.w900,
                         color: AppPalette.textPrimary(context),
                         letterSpacing: 0.04)),
               ),
-              if (subjects.length > 3)
+              // 4×2 = 8 ders tam görünür; fazlası varsa "Kaydır" ipucu.
+              if (subjects.length > 8)
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
@@ -10536,33 +11720,65 @@ KURALLAR:
                               color: Colors.white,
                               letterSpacing: 0.04)),
                       const SizedBox(width: 4),
-                      Transform.rotate(
-                        angle: math.pi,
-                        child: const Icon(Icons.swipe_rounded,
-                            size: 14, color: Colors.white),
-                      ),
+                      // Kaydırma yönü artık dikey (grid 2 sütun).
+                      const Icon(Icons.swipe_vertical_rounded,
+                          size: 14, color: Colors.white),
                     ],
                   ),
                 ),
+              const SizedBox(width: 8),
+              // Yeni ders ekleme — SAĞ ÜSTTE sade yeşil yuvarlak "+"
+              // (kullanıcı isteği; ders çerçevesi altındaki tam-genişlik
+              // buton buraya taşındı). Eklenen ders kalıcı kaydedilir,
+              // grid'de hemen görünür ve otomatik seçilir.
+              GestureDetector(
+                onTap: _addCustomSubject,
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF22C55E),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.add_rounded,
+                      size: 20, color: Colors.white),
+                ),
+              ),
             ],
           ),
         ),
         frame(
-          child: LayoutBuilder(
-            builder: (ctx, cons) {
+          child: Builder(
+            builder: (ctx) {
+              // Dersler her sırada 4'lü; 2 tam sıra görünür, fazlası
+              // YUKARI/AŞAĞI kayar. Kaydırılabilir olduğunu belli etmek
+              // için 3. sıranın üst kısmı azıcık (peek) görünür.
               const spacing = 10.0;
-              final tileW = (cons.maxWidth - spacing * 3) / 3.4;
+              const tileH = 108.0;
+              const peek = 26.0;
+              final rows = (subjects.length / 4).ceil();
+              final double height = rows == 0
+                  ? 0
+                  : rows <= 2
+                      ? rows * tileH + (rows - 1) * spacing
+                      : 2 * (tileH + spacing) + peek;
               return SizedBox(
-                height: 108,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
+                height: height,
+                child: GridView.builder(
                   padding: EdgeInsets.zero,
-                  itemCount: subjects.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: spacing),
-                  itemBuilder: (_, i) => SizedBox(
-                    width: tileW,
-                    child: _subjectTile(subjects[i]),
+                  physics: rows > 2
+                      ? null
+                      : const NeverScrollableScrollPhysics(),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    mainAxisSpacing: spacing,
+                    crossAxisSpacing: spacing,
+                    mainAxisExtent: tileH,
                   ),
+                  itemCount: subjects.length,
+                  itemBuilder: (_, i) => _subjectTile(subjects[i]),
                 ),
               );
             },
@@ -10573,7 +11789,9 @@ KURALLAR:
 
     return Positioned.fill(
       child: Material(
-        color: AppPalette.bg(context),
+        // Çerçevelerin dışında kalan sayfa zemini SOLUK BEYAZ
+        // (kullanıcı isteği) — tema bg'si yerine sabit kırık beyaz.
+        color: const Color(0xFFF7F7F5),
         child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -10663,8 +11881,16 @@ KURALLAR:
                                                 ? 0
                                                 : 4),
                                         child: GestureDetector(
-                                          onTap: () => setState(() =>
-                                              _selectedTopic = topics[i]),
+                                          onTap: () {
+                                            setState(() =>
+                                                _selectedTopic = topics[i]);
+                                            // Dünya/Ülke akışı: konu seçilir
+                                            // seçilmez ortada soru sayısı
+                                            // penceresi açılır.
+                                            if (_worldCountryContestMode) {
+                                              _askQuestionCount();
+                                            }
+                                          },
                                           child: Container(
                                             width: double.infinity,
                                             padding:
@@ -10722,6 +11948,10 @@ KURALLAR:
                               ),
                             ),
                           ),
+                          // Dünya/Ülke Çapında: soru sayısı (5/10) artık
+                          // sayfanın altında değil — konuya dokununca ortada
+                          // açılan küçük beyaz pencerede sorulur
+                          // (_askQuestionCount).
                           if (_selectedTopic != null &&
                               !_worldCountryContestMode) ...[
                             const SizedBox(height: 14),
@@ -10771,9 +12001,7 @@ KURALLAR:
                               ? 'Önce bir ders seç'.tr()
                               : _selectedTopic == null
                                   ? 'Şimdi bir konu seç'.tr()
-                                  : _worldCountryContestMode
-                                      ? ''
-                                      : 'Soru sayısını seç'.tr(),
+                                  : 'Soru sayısını seç'.tr(),
                           style: _sans(
                               size: 14,
                               weight: FontWeight.w600,
@@ -11921,7 +13149,7 @@ KURALLAR:
             staticLabel: true,
             variant: variant,
           ),
-          // İptal butonu — kullanıcı 12 sn beklemeye mahkûm kalmasın; kuyruk
+          // İptal butonu — kullanıcı 7 sn beklemeye mahkûm kalmasın; kuyruk
           // doc'u da temizlenir (artık kayıt bırakmaz).
           Positioned(
             left: 0,
@@ -12073,6 +13301,7 @@ class _AddDueloSubjectSheetState extends State<_AddDueloSubjectSheet> {
     final key = _slugify(_nameCtrl.text);
     final subj = _Subject(key, _selectedEmoji, name, topics.length, color, topics);
     _customWorldSubjects.add(subj);
+    _saveCustomSubjects(); // kalıcı — yeniden açılışta da listede görünsün
     Navigator.of(context).pop(key);
   }
 
@@ -12297,6 +13526,9 @@ class _DueloQuizScreen extends StatefulWidget {
   final String? myUserId;
   final String? opponentUserId;
   final bool isOwner;
+  // Rakibin kayıtlı şehri — ülke-içi düelloda "Rakibin: <şehir>'den"
+  // gösterimi için; boşsa ülkeye düşülür.
+  final String opponentCity;
   const _DueloQuizScreen({
     required this.cfg,
     required this.questions,
@@ -12304,6 +13536,7 @@ class _DueloQuizScreen extends StatefulWidget {
     required this.opponentAvatar,
     required this.opponentFlag,
     required this.opponentCountry,
+    this.opponentCity = '',
     required this.opponentElo,
     this.subjectName,
     this.topicName,
@@ -12323,6 +13556,10 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
   int _opponentSolved = 0; // rakibin cevapladığı soru sayısı (wrong/empty için)
   Timer? _opponentTimer;
   int _mySolved = 0; // benim cevapladığım soru sayısı
+
+  // Gömülü _QuizScreen'den saniyede bir gelen süre — VS'nin üstünde çizilir.
+  String _quizTimerText = '';
+  bool _quizTimerDanger = false;
 
   // Bitiş durumları — iki taraf bitene kadar sonuç ekranı gösterilmez.
   bool _iFinished = false;
@@ -12618,7 +13855,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
         topicName: widget.topicName ?? '',
         scope: widget.scope,
         totalQuestions: total,
-        myName: _currentUsername,
+        myName: _displayUsername(),
         myCountry: _userCountryName(),
         myFlag: '🇹🇷',
         myCorrect: _myCorrect,
@@ -12647,7 +13884,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
             scope: widget.scope,
             questions: _questions,
             myAnswers: _myAnswers,
-            myName: _currentUsername,
+            myName: _displayUsername(),
             myCountry: _userCountryName(),
             myFlag: '🇹🇷',
             myCorrect: _myCorrect,
@@ -12706,51 +13943,12 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ═══ Üst başlık bloğu — Dünya/Ülke rozeti + Ders + Konu ═══
+                  // ═══ Üst başlık bloğu — yalnız Ders + Konu ═══
+                  // Dünya/Ülke rozeti (bayrak/🌍 + yazı) kaldırıldı
+                  // (kullanıcı isteği): en solda sade ders adı ve konusu.
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // Dünya/Ülke rozeti — büyük pill
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: widget.scope == 'world'
-                              ? _Palette.accent.withValues(alpha: 0.14)
-                              : _Palette.brand.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(100),
-                          border: Border.all(
-                            color: widget.scope == 'world'
-                                ? _Palette.accent
-                                : _Palette.brand,
-                            width: 1.2,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              widget.scope == 'world' ? '🌍' : '🇹🇷',
-                              style: TextStyle(fontSize: 16),
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              widget.scope == 'world'
-                                  ? 'Dünya'.tr()
-                                  : 'Ülke'.tr(),
-                              style: _sans(
-                                size: 15,
-                                weight: FontWeight.w900,
-                                color: widget.scope == 'world'
-                                    ? _Palette.accent
-                                    : _Palette.brand,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(width: 10),
                       // Ders + Konu — tek satırda yan yana, aynı hizada.
                       if (widget.subjectName != null)
                         Expanded(
@@ -12845,7 +14043,15 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                                       color: AppPalette.textSecondary(context)),
                                 ),
                                 TextSpan(
-                                  text: widget.opponentCountry,
+                                  // Dünya Çapında → rakibin ÜLKESİ; diğer tüm
+                                  // yarış tipleri zaten ülke içinde → rakibin
+                                  // KAYITLI ŞEHRİ (kuyruktan gelir; boşsa
+                                  // ülkeye düşülür).
+                                  text: widget.scope == 'world'
+                                      ? widget.opponentCountry
+                                      : (widget.opponentCity.isNotEmpty
+                                          ? widget.opponentCity
+                                          : widget.opponentCountry),
                                   style: _sans(
                                       size: 14,
                                       weight: FontWeight.w900,
@@ -12874,33 +14080,77 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                     ),
                   ),
                   SizedBox(height: 10),
-                  // VS satırı — simetrik: sol avatar, ortada VS, sağ avatar
+                  // VS satırı — simetrik: sol avatar, ortada (üstte süre +
+                  // altında VS), sağ avatar. Kullanıcı tarafında GERÇEK ad
+                  // (_displayUsername) — 'ahmet' placeholder bug'ı düzeltildi.
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       _DueloAvatar(
-                        name: _currentUsername,
-                        avatar: 'A',
+                        name: _displayUsername(),
+                        avatar: _displayUsername()
+                            .substring(0, 1)
+                            .toUpperCase(),
                         progress: _mySolved / _questions.length,
                         color: _Palette.brand,
                         flag: '🇹🇷',
                       ),
                       SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppPalette.card(context),
-                          borderRadius: BorderRadius.circular(100),
-                          border: Border.all(color: AppPalette.border(context)),
-                        ),
-                        child: Text(
-                          'VS',
-                          style: _serif(
-                              size: 14,
-                              weight: FontWeight.w800,
-                              color: AppPalette.textSecondary(context)),
-                        ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Süre — testin üst çubuğundan buraya taşındı
+                          // (VS'nin hemen üstü).
+                          if (_quizTimerText.isNotEmpty) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: _quizTimerDanger
+                                    ? _Palette.error
+                                    : AppPalette.textPrimary(context),
+                                borderRadius: BorderRadius.circular(100),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.timer_rounded,
+                                      size: 11, color: Colors.white),
+                                  SizedBox(width: 4),
+                                  Text(_quizTimerText,
+                                      style: _mono(
+                                          size: 11, color: Colors.white)),
+                                ],
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                          ],
+                          // Belirgin VS — koyu dolgulu pil, beyaz kalın yazı
+                          // (kullanıcı isteği; soluk gri hali silikti).
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppPalette.textPrimary(context),
+                              borderRadius: BorderRadius.circular(100),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black
+                                      .withValues(alpha: 0.18),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              'VS',
+                              style: _serif(
+                                  size: 12,
+                                  weight: FontWeight.w900,
+                                  color: AppPalette.bg(context)),
+                            ),
+                          ),
+                        ],
                       ),
                       SizedBox(width: 12),
                       _DueloAvatar(
@@ -12925,6 +14175,16 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                   _QuizScreen(
                     cfg: widget.cfg,
                     questions: _questions,
+                    // Düello header'ı başlığı/süreyi üstlendi: quiz kendi
+                    // X + sayaç + süre çubuğunu ve ders etiketini çizmez.
+                    embeddedInDuel: true,
+                    onTimerTick: (t, danger) {
+                      if (!mounted) return;
+                      setState(() {
+                        _quizTimerText = t;
+                        _quizTimerDanger = danger;
+                      });
+                    },
                     onProgress: (idx) {
                       if (mounted) setState(() => _mySolved = idx);
                       _pushMyProgress(); // gerçek modda canlı senkron
@@ -19410,6 +20670,31 @@ String _inviteUsername() {
   final u = UserProfileService.instance.username.trim();
   return u.isNotEmpty ? u : _currentUsername;
 }
+
+/// Bot rakipler için deterministik şehir — kullanıcı adı hash'i ile seçilir,
+/// yani aynı bot her karşılaşmada aynı şehirde "kayıtlı" görünür. Şimdilik
+/// yalnız TR havuzu için doludur; diğer ülkelerde boş döner ve UI ülke adına
+/// düşer (gerçek rakiplerde şehir zaten kuyruktan gelir).
+String _botCityFor(String flag, String username) {
+  if (flag != '🇹🇷') return '';
+  const cities = [
+    'İstanbul', 'Ankara', 'İzmir', 'Bursa', 'Antalya', 'Konya',
+    'Adana', 'Gaziantep', 'Kayseri', 'Eskişehir', 'Samsun', 'Trabzon',
+  ];
+  return cities[username.hashCode.abs() % cities.length];
+}
+
+/// Ekranda gösterilecek GERÇEK kullanıcı adı — profil zinciri: görünen ad →
+/// kullanıcı adı → son yüklenen [_currentUsername]. Global 'ahmet'
+/// placeholder'ı ASLA ekrana çıkmaz (profil boşsa nötr 'Sen' gösterilir).
+String _displayUsername() {
+  final p = UserProfileService.instance;
+  final dn = p.displayName.trim();
+  if (dn.isNotEmpty) return dn;
+  final un = p.username.trim();
+  if (un.isNotEmpty) return un;
+  return _currentUsername != 'ahmet' ? _currentUsername : 'Sen';
+}
 String? _currentLevel; // 'ilkokul' | 'ortaokul' | 'lise' | 'universite' | 'yuksek_lisans' | 'doktora' | 'sinav_hazirlik'
 String? _currentFaculty; // 'muhendislik', 'insaat_muh', 'tip' vb.
 
@@ -20995,12 +22280,19 @@ class _QuizScreen extends StatefulWidget {
   // Opsiyonel: "Testi Bitir" tıklanınca önce onay iste (true dönerse devam).
   // false dönerse bitir aksiyonu iptal.
   final Future<bool> Function()? onBeforeFinish;
+  // Düello içinde gömülü mod: üstteki X + soru sayacı + süre satırı ve
+  // sol üstteki ders/konu etiketi ÇİZİLMEZ (başlık zaten düello header'ında);
+  // süre onTimerTick ile üst ekrana (VS'nin üstü) bildirilir.
+  final bool embeddedInDuel;
+  final void Function(String text, bool danger)? onTimerTick;
   const _QuizScreen({
     required this.cfg,
     required this.questions,
     this.onProgress,
     this.onFinish,
     this.onBeforeFinish,
+    this.embeddedInDuel = false,
+    this.onTimerTick,
   });
 
   @override
@@ -21042,6 +22334,12 @@ class _QuizScreenState extends State<_QuizScreen> {
   void initState() {
     super.initState();
     _qSecondsLeft = _perQuestionLimit();
+    // Gömülü modda süre üst ekranda gösterilir — ilk değeri hemen bildir.
+    if (widget.onTimerTick != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onTimerTick!(_timerText(), false);
+      });
+    }
     _timer = Timer.periodic(Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() {
@@ -21054,6 +22352,8 @@ class _QuizScreenState extends State<_QuizScreen> {
           }
         }
       });
+      widget.onTimerTick
+          ?.call(_timerText(), _countdownActive && _qSecondsLeft <= 10);
     });
   }
 
@@ -21462,66 +22762,74 @@ class _QuizScreenState extends State<_QuizScreen> {
               padding: const EdgeInsets.fromLTRB(16, 2, 16, 12),
               child: Column(
                 children: [
-                  Row(
-                    children: [
-                      GestureDetector(
-                        onTap: _confirmExit,
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppPalette.card(context),
-                            border: Border.all(color: AppPalette.border(context)),
-                          ),
-                          child: Icon(Icons.close_rounded,
-                              size: 16,
-                              color: AppPalette.textPrimary(context)),
-                        ),
-                      ),
-                      SizedBox(width: 12),
-                      RichText(
-                        text: TextSpan(
-                          style: _sans(size: 13, weight: FontWeight.w600),
-                          children: [
-                            TextSpan(text: '${_index + 1}'),
-                            TextSpan(text: '/$_total', style: _sans(size: 13, color: AppPalette.textSecondary(context), weight: FontWeight.w500)),
-                          ],
-                        ),
-                      ),
-                      Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: _countdownActive && _qSecondsLeft <= 10
-                              ? _Palette.error
-                              : AppPalette.textPrimary(context),
-                          borderRadius: BorderRadius.circular(100),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              _countdownActive ? Icons.timer_rounded : Icons.access_time_rounded,
-                              size: 12,
-                              color: Colors.white,
+                  // Gömülü (düello) modda X + soru sayacı + süre satırı
+                  // çizilmez: süre düello header'ında VS'nin üstünde,
+                  // çıkış geri tuşu/kaydırma ile (_confirmExit) yapılır.
+                  if (!widget.embeddedInDuel) ...[
+                    Row(
+                      children: [
+                        GestureDetector(
+                          onTap: _confirmExit,
+                          child: Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppPalette.card(context),
+                              border: Border.all(color: AppPalette.border(context)),
                             ),
-                            SizedBox(width: 5),
-                            Text(_timerText(), style: _mono(size: 12, color: Colors.white)),
-                          ],
+                            child: Icon(Icons.close_rounded,
+                                size: 16,
+                                color: AppPalette.textPrimary(context)),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 14),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 5,
-                      backgroundColor: AppPalette.border(context),
-                      valueColor: AlwaysStoppedAnimation(_Palette.brand),
+                        SizedBox(width: 12),
+                        RichText(
+                          text: TextSpan(
+                            style: _sans(size: 13, weight: FontWeight.w600),
+                            children: [
+                              TextSpan(text: '${_index + 1}'),
+                              TextSpan(text: '/$_total', style: _sans(size: 13, color: AppPalette.textSecondary(context), weight: FontWeight.w500)),
+                            ],
+                          ),
+                        ),
+                        Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: _countdownActive && _qSecondsLeft <= 10
+                                ? _Palette.error
+                                : AppPalette.textPrimary(context),
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _countdownActive ? Icons.timer_rounded : Icons.access_time_rounded,
+                                size: 12,
+                                color: Colors.white,
+                              ),
+                              SizedBox(width: 5),
+                              Text(_timerText(), style: _mono(size: 12, color: Colors.white)),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+                    SizedBox(height: 14),
+                  ],
+                  // Düelloya gömülü modda yatay ilerleme çizgisi de çizilmez
+                  // (kullanıcı isteği) — ilerleme zaten avatar halkalarında.
+                  if (!widget.embeddedInDuel)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 5,
+                        backgroundColor: AppPalette.border(context),
+                        valueColor: AlwaysStoppedAnimation(_Palette.brand),
+                      ),
+                    ),
                   if (_combo >= 2) ...[
                     SizedBox(height: 8),
                     _ComboBadge(combo: _combo, burst: _showComboBurst),
@@ -21535,33 +22843,37 @@ class _QuizScreenState extends State<_QuizScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: AppPalette.card(context),
-                          borderRadius: BorderRadius.circular(100),
-                          border: Border.all(color: AppPalette.border(context)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(width: 7, height: 7, decoration: BoxDecoration(color: q.subjectColor, shape: BoxShape.circle)),
-                            SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                q.subjectTag,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: _sans(size: 11, weight: FontWeight.w600, color: AppPalette.textSecondary(context)),
+                    // Gömülü (düello) modda ders/konu etiketi çizilmez —
+                    // ana başlık zaten düello header'ında yazıyor.
+                    if (!widget.embeddedInDuel) ...[
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: AppPalette.card(context),
+                            borderRadius: BorderRadius.circular(100),
+                            border: Border.all(color: AppPalette.border(context)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(width: 7, height: 7, decoration: BoxDecoration(color: q.subjectColor, shape: BoxShape.circle)),
+                              SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  q.subjectTag,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: _sans(size: 11, weight: FontWeight.w600, color: AppPalette.textSecondary(context)),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                    SizedBox(height: 14),
+                      SizedBox(height: 14),
+                    ],
                     // ── Soru metni beyaz çerçeve içinde ──────────────
                     Container(
                       width: double.infinity,

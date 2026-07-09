@@ -19,6 +19,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -82,12 +83,20 @@ class UserProfileService extends ChangeNotifier {
       debugPrint('[UserProfile] cache load fail: $e');
     }
 
-    // 2) Auth state dinleyici — login/logout değişimlerinde dinleyicileri yenile.
-    _authSub?.cancel();
-    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
-      _attachFirestoreListener(user?.uid);
-    });
-    _attachFirestoreListener(FirebaseAuth.instance.currentUser?.uid);
+    // 2) Auth state dinleyici — login/logout değişimlerinde dinleyicileri
+    // yenile. Firebase app'i yoksa (örn. web config'i henüz üretilmedi)
+    // FirebaseAuth.instance SENKRON fırlatır ve init'i kırardı — atla,
+    // cache'ten yüklenen profil yeterli.
+    try {
+      if (Firebase.apps.isEmpty) return;
+      _authSub?.cancel();
+      _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+        _attachFirestoreListener(user?.uid);
+      });
+      _attachFirestoreListener(FirebaseAuth.instance.currentUser?.uid);
+    } catch (e) {
+      debugPrint('[UserProfile] auth listener kurulamadı: $e');
+    }
   }
 
   /// Belirli uid için Firestore listener bağla. uid null ise dinleyici durur

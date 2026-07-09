@@ -23,6 +23,7 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 import 'user_profile_service.dart';
@@ -124,15 +125,26 @@ class GroupInvite {
 class ContestGroupService {
   ContestGroupService._();
 
-  static final _fs = FirebaseFirestore.instance;
+  // Firebase app'i olmayan platformlarda (örn. web config'i henüz yok)
+  // FirebaseFirestore.instance / FirebaseAuth.instance SENKRON fırlatır ve
+  // build içinden çağrıldığında kırmızı hata ekranı üretir. `static final`
+  // yerine getter + Firebase.apps korumasıyla güvenli erişim.
+  static FirebaseFirestore get _fs => FirebaseFirestore.instance;
   static const _collection = 'contest_groups';
 
-  static String? get _uid => FirebaseAuth.instance.currentUser?.uid;
+  static String? get _uid {
+    try {
+      if (Firebase.apps.isEmpty) return null;
+      return FirebaseAuth.instance.currentUser?.uid;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Gelen grup yarışı davetleri — en yeni en başta.
   static Stream<List<GroupInvite>> watchGroupInvites() {
     final uid = _uid;
-    if (uid == null) return const Stream<List<GroupInvite>>.empty();
+    if (uid == null) return Stream.value(const <GroupInvite>[]);
     return _fs
         .collection('notifications')
         .doc(uid)

@@ -188,7 +188,12 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
   /// path'lerinde decrement'le iade ederiz.
   bool _quotaCharged = false;
 
+  // Bu ekran oturumunda kaçıncı test yükleniyor — "Yeni Test" ile 2. ve
+  // sonraki yüklemelerde deterministik seed devre dışı bırakılır (aşağıda).
+  int _bootstrapCount = 0;
+
   Future<void> _bootstrap() async {
+    _bootstrapCount += 1;
     setState(() {
       _loading = true;
       _error = null;
@@ -229,6 +234,12 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
       // sorular RASTGELE gelir — aksi halde cevapları ezberleyip aynı 10
       // soruyu tekrar tekrar çözerek puan şişirmek mümkündü.
       int? seed = _periodSeed(widget.period);
+      // "Yeni Test" (aynı oturumda 2.+ yükleme): attemptsInBucket kaydına
+      // GÜVENME — kayıt gecikirse/başarısız olursa aynı deterministik seed
+      // az önce çözülen 10 soruyu AYNEN geri getiriyordu. Oturum içi tekrar
+      // her zaman rastgele + görülen sorular hariç gelir; havuzda görülmemiş
+      // soru kalmazsa AI'dan taze üretilir (aşağıdaki 2. adım).
+      if (_bootstrapCount > 1) seed = null;
       if (seed != null) {
         try {
           final replays = await LeagueScores.attemptsInBucket(

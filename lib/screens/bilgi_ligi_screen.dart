@@ -22,6 +22,7 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -3412,19 +3413,32 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     );
   }
 
+  /// FirebaseAuth'a GÜVENLİ erişim — Firebase app'i olmayan platformda
+  /// (örn. web config'i henüz yok) FirebaseAuth.instance SENKRON fırlatır
+  /// ve build içinden çağrıldığı için tüm sayfa kırmızı hata ekranına
+  /// dönüyordu. App yoksa null döner.
+  User? _safeAuthUser() {
+    try {
+      if (Firebase.apps.isEmpty) return null;
+      return FirebaseAuth.instance.currentUser;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Liderlikte görünen kendi adım. AnonymousMode aktifse maskeli; aksi
   /// halde kullanıcı adı → profil ad+soyad → FirebaseAuth display adı →
   /// "Sen" sırasıyla fallback.
   String _myDisplayName() {
     if (_anonymousMode) {
-      final u = FirebaseAuth.instance.currentUser?.uid;
+      final u = _safeAuthUser()?.uid;
       return u != null && u.length >= 5 ? 'Öğrenci #${u.substring(0, 5)}' : 'Sen';
     }
     // Username öncelikli — sıralamada herkes kullanıcı adı ile gözükür.
     final uname = UserProfileService.instance.username;
     if (uname.isNotEmpty) return uname;
     if (_profileName.isNotEmpty) return _profileName;
-    final dn = (FirebaseAuth.instance.currentUser?.displayName ?? '').trim();
+    final dn = (_safeAuthUser()?.displayName ?? '').trim();
     return dn.isEmpty ? 'Sen' : dn;
   }
 
@@ -3516,7 +3530,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'bilgi_ligi_screen'); }
 
     // Cloud'a yaz (auth varsa)
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = _safeAuthUser()?.uid;
     if (uid != null && uid.isNotEmpty) {
       try {
         await FirebaseFirestore.instance.collection('users').doc(uid).set({
@@ -3708,7 +3722,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     // deneme kaydının kendisi sayaçtır (attemptsInBucket ile sayılır).
     final score = (result['score'] ?? 0).toDouble();
     final durationSec = (result['durationSec'] ?? 0).toInt();
-    final user = FirebaseAuth.instance.currentUser;
+    final user = _safeAuthUser();
 
     // Skor submission + leaderboard refresh ZİNCİRİ uzun (1-3sn).
     // Bu sürede UI'ya intermediate rebuild gelirse race (eski tablo yeni
@@ -4128,38 +4142,24 @@ class _LeaderboardRow extends StatelessWidget {
     // Kullanıcının kendi satırı listedeki TEK renkli satır — turuncu zemin
     // + sol vurgu şeridi + turuncu sıra numarası ile hemen ayırt edilir.
     const meAccent = Color(0xFFFF6A00);
-    // İlk 3 için metalik/afilli gradyan çerçeve (altın/gümüş/bronz simli
-    // görünüm): dış gradyan katmanı ince bir "çerçeve çizgisi" oluşturur.
-    final List<Color>? medalFrame = entry.rank == 1
-        ? const [Color(0xFFFFE082), Color(0xFFD4AF37), Color(0xFFFFF3C0)]
-        : entry.rank == 2
-            ? const [Color(0xFFE8E8EC), Color(0xFF9EA4B0), Color(0xFFF4F4F7)]
-            : entry.rank == 3
-                ? const [Color(0xFFE8B98A), Color(0xFFB3702E), Color(0xFFF0CBA5)]
-                : null;
-
-    final row = Container(
+    return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
         color: entry.isMe
             ? meAccent.withValues(alpha: 0.12)
-            : (medalFrame != null ? AppPalette.card(context) : Colors.transparent),
-        borderRadius:
-            medalFrame != null ? BorderRadius.circular(10) : null,
+            : Colors.transparent,
         // Son satırda alt çizgi yok — çerçeve sınırına kapalı uçla biter.
-        border: medalFrame != null
-            ? null
-            : Border(
-                left: entry.isMe
-                    ? const BorderSide(color: meAccent, width: 3)
-                    : BorderSide.none,
-                bottom: isLast
-                    ? BorderSide.none
-                    : BorderSide(
-                        color: AppPalette.border(context),
-                        width: 0.6,
-                      ),
-              ),
+        border: Border(
+          left: entry.isMe
+              ? const BorderSide(color: meAccent, width: 3)
+              : BorderSide.none,
+          bottom: isLast
+              ? BorderSide.none
+              : BorderSide(
+                  color: AppPalette.border(context),
+                  width: 0.6,
+                ),
+        ),
       ),
       child: Row(
         children: [
@@ -4225,40 +4225,33 @@ class _LeaderboardRow extends StatelessWidget {
               ],
             ),
           ),
-          // İlk 3'ün madalyası — PUANIN SOLUNDA, ortaya doğru
-          // (altın/gümüş/bronz).
-          if (medal.isNotEmpty) ...[
-            Text(medal, style: const TextStyle(fontSize: 18)),
-            const SizedBox(width: 14),
-          ],
-          // Skor
-          Text(
-            _fmt(entry.score),
-            style: GoogleFonts.inter(
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
-              color: ink,
-              letterSpacing: -0.3,
+          // İlk 3'ün madalyası — SABİT genişlikli slot: üç madalya da aynı
+          // dikey hizada, puanın solunda ortaya doğru durur.
+          if (medal.isNotEmpty)
+            SizedBox(
+              width: 30,
+              child: Text(medal,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 18)),
+            ),
+          // Skor — SABİT genişlik + sağa hizalı: tüm satırlarda aynı
+          // kolonda durur, madalya hizası da bozulmaz.
+          SizedBox(
+            width: 68,
+            child: Text(
+              _fmt(entry.score),
+              textAlign: TextAlign.right,
+              maxLines: 1,
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: ink,
+                letterSpacing: -0.3,
+              ),
             ),
           ),
         ],
       ),
-    );
-
-    // İlk 3: simli gradyan çerçeve sarmalayıcı; diğerleri düz satır.
-    if (medalFrame == null) return row;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-      padding: const EdgeInsets.all(1.6),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: medalFrame,
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: row,
     );
   }
 

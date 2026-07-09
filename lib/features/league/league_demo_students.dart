@@ -123,8 +123,17 @@ class LeagueDemoStudents {
           loc = _humanCity(location?.cityCode ?? '');
           break;
         case LeagueScope.country:
-          final cities = _cityPools[cc];
-          loc = cities == null ? '' : cities[rng.nextInt(cities.length)];
+          // TR: 81 ilin tamamı, NÜFUSA AĞIRLIKLI seçim — büyük şehirler
+          // daha sık görünür ama küçük iller de listeye karışır (kullanıcı
+          // isteği: yalnız 3-4 büyükşehir dönmesin). Diğer ülkeler şimdilik
+          // küçük eşit-olasılıklı havuzdan; istenirse aynı ağırlık deseni
+          // onlara da uygulanabilir.
+          if (cc == 'tr') {
+            loc = _trCityWeighted(rng);
+          } else {
+            final cities = _cityPools[cc];
+            loc = cities == null ? '' : cities[rng.nextInt(cities.length)];
+          }
           break;
         case LeagueScope.world:
           loc = '${_flag(cc)} ${_countryName(cc)}';
@@ -152,6 +161,126 @@ class LeagueDemoStudents {
 
   /// Bir uid demo öğrenciye mi ait?
   static bool isDemoUid(String uid) => uid.startsWith('demo|');
+
+  /// Dış kullanım (ör. Arkadaşlarınla Yarış hero kartındaki değişen
+  /// isimler): ülkeye uygun havuzdan "Ad B." biçiminde isim üretir —
+  /// aynı seed her zaman aynı ismi verir.
+  static String sampleName(String countryCode, int seed) {
+    final rng = _Rng(seed == 0 ? 1 : seed);
+    return _nameFor(_normCc(countryCode), rng);
+  }
+
+  /// Ülkeye/dile uygun EĞLENCELİ grup adı (Grup Yarışı hero kartındaki
+  /// canlı sıralama panelinin başlığı) — aynı seed aynı adı verir.
+  static String sampleGroupName(String countryCode, int seed) {
+    final pool = _groupNamePools[_poolKey(_normCc(countryCode))] ??
+        _groupNamePools['intl']!;
+    return pool[seed.abs() % pool.length];
+  }
+
+  /// Dil havuzu → komik grup adları. Kültüre uygun, kısa ve espirili.
+  static const _groupNamePools = <String, List<String>>{
+    'tr': [
+      'Koalalar', 'Cadılar', 'Kızlarım 💅', 'Karınca Grubu',
+      'Moğol İstilası', 'Çirkin Ördek Yavruları', 'Beyin Takımı',
+      'Uykusuzlar', 'Son Dakikacılar', 'Einstein Torunları',
+    ],
+    'en': [
+      'The Koalas', 'The Witches', 'Brain Squad', 'Night Owls',
+      'Ugly Ducklings', 'Ant Colony', 'Last Minute Club', 'Quiz Wizards',
+    ],
+    'de': [
+      'Die Koalas', 'Die Hexen', 'Denkfabrik', 'Nachteulen',
+      'Hässliche Entlein', 'Ameisenbande', 'Last-Minute-Club', 'Die Streber',
+    ],
+    'fr': [
+      'Les Koalas', 'Les Sorcières', 'Les Cerveaux', 'Les Noctambules',
+      'Vilains Petits Canards', 'Les Fourmis', 'Les Retardataires',
+      'Brigade Quiz',
+    ],
+    'es': [
+      'Los Koalas', 'Las Brujas', 'Cerebritos', 'Búhos Nocturnos',
+      'Patitos Feos', 'Hormigas Locas', 'Los Últimos', 'Magos del Quiz',
+    ],
+    'pt': [
+      'Os Coalas', 'As Bruxas', 'Cérebros', 'Corujas da Noite',
+      'Patinhos Feios', 'Formigas Loucas', 'Os Atrasados', 'Magos do Quiz',
+    ],
+    'ru': [
+      'Коалы', 'Ведьмы', 'Мозговой штурм', 'Ночные совы',
+      'Гадкие утята', 'Муравейник', 'Последняя парта', 'Знатоки',
+    ],
+    'ar': [
+      'الكوالا', 'الساحرات', 'فريق العباقرة', 'بوم الليل',
+      'البطة القبيحة', 'مملكة النمل', 'الصف الأخير', 'سحرة الأسئلة',
+    ],
+    'fa': [
+      'کوالاها', 'جادوگرها', 'تیم نابغه‌ها', 'جغدهای شب',
+      'جوجه اردک زشت', 'کلونی مورچه‌ها', 'دقیقه نودی‌ها', 'استاد کوییز',
+    ],
+    'hi': [
+      'कोआला टीम', 'जादूगरनियाँ', 'दिमाग़ी टीम', 'रात के उल्लू',
+      'बदसूरत बत्तख', 'चींटी दल', 'आख़िरी मिनट', 'क्विज़ मास्टर',
+    ],
+    'id': [
+      'Para Koala', 'Penyihir', 'Tim Jenius', 'Burung Hantu',
+      'Itik Buruk Rupa', 'Koloni Semut', 'Pasukan Deadline', 'Ahli Kuis',
+    ],
+    'ja': [
+      'コアラ組', '魔女たち', '天才チーム', '夜ふかし組',
+      'みにくいアヒル', 'アリの行列', 'ギリギリ隊', 'クイズの達人',
+    ],
+    'ko': [
+      '코알라들', '마녀들', '천재팀', '올빼미들',
+      '미운 오리들', '개미군단', '벼락치기팀', '퀴즈의 달인',
+    ],
+    'zh': [
+      '考拉队', '女巫团', '最强大脑', '夜猫子',
+      '丑小鸭', '蚂蚁军团', '临时抱佛脚', '答题大师',
+    ],
+    'it': [
+      'I Koala', 'Le Streghe', 'I Cervelloni', 'Gufi Notturni',
+      'Brutti Anatroccoli', 'Formiche Pazze', 'Gli Ultimi', 'Maghi del Quiz',
+    ],
+    'el': [
+      'Τα Κοάλα', 'Οι Μάγισσες', 'Τα Μυαλά', 'Νυχτοπούλια',
+      'Ασχημόπαπα', 'Μυρμήγκια', 'Της Τελευταίας Στιγμής', 'Μάγοι του Κουίζ',
+    ],
+    'nl': [
+      'De Koalas', 'De Heksen', 'Breinbrigade', 'Nachtuilen',
+      'Lelijke Eendjes', 'Mierenkolonie', 'Laatste-Minuut-Club',
+      'Quizmeesters',
+    ],
+    'pl': [
+      'Koale', 'Czarownice', 'Mózgowcy', 'Nocne Sowy',
+      'Brzydkie Kaczątka', 'Mrówcza Brygada', 'Na Ostatnią Chwilę',
+      'Mistrzowie Quizu',
+    ],
+    'intl': [
+      'The Koalas', 'The Witches', 'Brain Squad', 'Night Owls',
+      'Ugly Ducklings', 'Ant Colony', 'Last Minute Club', 'Quiz Wizards',
+    ],
+  };
+
+  /// Ülkeye uygun şehir/il adı — TR'de 81 İLİN TAMAMI: gösterimlerin ~%70'i
+  /// nüfusa ağırlıklı (büyük iller sık), ~%30'u 81 il arasından eşit
+  /// olasılıklı → küçük iller de (Ardahan, Bayburt, Tunceli…) düzenli
+  /// aralıklarla mutlaka görünür. Diğer ülkelerde şehir havuzundan; havuzu
+  /// olmayan ülkede boş döner.
+  static String sampleCity(String countryCode, int seed) {
+    final cc = _normCc(countryCode);
+    final rng = _Rng(seed == 0 ? 1 : seed);
+    if (cc == 'tr') {
+      if (rng.nextInt(10) < 3) {
+        // Eşit olasılıklı tur — 81 ilin hepsi eşit şansla.
+        return _trCityWeights[rng.nextInt(_trCityWeights.length)].$1;
+      }
+      return _trCityWeighted(rng);
+    }
+    final cities = _cityPools[cc];
+    if (cities == null || cities.isEmpty) return '';
+    return cities[rng.nextInt(cities.length)];
+  }
 
   // ── İsim üretimi ──────────────────────────────────────────────────────────
   /// "Elif K." biçimi — gerçek kişi izlenimi vermeden doğal görünür.
@@ -303,11 +432,54 @@ class LeagueDemoStudents {
     'az', 'kz', 'ma', 'ng',
   ];
 
+  /// TR — 81 ilin tamamı, yaklaşık nüfusla (bin kişi, TÜİK ~2023) ağırlıklı.
+  /// Demo satırlarında şehir bu listeden kümülatif ağırlıkla seçilir:
+  /// İstanbul en sık, ama Bayburt/Ardahan dahil her il görünebilir.
+  static const _trCityWeights = <(String, int)>[
+    ('İstanbul', 15907), ('Ankara', 5803), ('İzmir', 4479), ('Bursa', 3194),
+    ('Antalya', 2688), ('Konya', 2296), ('Adana', 2274), ('Şanlıurfa', 2170),
+    ('Gaziantep', 2154), ('Kocaeli', 2079), ('Mersin', 1916),
+    ('Diyarbakır', 1804), ('Hatay', 1686), ('Manisa', 1468), ('Kayseri', 1441),
+    ('Samsun', 1368), ('Balıkesir', 1257), ('Kahramanmaraş', 1177),
+    ('Aydın', 1148), ('Tekirdağ', 1142), ('Van', 1128), ('Sakarya', 1080),
+    ('Denizli', 1056), ('Muğla', 1049), ('Eskişehir', 906), ('Mardin', 870),
+    ('Trabzon', 818), ('Malatya', 812), ('Ordu', 763), ('Erzurum', 749),
+    ('Afyonkarahisar', 747), ('Sivas', 634), ('Batman', 634), ('Adıyaman', 604),
+    ('Tokat', 596), ('Elazığ', 591), ('Zonguldak', 588), ('Kütahya', 575),
+    ('Şırnak', 570), ('Çanakkale', 559), ('Osmaniye', 557), ('Çorum', 528),
+    ('Ağrı', 511), ('Giresun', 461), ('Isparta', 449), ('Aksaray', 433),
+    ('Yozgat', 418), ('Edirne', 414), ('Düzce', 405), ('Muş', 399),
+    ('Kastamonu', 388), ('Uşak', 377), ('Kırklareli', 377), ('Niğde', 377),
+    ('Bitlis', 353), ('Siirt', 347), ('Rize', 344), ('Amasya', 338),
+    ('Bolu', 320), ('Nevşehir', 315), ('Yalova', 296), ('Kars', 285),
+    ('Bingöl', 282), ('Kırıkkale', 277), ('Hakkari', 275), ('Burdur', 273),
+    ('Karaman', 260), ('Karabük', 252), ('Kırşehir', 244), ('Erzincan', 239),
+    ('Bilecik', 228), ('Sinop', 218), ('Bartın', 203), ('Iğdır', 203),
+    ('Çankırı', 195), ('Artvin', 169), ('Kilis', 155), ('Gümüşhane', 144),
+    ('Ardahan', 92), ('Tunceli', 89), ('Bayburt', 86),
+  ];
+
+  /// Kümülatif ağırlıkla il seçimi (toplam bir kez hesaplanıp saklanır).
+  static int _trTotalWeight = 0;
+  static String _trCityWeighted(_Rng rng) {
+    if (_trTotalWeight == 0) {
+      for (final e in _trCityWeights) {
+        _trTotalWeight += e.$2;
+      }
+    }
+    var r = rng.nextInt(_trTotalWeight);
+    for (final e in _trCityWeights) {
+      r -= e.$2;
+      if (r < 0) return e.$1;
+    }
+    return _trCityWeights.first.$1;
+  }
+
   /// Ülke kapsamı satırlarında görünen şehir adları (gerçek satırlarda
   /// cityCode insanlaştırılır; demo için küçük havuz yeterli).
+  /// NOT: TR bu haritada değil — 81 il nüfus ağırlıklı [_trCityWeights]
+  /// üzerinden seçilir.
   static const _cityPools = <String, List<String>>{
-    'tr': ['İstanbul', 'Ankara', 'İzmir', 'Bursa', 'Antalya', 'Konya',
-           'Adana', 'Gaziantep'],
     'de': ['Berlin', 'Hamburg', 'München', 'Köln', 'Frankfurt'],
     'us': ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'],
     'gb': ['London', 'Manchester', 'Birmingham', 'Leeds', 'Glasgow'],

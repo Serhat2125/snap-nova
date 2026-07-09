@@ -3256,7 +3256,18 @@ class _LibraryLandingState extends State<LibraryLanding> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
+      // Renk paneli SCROLL'UN DIŞINDA, üstte SABİT: palet açıkken sayfa
+      // kaydırılınca renk çerçevesi yukarıda kalır, alttaki kartlar
+      // görünür ve renk sürüklenip bırakılabilir (kullanıcı isteği).
+      body: Column(
+        children: [
+          if (_showColorPicker)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: _buildLibraryColorPanel(),
+            ),
+          Expanded(
+            child: SingleChildScrollView(
         // Alt nav bar (_NavShell) sayfanın üstüne overlay olarak çizildiği için
         // en alttaki kart/sekme onun arkasında kalıyordu; nav bar yüksekliği +
         // sistem çubuğu kadar boşluk bırakarak tam görünmesini sağla.
@@ -3265,13 +3276,12 @@ class _LibraryLandingState extends State<LibraryLanding> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_showColorPicker) _buildLibraryColorPanel(),
-            if (_showColorPicker) SizedBox(height: 10),
             // (Ebeveyn Paneli banner'ı kaldırıldı — ebeveyn önizlemesi
             //  artık öğrencinin gerçek ana sayfasını açıyor ve dönüş
             //  alttaki "Ebeveyn Paneli" çipiyle yapılıyor.)
             // ── ÜRET: Konu Özeti + Sınav Soruları — hero kartlar ─────
-            _sectionLabel('Üret'),
+            // (Üret/Kitaplığım/Yarış/Çalış/Sınıfım küçük bölüm başlıkları
+            //  kaldırıldı, bölüm araları daraltıldı — kullanıcı isteği.)
             _HeroCard(
               icon: Icons.summarize_rounded,
               imageAsset: 'assets/library_icons/summary.png',
@@ -3305,9 +3315,8 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 ),
               ),
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 10),
             // ── KİTAPLIĞIM: Çözümlerim | 3D Eğitim Modelleri ─────────
-            _sectionLabel('Kitaplığım'),
             Row(
               children: [
                 Expanded(
@@ -3349,9 +3358,8 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 ),
               ],
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 10),
             // ── YARIŞ: Dünya Sıralaması | Bilgi Yarışı ───────────────
-            _sectionLabel('Yarış'),
             Row(
               children: [
                 Expanded(
@@ -3395,9 +3403,8 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 ),
               ],
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 10),
             // ── ÇALIŞ: Pomodoro | Ödevler + AI Koç | Takvim ──────────
-            _sectionLabel('Çalış'),
             Row(
               children: [
                 Expanded(
@@ -3439,7 +3446,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 ),
               ],
             ),
-            SizedBox(height: 12),
+            SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
@@ -3481,9 +3488,8 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 ),
               ],
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 10),
             // ── SINIFIM: Kaynaklar (Ödevler yukarıda "Çalış"a taşındı) ──
-            _sectionLabel('Sınıfım'),
             Row(
               children: [
                 Expanded(
@@ -3510,6 +3516,9 @@ class _LibraryLandingState extends State<LibraryLanding> {
             ),
           ],
         ),
+            ),
+          ),
+        ],
       ),
     );
   }

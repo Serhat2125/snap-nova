@@ -30,6 +30,9 @@ class DueloMatchCriteria {
   final String username;
   final String flag;
   final String country;
+  /// Kullanıcının Bilgi Ligi'nde kayıtlı şehri — ülke-içi düellolarda
+  /// rakibe "Rakibin: <şehir>'den" olarak gösterilir. Boş olabilir.
+  final String city;
   final String level; // primary | middle | high | university
   final String grade; // "11", "lgs" vb.
   final String? track; // sayisal, sozel, ipa ...
@@ -43,6 +46,7 @@ class DueloMatchCriteria {
     required this.username,
     required this.flag,
     required this.country,
+    this.city = '',
     required this.level,
     required this.grade,
     this.track,
@@ -57,6 +61,7 @@ class DueloMatchCriteria {
         'username': username,
         'flag': flag,
         'country': country,
+        'city': city,
         'level': level,
         'grade': grade,
         'track': track,
@@ -76,6 +81,9 @@ class DueloMatchResult {
   final String opponentUsername;
   final String opponentFlag;
   final String opponentCountry;
+  /// Rakibin Bilgi Ligi'nde kayıtlı şehri (kuyruğa yazdığı değer) — boş
+  /// olabilir; UI boşsa ülkeye düşer.
+  final String opponentCity;
   final int opponentElo;
   // Session sahibi olan kullanıcı (iki taraf aynı soruları görmesi için
   // deterministik üretim) — true ise bu istemci session'u yarattı, sorular
@@ -88,6 +96,7 @@ class DueloMatchResult {
     required this.opponentUsername,
     required this.opponentFlag,
     required this.opponentCountry,
+    this.opponentCity = '',
     required this.opponentElo,
     required this.isOwner,
   });
@@ -175,6 +184,7 @@ class DueloMatchmakingService {
         'username': c.username,
         'flag': c.flag,
         'country': c.country,
+        'city': c.city,
         'level': c.level,
         'grade': c.grade,
         'online': true,
@@ -225,6 +235,7 @@ class DueloMatchmakingService {
           'username': c.username,
           'flag': c.flag,
           'country': c.country,
+          'city': c.city,
           'elo': c.elo,
         };
         final playerB = {
@@ -232,6 +243,7 @@ class DueloMatchmakingService {
           'username': pickData['username'],
           'flag': pickData['flag'],
           'country': pickData['country'],
+          'city': pickData['city'] ?? '',
           'elo': pickData['elo'] ?? 1000,
         };
 
@@ -270,6 +282,7 @@ class DueloMatchmakingService {
               (pickData['username'] ?? 'anonim').toString(),
           opponentFlag: (pickData['flag'] ?? '🏳️').toString(),
           opponentCountry: (pickData['country'] ?? '').toString(),
+          opponentCity: (pickData['city'] ?? '').toString(),
           opponentElo:
               (pickData['elo'] as num?)?.toInt() ?? 1000,
           isOwner: ownerIsMe,
@@ -310,6 +323,7 @@ class DueloMatchmakingService {
                   (opp?['username'] ?? 'anonim').toString(),
               opponentFlag: (opp?['flag'] ?? '🏳️').toString(),
               opponentCountry: (opp?['country'] ?? '').toString(),
+              opponentCity: (opp?['city'] ?? '').toString(),
               opponentElo: (opp?['elo'] as num?)?.toInt() ?? 1000,
               isOwner: isOwner,
             ));
