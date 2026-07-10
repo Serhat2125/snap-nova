@@ -46,6 +46,11 @@ void main() {
   float u = fract(lon / (2.0 * PI) + 0.5);
   float v = 0.5 - lat / PI;
   vec3 col = texture(uTex, vec2(u, v)).rgb;
+  // Okyanus açma: NASA dokusunda denizler çok koyu lacivert — mavi baskın
+  // pikselleri daha açık/canlı gök mavisine çek. Karalar (r>=b) ve
+  // bulut/buz (b-r≈0) maskeden geçemez, etkilenmez.
+  float ocean = smoothstep(0.02, 0.14, col.b - col.r);
+  col = mix(col, vec3(0.22, 0.52, 0.86), ocean * 0.55);
   // Küresel aydınlatma: merkez parlak, kenarlara doğru koyulaşır (limb).
   float shade = 0.42 + 0.58 * z;
   // Kenarda hafif atmosfer mavisi.

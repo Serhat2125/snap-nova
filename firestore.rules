@@ -206,6 +206,15 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+    // ── app_config: uzaktan kontrol bayrakları (demo dolgu vb.) ───────────
+    //    Read: herkes (giriş öncesi de gerekebilir). Write: yalnız admin /
+    //    Cloud Functions (autoDisableLeagueDemo 10k eşiğinde demoEnabled'ı
+    //    kapatır).
+    match /app_config/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ── league_totals: Bilgi Ligi toplam puan dokümanları ─────────────────
     //    Kullanıcı × takvim kovası × mod başına increment'li toplam; sıralama
     //    sorguları doğrudan bunu okur (10 bin+ kullanıcıda kesin sonuç).
@@ -217,16 +226,21 @@ service cloud.firestore {
     }
 
     // ── quiz_pool: AI'la üretilen test havuzu ─────────────────────────────
-    //    Read:   oturum açmış herkes (havuzdan random çekiş için).
-    //    Create: oturum açmış kullanıcı; createdBy alanı uid ile eşleşmeli.
-    //            Havuz cap (>=100 ise yeni eklenmez) istemci tarafında
-    //            kontrol edilir; rules sadece base güvenliği sağlar.
-    //    Update/Delete: sadece admin (havuz değişmesin, sadece eklensin).
+    //    Read:  oturum açmış herkes (havuzdan random çekiş için).
+    //    Write: İSTEMCİYE KAPALI — tek yazım yolu `addQuizPoolTest` Cloud
+    //           Function'ıdır (admin SDK): şema doğrulama + transaction'lı
+    //           kesin havuz tavanı (100) + rate limit. İstemci yazımı açık
+    //           kaldığında tavan yalnız istemcide denetleniyordu → API ile
+    //           sınırsız çöp soru basılabiliyordu (içerik zehirlenmesi).
     match /quiz_pool/{doc} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn()
-        && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ── quiz_pool_counters: havuz başına test sayacı (CF transaction'ı) ──
+    match /quiz_pool_counters/{doc} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // ── arena_matches/{id}: taraflar okur; sadece katılanlar yazar ──────
@@ -339,11 +353,20 @@ service cloud.firestore {
     //   Çocuk istek geldiğinde durumu 'active'e çevirebilir (özel update).
     match /parent_links/{parentUid}/children/{childUid} {
       allow read: if isOwner(parentUid) || isOwner(childUid);
-      // Ebeveyn pending istek oluşturabilir — kendini çocuk olarak EKLEYEMEZ
-      // (rol değiştiren bir hesap kendi verisine "veli" olarak bağlanamasın).
+      // İki create yolu — kendini çocuk olarak EKLEYEMEZ (rol değiştiren
+      // hesap kendi verisine "veli" olarak bağlanamasın):
+      //  (a) username akışı: 'pending' istek, çocuk banner'dan onaylar.
+      //  (b) kod/QR akışı: geçerli parent_link_codes/{viaCode} ibrazı rıza
+      //      sayılır (kodu üreten/paylaşan çocuğun kendisi) → DOĞRUDAN
+      //      'active' create edilebilir; kod hedef çocuğa ait ve süresi
+      //      geçmemiş olmalı.
       allow create: if isOwner(parentUid)
-        && request.resource.data.status == 'pending'
-        && parentUid != childUid;
+        && parentUid != childUid
+        && (request.resource.data.status == 'pending'
+            || (request.resource.data.status == 'active'
+                && request.resource.data.viaCode is string
+                && get(/databases/$(database)/documents/parent_link_codes/$(request.resource.data.viaCode)).data.childUid == childUid
+                && get(/databases/$(database)/documents/parent_link_codes/$(request.resource.data.viaCode)).data.expiresAt > request.time));
       // Çocuk kabul/red — sadece status değişikliği
       allow update: if (isOwner(childUid) || isOwner(parentUid))
         && request.resource.data.diff(resource.data).affectedKeys()
@@ -357,9 +380,15 @@ service cloud.firestore {
     //   Ebeveyn create yapar.
     match /child_invites/{childUid}/from/{parentUid} {
       allow read: if isOwner(childUid) || isOwner(parentUid);
+      // parent_links ile aynı iki yol: 'pending' (username) veya geçerli
+      // viaCode kanıtıyla doğrudan 'active' (kod/QR akışı).
       allow create: if isOwner(parentUid)
-        && request.resource.data.status == 'pending'
-        && parentUid != childUid;
+        && parentUid != childUid
+        && (request.resource.data.status == 'pending'
+            || (request.resource.data.status == 'active'
+                && request.resource.data.viaCode is string
+                && get(/databases/$(database)/documents/parent_link_codes/$(request.resource.data.viaCode)).data.childUid == childUid
+                && get(/databases/$(database)/documents/parent_link_codes/$(request.resource.data.viaCode)).data.expiresAt > request.time));
       allow update: if isOwner(childUid)
         && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['status', 'acceptedAt']);
@@ -367,9 +396,11 @@ service cloud.firestore {
     }
 
     // ── parent_link_codes/{code}: çocuğun ürettiği kısa-ömürlü eşleşme kodu ─
-    //   Çocuk kendi kodunu üretir (childUid == kendisi). Ebeveyn kodu okuyup
-    //   childUid'i bulur, sonra siler. Kod yalnızca childUid + zaman içerir;
-    //   veri erişimi yine ÇOCUĞUN ONAYINA bağlı (sadece kod yetki vermez).
+    //   Çocuk kendi kodunu üretir (childUid == kendisi; QR/WhatsApp ile
+    //   veliye ulaştırır). Ebeveyn kodu okuyup childUid'i bulur; geçerli kod
+    //   ibrazı = çocuğun rızası → parent_links/child_invites create'inde
+    //   viaCode kanıtıyla DOĞRUDAN 'active' bağlantıya izin verilir.
+    //   Kod kullanılınca ebeveyn tarafından silinir (tek kullanımlık).
     match /parent_link_codes/{code} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()

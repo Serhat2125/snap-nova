@@ -45,10 +45,12 @@ import 'history_screen.dart';
 import 'qualsar_arena_screen.dart';
 import 'bilgi_ligi_screen.dart';
 import '../widgets/exam_mode_widgets.dart';
+import '../widgets/rotating_globe.dart';
 import '../widgets/study_toolbar.dart';
 import 'qualsar_mars_screen.dart';
 import 'edu_3d_screen.dart';
 import '../services/pomodoro_stats.dart';
+import '../services/user_profile_service.dart';
 import '../services/activity_writer_service.dart';
 import '../services/ai_quota_service.dart';
 import 'premium_screen.dart';
@@ -3284,10 +3286,13 @@ class _LibraryLandingState extends State<LibraryLanding> {
             //  kaldırıldı, bölüm araları daraltıldı — kullanıcı isteği.)
             _HeroCard(
               icon: Icons.summarize_rounded,
-              imageAsset: 'assets/library_icons/summary.png',
+              // Yeni ikon: tasarım sayfasındaki 2. alternatif
+              // ("Integrated Knowledge" — ışıyan kitap).
+              imageAsset: 'assets/library_icons/summary_v2.jpg',
               title: localeService.tr('create_topic_summary'),
-              subtitle: 'Fotoğraftan akıllı konu özeti çıkar'.tr(),
-              gradient: const [Color(0xFF2563EB), Color(0xFF7C3AED)],
+              subtitle: 'Dersini ve konunu seç — AI anlaşılır bir konu özeti hazırlasın'.tr(),
+              // Gümüş/metalik zemin (kullanıcının gönderdiği görsel).
+              gradient: const [Color(0xFFC3C7D0), Color(0xFF9DA3AF)],
               customBg: _cardBgs['summary'],
               customTextColor: _cardInks['summary'],
               onColorAccept: (c) => _applyLibraryColor('summary', c),
@@ -3301,10 +3306,14 @@ class _LibraryLandingState extends State<LibraryLanding> {
             SizedBox(height: 10),
             _HeroCard(
               icon: Icons.fact_check_rounded,
-              imageAsset: 'assets/library_icons/questions.png',
+              // Yeni ikon: tasarım sayfasındaki 7. alternatif
+              // ("Kitap & Soru" — soru işaretli açık kitap).
+              imageAsset: 'assets/library_icons/questions_v2.jpg',
               title: localeService.tr('create_exam_questions'),
-              subtitle: 'AI ile deneme soruları üret ve çöz'.tr(),
-              gradient: const [Color(0xFFFF6A00), Color(0xFFDB2777)],
+              subtitle: 'Konundan test oluştur, çöz — eksiklerini gör'.tr(),
+              // Gümüş/metalik zemin (kullanıcının gönderdiği görsel) —
+              // üstteki karttan bir tık açık.
+              gradient: const [Color(0xFFCBCED6), Color(0xFFA6ACB8)],
               customBg: _cardBgs['questions'],
               customTextColor: _cardInks['questions'],
               onColorAccept: (c) => _applyLibraryColor('questions', c),
@@ -3322,12 +3331,19 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.history_rounded,
-                    imageAsset: 'assets/library_icons/history.png',
+                    // Yeni 3D görsel (Gemini): grafik + onay tiki — kartın
+                    // TAMAMINI kaplayan arka plan (mockup ile birebir).
+                    backgroundWidget: Image.asset(
+                      'assets/library_icons/history_v2.png',
+                      fit: BoxFit.cover,
+                    ),
                     title: 'Çözümlerim'.tr(),
                     subtitle: 'Geçmiş çözümlerini incele'.tr(),
+                    textNudgeY: 5,
                     color: Color(0xFF3B82F6),
                     customBg: _cardBgs['history'],
-                    customTextColor: _cardInks['history'],
+                    // Açık pastel görsel üstünde yazılar varsayılan SİYAH.
+                    customTextColor: _cardInks['history'] ?? Colors.black,
                     onColorAccept: (c) =>
                         _applyLibraryColor('history', c),
                     onTap: () => Navigator.of(context).push(
@@ -3341,12 +3357,15 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.view_in_ar_rounded,
-                    imageAsset: 'assets/library_icons/edu3d.png',
+                    // Yeni 3D görsel (Gemini): anatomik kalp — kartın
+                    // TAMAMINI kaplar ve GERÇEK KALP RİTMİYLE atar.
+                    backgroundWidget: const _BeatingHeartBg(),
                     title: '3D Eğitim Modelleri'.tr(),
                     subtitle: 'Konuları 3D sahnede keşfet'.tr(),
+                    textNudgeY: 8,
                     color: Color(0xFF06B6D4),
                     customBg: _cardBgs['edu3d'],
-                    customTextColor: _cardInks['edu3d'],
+                    customTextColor: _cardInks['edu3d'] ?? Colors.black,
                     onColorAccept: (c) =>
                         _applyLibraryColor('edu3d', c),
                     onTap: () => Navigator.of(context).push(
@@ -3365,14 +3384,41 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.public_rounded,
-                    // Gerçek Dünya fotoğrafı (NASA Apollo 17 "Blue Marble") —
-                    // kıtalar, konumlar ve renkler orijinal.
-                    imageAsset: 'assets/library_icons/earth.png',
+                    // Düello Arenası'ndaki dünya kartıyla AYNI görünüm:
+                    // koyu lacivert gradyan zemin + kartın üst/alt çizgisine
+                    // neredeyse değen DÖNEN 3D küre (ülke öne gelince bayrağı
+                    // belirir).
+                    backgroundWidget: Container(
+                      // Beyaz zemin — hero kartlar hariç tüm kartlarla
+                      // uyumlu (koyu küre beyaz üstünde net durur).
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Colors.white, Color(0xFFF4F6FA)],
+                        ),
+                      ),
+                      child: Center(
+                        child: RotatingGlobe(
+                          height: 114,
+                          // Düello Arenası'ndaki gibi: ülke ön yüze gelince
+                          // bayrağı belirir (kullanıcı isteği).
+                          showFlags: true,
+                          fallback: Image.asset(
+                            'assets/library_icons/earth.png',
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                    ),
                     title: 'Dünya Sıralaması'.tr(),
                     subtitle: 'Dünyadaki yerini gör'.tr(),
+                    textNudgeY: 8,
                     color: Color(0xFF7C3AED),
                     customBg: _cardBgs['league'],
-                    customTextColor: _cardInks['league'],
+                    // Beyaz zemin üstünde yazılar varsayılan SİYAH (kullanıcı
+                    // paletten kendi rengini seçtiyse o geçerli).
+                    customTextColor: _cardInks['league'] ?? Colors.black,
                     onColorAccept: (c) =>
                         _applyLibraryColor('league', c),
                     onTap: () => Navigator.of(context).push(
@@ -3386,12 +3432,16 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.sports_esports_rounded,
-                    imageAsset: 'assets/library_icons/contest.png',
+                    // Sabit görsel yerine CANLI eşleşme sahnesi: solda
+                    // kullanıcının kendi profili, ortada büyük VS, sağda
+                    // dünyadan dönüşümlü rakipler.
+                    backgroundWidget: const _DueloVsScene(),
                     title: 'Düello Arenası'.tr(),
                     subtitle: 'Arkadaşlarınla düello yap'.tr(),
                     color: Color(0xFFFFB800),
                     customBg: _cardBgs['contest'],
-                    customTextColor: _cardInks['contest'],
+                    // Soluk beyaz sahne üstünde yazılar varsayılan SİYAH.
+                    customTextColor: _cardInks['contest'] ?? Colors.black,
                     onColorAccept: (c) =>
                         _applyLibraryColor('contest', c),
                     onTap: () => Navigator.of(context).push(
@@ -3410,12 +3460,15 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.timer_rounded,
-                    imageAsset: 'assets/library_icons/pomodoro.png',
+                    // CANLI kum saati: bej kum sürekli alta akar, cam mavi
+                    // tonlu; dolunca 180° dönüp baştan başlar.
+                    backgroundWidget: const _SandHourglassBg(),
                     title: 'Pomodoro Tekniği'.tr(),
                     subtitle: 'Odaklan, mola ver, tekrarla'.tr(),
+                    textNudgeY: 8,
                     color: Color(0xFFFF6A3C),
                     customBg: _cardBgs['pomodoro'],
-                    customTextColor: _cardInks['pomodoro'],
+                    customTextColor: _cardInks['pomodoro'] ?? Colors.black,
                     onColorAccept: (c) =>
                         _applyLibraryColor('pomodoro', c),
                     onTap: () => Navigator.of(context).push(
@@ -3428,13 +3481,20 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 SizedBox(width: 10),
                 Expanded(
                   child: _LandingCard(
-                    // Fütüristik ikon seti: ödevler = görev fırlatma 🚀
                     icon: Icons.rocket_launch_rounded,
+                    // Yeni 3D görsel (Gemini): mor zeminde açık kitap +
+                    // mezuniyet kepi + kalem — kartın TAMAMINI kaplar.
+                    backgroundWidget: Image.asset(
+                      'assets/library_icons/homework_v2.png',
+                      fit: BoxFit.cover,
+                    ),
                     title: 'Sınıf Ödevlerim'.tr(),
                     subtitle: 'Öğretmeninin verdiği ödevler'.tr(),
+                    textNudgeY: 8,
                     color: Color(0xFF7C3AED),
                     customBg: _cardBgs['homeworks'],
-                    customTextColor: _cardInks['homeworks'],
+                    // Açık mavi zemin üstünde yazılar varsayılan SİYAH.
+                    customTextColor: _cardInks['homeworks'] ?? Colors.black,
                     onColorAccept: (c) =>
                         _applyLibraryColor('homeworks', c),
                     onTap: () => Navigator.of(context).push(
@@ -3451,13 +3511,19 @@ class _LibraryLandingState extends State<LibraryLanding> {
               children: [
                 Expanded(
                   child: _LandingCard(
-                    // Fütüristik ikon seti: AI koç = robot asistan 🤖
                     icon: Icons.smart_toy_rounded,
+                    // Yeni 3D görsel (Gemini): mavi zeminde beyin + tokalaşma
+                    // — kartın TAMAMINI kaplar.
+                    backgroundWidget: Image.asset(
+                      'assets/library_icons/ai_coach_v2.png',
+                      fit: BoxFit.cover,
+                    ),
                     title: 'AI Koç'.tr(),
                     subtitle: 'Kişisel çalışma tavsiyeleri'.tr(),
                     color: Color(0xFF7C3AED),
                     customBg: _cardBgs['ai_coach'],
-                    customTextColor: _cardInks['ai_coach'],
+                    // Beyaz zemin üstünde yazılar varsayılan SİYAH.
+                    customTextColor: _cardInks['ai_coach'] ?? Colors.black,
                     onColorAccept: (c) =>
                         _applyLibraryColor('ai_coach', c),
                     onTap: () => Navigator.of(context).push(
@@ -3471,12 +3537,19 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.edit_calendar_rounded,
-                    imageAsset: 'assets/library_icons/calendar.png',
+                    // Yeni 3D görsel (Gemini): takvim + kum saati + telefon
+                    // listesi — kartın TAMAMINI kaplar.
+                    backgroundWidget: Image.asset(
+                      'assets/library_icons/calendar_v2.png',
+                      fit: BoxFit.cover,
+                    ),
                     title: localeService.tr('my_study_calendar'),
                     subtitle: 'Programını planla, takip et'.tr(),
+                    textNudgeY: 8,
                     color: _indigo,
                     customBg: _cardBgs['calendar'],
-                    customTextColor: _cardInks['calendar'],
+                    // Beyaz zemin üstünde yazılar varsayılan SİYAH.
+                    customTextColor: _cardInks['calendar'] ?? Colors.black,
                     onColorAccept: (c) =>
                         _applyLibraryColor('calendar', c),
                     onTap: () => Navigator.of(context).push(
@@ -3494,13 +3567,20 @@ class _LibraryLandingState extends State<LibraryLanding> {
               children: [
                 Expanded(
                   child: _LandingCard(
-                    // Fütüristik ikon seti: kaynaklar = bağlantı ağı (hub)
                     icon: Icons.hub_rounded,
+                    // Yeni 3D görsel (Gemini): kitap yığını + klasör + bulut
+                    // indirme — kartın TAMAMINI kaplar.
+                    backgroundWidget: Image.asset(
+                      'assets/library_icons/materials_v2.png',
+                      fit: BoxFit.cover,
+                    ),
                     title: 'Sınıf Kaynaklarım'.tr(),
                     subtitle: 'Öğretmenin paylaştığı dosyalar'.tr(),
+                    textNudgeY: 8,
                     color: Color(0xFF0EA5E9),
                     customBg: _cardBgs['materials'],
-                    customTextColor: _cardInks['materials'],
+                    // Beyaz zemin üstünde yazılar varsayılan SİYAH.
+                    customTextColor: _cardInks['materials'] ?? Colors.black,
                     onColorAccept: (c) =>
                         _applyLibraryColor('materials', c),
                     onTap: () => Navigator.of(context).push(
@@ -3785,6 +3865,20 @@ class _LandingCard extends StatefulWidget {
   /// 3D görsel ikon (assets/library_icons/*). Verilirse altıgen rozet yerine
   /// bu görsel gösterilir; null → eski _HexBadge davranışı.
   final String? imageAsset;
+  /// CANLI ikon (ör. dönen 3D dünya) — verilirse imageAsset/rozetin yerine
+  /// bu widget gösterilir.
+  final Widget? leadingWidget;
+  /// true → leadingWidget sol üstte değil, kartın YATAY ORTASINDA ve daha
+  /// büyük çizilir (görsel olarak taşar ama yerleşimi bozmaz; ok sağ üstte
+  /// kalır).
+  final bool centerLeading;
+  /// Kartın TAMAMINI kaplayan arka plan (ör. koyu gradyan + dönen dünya).
+  /// Verilirse sol üst rozet çizilmez; başlık/ok bunun üstünde durur.
+  final Widget? backgroundWidget;
+  /// Başlık + alt yazıyı görsel olarak bu kadar piksel AŞAĞI kaydırır
+  /// (yerleşimi bozmaz — Transform.translate). Tam-kart görselli kartlarda
+  /// metni alt zemin şeridine oturtmak için kullanılır.
+  final double textNudgeY;
   const _LandingCard({
     required this.icon,
     required this.title,
@@ -3796,6 +3890,10 @@ class _LandingCard extends StatefulWidget {
     this.onColorAccept,
     this.compact = false,
     this.imageAsset,
+    this.leadingWidget,
+    this.centerLeading = false,
+    this.backgroundWidget,
+    this.textNudgeY = 0,
   });
 
   @override
@@ -3848,7 +3946,6 @@ class _LandingCardState extends State<_LandingCard> {
           child: AnimatedContainer(
           duration: Duration(milliseconds: 160),
           height: cardHeight,
-          padding: const EdgeInsets.fromLTRB(12, 12, 10, 11),
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(16),
@@ -3880,16 +3977,71 @@ class _LandingCardState extends State<_LandingCard> {
             ],
           ),
           // Sol hizalı kompakt düzen: rozet sol üstte, sağ üstte ok,
-          // başlık + alt metin altta sola yaslı.
-          child: Column(
+          // başlık + alt metin altta sola yaslı. backgroundWidget verildiyse
+          // kartın TAMAMINI kaplar; içerik üstünde durur.
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(15),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (widget.backgroundWidget != null)
+                  Positioned.fill(child: widget.backgroundWidget!),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 10, 11),
+                  child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Ortalanmış CANLI ikon modu: widget kartın yatay ortasında,
+              // görsel olarak büyük (OverflowBox — yerleşim yüksekliği aynı
+              // kalır, taşma/overflow üretmez); ok sağ üstte durur.
+              if (widget.leadingWidget != null && widget.centerLeading)
+                SizedBox(
+                  height: iconBox + 16,
+                  width: double.infinity,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned.fill(
+                        child: OverflowBox(
+                          // 4 kısıt da SABİT: Positioned.fill'in dayattığı
+                          // "tam genişlik" min kısıtı max'ı aşınca (min>max)
+                          // çizim bozuluyordu — küre hiç görünmüyordu.
+                          minWidth: iconBox + 38,
+                          maxWidth: iconBox + 38,
+                          minHeight: iconBox + 38,
+                          maxHeight: iconBox + 38,
+                          child: SizedBox(
+                            width: iconBox + 38,
+                            height: iconBox + 38,
+                            child: widget.leadingWidget!,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Icon(
+                          Icons.chevron_right_rounded,
+                          color: titleColor.withValues(alpha: 0.30),
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // 3D görsel ikon varsa onu göster (referans tasarım seti);
                   // yoksa fütüristik altıgen HUD rozetine düş.
-                  if (widget.imageAsset != null)
+                  if (widget.leadingWidget != null)
+                    SizedBox(
+                      width: iconBox + 16,
+                      height: iconBox + 16,
+                      child: widget.leadingWidget!,
+                    )
+                  else if (widget.imageAsset != null)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(14),
                       child: Image.asset(
@@ -3901,8 +4053,11 @@ class _LandingCardState extends State<_LandingCard> {
                             icon: icon, color: color, size: iconBox + 2),
                       ),
                     )
+                  else if (widget.backgroundWidget == null)
+                    _HexBadge(icon: icon, color: color, size: iconBox + 2)
                   else
-                    _HexBadge(icon: icon, color: color, size: iconBox + 2),
+                    // Tam-kart arka plan varken sol üst rozet çizilmez.
+                    const SizedBox.shrink(),
                   Spacer(),
                   Icon(
                     Icons.chevron_right_rounded,
@@ -3912,35 +4067,728 @@ class _LandingCardState extends State<_LandingCard> {
                 ],
               ),
               Spacer(),
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(
-                  fontSize: titleFs,
-                  fontWeight: FontWeight.w800,
-                  color: titleColor,
-                  height: 1.15,
+              Transform.translate(
+                offset: Offset(0, widget.textNudgeY),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: titleFs,
+                        fontWeight: FontWeight.w800,
+                        color: titleColor,
+                        height: 1.15,
+                      ),
+                    ),
+                    if (hasSub) ...[
+                      SizedBox(height: 2),
+                      Text(
+                        subtitle!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.poppins(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w500,
+                          color: subtitleColor,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              if (hasSub) ...[
-                SizedBox(height: 2),
-                Text(
-                  subtitle!,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.poppins(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w500,
-                    color: subtitleColor,
-                    height: 1.25,
-                  ),
+            ],
+          ),
                 ),
               ],
-            ],
+            ),
           ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── 3D Eğitim Modelleri kartı: ÇARPAN KALP arka planı ───────────────────────
+// edu3d_v2.png (anatomik kalp) sabit durmasın diye gerçek kalp ritmi verir:
+// hızlı çift vuruş (lub-dub) + dinlenme, ~1.6 sn döngü. Zemin düz pastel
+// olduğundan tüm görseli %4-5 ölçeklemek yalnızca kalbi atıyormuş gibi
+// gösterir — katman/maske gerekmez. Route önde değilken Flutter TickerMode
+// animasyonu otomatik susturur; ek maliyet ihmal edilebilir.
+class _BeatingHeartBg extends StatefulWidget {
+  const _BeatingHeartBg();
+
+  @override
+  State<_BeatingHeartBg> createState() => _BeatingHeartBgState();
+}
+
+class _BeatingHeartBgState extends State<_BeatingHeartBg>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1600),
+  )..repeat();
+
+  late final Animation<double> _scale = TweenSequence<double>([
+    // lub
+    TweenSequenceItem(
+        tween: Tween(begin: 1.0, end: 1.05)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 7),
+    TweenSequenceItem(
+        tween: Tween(begin: 1.05, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeIn)),
+        weight: 8),
+    // dub
+    TweenSequenceItem(
+        tween: Tween(begin: 1.0, end: 1.045)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 7),
+    TweenSequenceItem(
+        tween: Tween(begin: 1.045, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeIn)),
+        weight: 9),
+    // dinlenme
+    TweenSequenceItem(tween: ConstantTween(1.0), weight: 69),
+  ]).animate(_c);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  // edu3d_v2.png içindeki KALP GÖVDESİNİN piksel koordinatları — yalnız bu
+  // bölge atar; taban diski ve dönüş okları SABİT kalır. Yama
+  // (edu3d_heart_pulse.png) aynı bölgenin kenarları şeffaf yumuşatılmış
+  // kopyasıdır; ölçeklenince dikiş görünmez.
+  static const double _imgW = 318, _imgH = 222;
+  static const Rect _heartRect = Rect.fromLTWH(88, 0, 145, 138);
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (_, c) {
+        // BoxFit.cover'ın uyguladığı dönüşümün aynısı — yamayı statik
+        // görselin üstünde piksel piksel hizalamak için.
+        final s = math.max(c.maxWidth / _imgW, c.maxHeight / _imgH);
+        final dx = (c.maxWidth - _imgW * s) / 2;
+        final dy = (c.maxHeight - _imgH * s) / 2;
+        return Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            Positioned.fill(
+              child: Image.asset(
+                'assets/library_icons/edu3d_v2.png',
+                fit: BoxFit.cover,
+              ),
+            ),
+            Positioned(
+              left: dx + _heartRect.left * s,
+              top: dy + _heartRect.top * s,
+              width: _heartRect.width * s,
+              height: _heartRect.height * s,
+              child: AnimatedBuilder(
+                animation: _scale,
+                builder: (_, child) =>
+                    Transform.scale(scale: _scale.value, child: child),
+                child: Image.asset(
+                  'assets/library_icons/edu3d_heart_pulse.png',
+                  fit: BoxFit.fill,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ── Hero kart kitap ikonu: YAVAŞ SAYFA ÇEVİRME efekti ───────────────────────
+// Görselin kendisi DEĞİŞMEZ; üstüne yarı saydam beyaz bir "yaprak" katmanı
+// biner ve kitabın sırtı (orta dikey eksen) etrafında 3D dönerek sağdan sola
+// çevrilir. ~1.2 sn çevirme + ~3.6 sn bekleme döngüsü. Yaprak, sin eğrisiyle
+// belirip kaybolduğu için başlangıç/bitişte "pat" diye görünmez.
+class _PageFlipImage extends StatefulWidget {
+  final String asset;
+  final double size;
+  final Widget Function() fallback; // asset yoksa (errorBuilder) rozet
+  const _PageFlipImage({
+    required this.asset,
+    required this.size,
+    required this.fallback,
+  });
+
+  @override
+  State<_PageFlipImage> createState() => _PageFlipImageState();
+}
+
+class _PageFlipImageState extends State<_PageFlipImage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 4800),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.size;
+    final base = Image.asset(
+      widget.asset,
+      width: s,
+      height: s,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => widget.fallback(),
+    );
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) {
+        final v = _c.value;
+        final ft = (v / 0.25).clamp(0.0, 1.0); // ilk %25 = çevirme fazı
+        if (ft <= 0.001 || ft >= 0.999) return base;
+        final angle = ft * math.pi;
+        final opacity = math.sin(ft * math.pi) * 0.85;
+        return Stack(
+          children: [
+            base,
+            // Yaprak: sağ yarımda başlar, sırt ekseninde sola döner.
+            Positioned(
+              left: s / 2,
+              top: 1,
+              width: s / 2 - 1,
+              height: s - 2,
+              child: Transform(
+                alignment: Alignment.centerLeft,
+                transform: Matrix4.identity()
+                  ..setEntry(3, 2, 0.0028) // perspektif
+                  ..rotateY(-angle),
+                child: Opacity(
+                  opacity: opacity,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.horizontal(
+                          right: Radius.circular(8)),
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          Colors.white.withValues(alpha: 0.95),
+                          Colors.white.withValues(alpha: 0.55),
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.18),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ── Pomodoro kartı: AKAN KUM SAATİ arka planı ───────────────────────────────
+// Statik görsel yerine CustomPainter ile çizilen canlı kum saati:
+//   • kum GERÇEK kum renginde (bej), cam hafif MAVİ, kapaklar ahşap
+//   • kum ~8 sn boyunca üst hazneden alta akar
+//   • dolunca kum saati 180° dönüp döngü kusursuz baştan başlar
+// Zemin, eski görselin pembe pastel tonlarıyla aynı. Route önde değilken
+// TickerMode animasyonu otomatik durdurur.
+class _SandHourglassBg extends StatefulWidget {
+  const _SandHourglassBg();
+
+  @override
+  State<_SandHourglassBg> createState() => _SandHourglassBgState();
+}
+
+class _SandHourglassBgState extends State<_SandHourglassBg>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    // Yavaş akış (kullanıcı isteği): tam döngü ~16 sn, akış ~14.7 sn.
+    duration: const Duration(milliseconds: 16000),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      // Beyaz zemin — hero kartlar hariç tüm kartlarla uyumlu.
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFF4F6FA)],
+        ),
+      ),
+      child: AnimatedBuilder(
+        animation: _c,
+        builder: (_, __) {
+          final v = _c.value;
+          // %92'si akış, son %8'i 180° dönüş — dönüş bitince alt hazne
+          // "yeni üst" olur, p=0 karesiyle dikişsiz birleşir.
+          final flow = (v / 0.92).clamp(0.0, 1.0);
+          final angle = v <= 0.92 ? 0.0 : ((v - 0.92) / 0.08) * math.pi;
+          return CustomPaint(
+            painter: _HourglassPainter(flow, angle),
+            size: Size.infinite,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _HourglassPainter extends CustomPainter {
+  final double p;     // kum akış ilerlemesi 0..1
+  final double angle; // döngü sonu takla açısı (radyan)
+  const _HourglassPainter(this.p, this.angle);
+
+  // Modern stil paleti: damla formlu cam + neon mavi kenar + mercan kapak
+  // çubukları + tanecikli bej kum (klasik ahşap siluet bilinçli terk edildi).
+  static const _sandLight = Color(0xFFEAC488);
+  static const _sandDark = Color(0xFFCFa055);
+  static const _glassFill = Color(0x2E9CC8F0);
+  static const _capA = Color(0xFFF08A9B); // mercan
+  static const _capB = Color(0xFFD96A80);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final h = math.min(size.height * 0.62, 80.0);
+    final top = 10.0;
+    final w = h * 0.84;
+    final halfW = w / 2;
+    final glassTop = top + 6;
+    final glassBottom = top + h - 6;
+    final neckY = (glassTop + glassBottom) / 2;
+    const neckHalf = 2.4;
+    final midY = top + h / 2;
+    final bh = neckY - glassTop;      // üst hazne yüksekliği
+    final bh2 = glassBottom - neckY;  // alt hazne yüksekliği
+
+    canvas.save();
+    // Döngü sonu taklası — merkez etrafında.
+    if (angle != 0) {
+      canvas.translate(cx, midY);
+      canvas.rotate(angle);
+      canvas.translate(-cx, -midY);
+    }
+
+    // Arka ışıma — modern "yüzen" his.
+    canvas.drawCircle(
+      Offset(cx, midY),
+      h * 0.58,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.30)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16),
+    );
+
+    // Damla (blob) formlu cam hazneler — köşesiz, akışkan hatlar.
+    final topGlass = Path()
+      ..moveTo(cx - neckHalf, neckY)
+      ..cubicTo(cx - halfW * 1.02, neckY - bh * 0.18,
+          cx - halfW, glassTop + bh * 0.42, cx - halfW * 0.55,
+          glassTop + bh * 0.08)
+      ..quadraticBezierTo(
+          cx, glassTop - bh * 0.08, cx + halfW * 0.55, glassTop + bh * 0.08)
+      ..cubicTo(cx + halfW, glassTop + bh * 0.42,
+          cx + halfW * 1.02, neckY - bh * 0.18, cx + neckHalf, neckY)
+      ..close();
+    final bottomGlass = Path()
+      ..moveTo(cx - neckHalf, neckY)
+      ..cubicTo(cx - halfW * 1.02, neckY + bh2 * 0.18,
+          cx - halfW, glassBottom - bh2 * 0.42, cx - halfW * 0.55,
+          glassBottom - bh2 * 0.08)
+      ..quadraticBezierTo(cx, glassBottom + bh2 * 0.08,
+          cx + halfW * 0.55, glassBottom - bh2 * 0.08)
+      ..cubicTo(cx + halfW, glassBottom - bh2 * 0.42,
+          cx + halfW * 1.02, neckY + bh2 * 0.18, cx + neckHalf, neckY)
+      ..close();
+
+    // Kum — dikey degrade (açık→koyu bej).
+    final sandPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: const [_sandLight, _sandDark],
+      ).createShader(
+          Rect.fromLTRB(cx - halfW, glassTop, cx + halfW, glassBottom));
+
+    // ÜST kum — seviye p ile düşer.
+    final topFill0 = glassTop + bh * 0.22;
+    final topSurface = topFill0 + (neckY - topFill0) * p;
+    canvas.save();
+    canvas.clipPath(topGlass);
+    canvas.drawRect(
+        Rect.fromLTRB(cx - halfW, topSurface, cx + halfW, neckY), sandPaint);
+    // üst kum yüzeyi hafif içbükey
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: Offset(cx, topSurface), width: w * 0.7, height: 4),
+      Paint()..color = _sandDark.withValues(alpha: 0.5),
+    );
+    canvas.restore();
+
+    // ALT kum — yumuşak tepecikle yükselir.
+    final bottomFullTop = neckY + bh2 * 0.22;
+    final bottomSurface = glassBottom - (glassBottom - bottomFullTop) * p;
+    canvas.save();
+    canvas.clipPath(bottomGlass);
+    canvas.drawRect(
+        Rect.fromLTRB(cx - halfW, bottomSurface, cx + halfW, glassBottom),
+        sandPaint);
+    if (p > 0.04) {
+      final mound = Path()
+        ..moveTo(cx - 11, bottomSurface + 0.5)
+        ..quadraticBezierTo(cx, bottomSurface - 7, cx + 11, bottomSurface + 0.5)
+        ..close();
+      canvas.drawPath(mound, Paint()..color = _sandLight);
+    }
+    canvas.restore();
+
+    // Akan kum — ince iplik + düşen TANECİKLER (p ile akar).
+    if (p > 0.01 && p < 0.99) {
+      final streamLen = bottomSurface - neckY;
+      canvas.drawRect(
+        Rect.fromLTRB(cx - 0.7, neckY - 1, cx + 0.7, bottomSurface),
+        Paint()..color = _sandDark.withValues(alpha: 0.55),
+      );
+      final grain = Paint()..color = _sandDark;
+      for (int i = 0; i < 5; i++) {
+        final f = ((p * 46) + i / 5) % 1.0;
+        canvas.drawCircle(
+          Offset(cx + (i.isEven ? 0.9 : -0.9), neckY + f * streamLen),
+          1.2,
+          grain,
+        );
+      }
+    }
+
+    // Cam — mavi tonlu dolgu + dışta yumuşak neon parıltı + degrade kenar.
+    final glassFillPaint = Paint()..color = _glassFill;
+    final neonGlow = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..color = const Color(0x557FB2E8)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
+    final edge = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4
+      ..shader = LinearGradient(
+        colors: const [Color(0xFF9EC9F5), Color(0xFFE8F2FF)],
+      ).createShader(
+          Rect.fromLTRB(cx - halfW, glassTop, cx + halfW, glassBottom));
+    for (final path in [topGlass, bottomGlass]) {
+      canvas.drawPath(path, glassFillPaint);
+      canvas.drawPath(path, neonGlow);
+      canvas.drawPath(path, edge);
+    }
+
+    // Cam parlaması — sol üstte kavisli ışık.
+    canvas.drawLine(
+      Offset(cx - halfW * 0.50, glassTop + bh * 0.22),
+      Offset(cx - halfW * 0.20, neckY - bh * 0.18),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.5)
+        ..strokeWidth = 2
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // Mercan kapak çubukları — cam kubbelerin tepesine/dibine DEĞEREK
+    // oturur (kubbe tepe noktaları: glassTop ve glassBottom).
+    final capShader = LinearGradient(colors: const [_capA, _capB]);
+    void cap(double y) {
+      final r = Rect.fromCenter(
+          center: Offset(cx, y), width: w * 0.58, height: 5.5);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(r, const Radius.circular(3)),
+        Paint()..shader = capShader.createShader(r),
+      );
+    }
+    cap(glassTop - 2.2);
+    cap(glassBottom + 2.2);
+
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_HourglassPainter old) =>
+      old.p != p || old.angle != angle;
+}
+
+// ── Düello Arenası canlı "VS" sahnesi ───────────────────────────────────────
+// Kartın sabit görseli yerine: SOLDA kullanıcının kendi profili sabit durur,
+// ORTADA büyük VS rozeti (her eşleşmede punch animasyonu), SAĞDA dünyanın
+// dört bir yanından rakipler 4.5 sn'de bir dönüşümlü akar. VS'nin üstünde
+// eşleşmenin DERSİ yazar (.tr() ile uygulama dilinde).
+//
+// Maliyet notu: içerik metin+emoji, animasyon yalnızca geçiş anında —
+// GPU/pil yükü ihmal edilebilir. Rakipler YEREL havuzdan gelir: gerçek
+// kullanıcı adı vitrine konmaz (KVKK/GDPR), ağ isteği yapılmaz. Sekme/route
+// önde değilken tik atlanır.
+class _DueloVsScene extends StatefulWidget {
+  const _DueloVsScene();
+
+  @override
+  State<_DueloVsScene> createState() => _DueloVsSceneState();
+}
+
+class _DueloVsSceneState extends State<_DueloVsScene> {
+  /// (kullanıcı adı, bayrak, avatar) — GLOBAL-FIRST: her kıtadan inandırıcı
+  /// takma adlar.
+  static const List<(String, String, String)> _pool = [
+    ('Yuki_04', '🇯🇵', '🌸'), ('Lukas_HH', '🇩🇪', '⚙️'),
+    ('Emma_Lyon', '🇫🇷', '🎨'), ('Mateo_BA', '🇦🇷', '⚽'),
+    ('Aisha_Cairo', '🇪🇬', '🏺'), ('Ravi_Delhi', '🇮🇳', '🐘'),
+    ('Chen_Wei', '🇨🇳', '🐉'), ('Sofia_Roma', '🇮🇹', '🍕'),
+    ('Jack_LDN', '🇬🇧', '☂️'), ('Mia_NYC', '🇺🇸', '🗽'),
+    ('Lena_Oslo', '🇳🇴', '❄️'), ('Diego_MX', '🇲🇽', '🌵'),
+    ('Nina_Kyiv', '🇺🇦', '🌻'), ('Omar_Dubai', '🇦🇪', '🐪'),
+    ('Zanele_JHB', '🇿🇦', '🦁'), ('Ana_Rio', '🇧🇷', '🦜'),
+    ('Minji_Seoul', '🇰🇷', '🎧'), ('Alex_Sydney', '🇦🇺', '🐨'),
+    ('Eva_A_dam', '🇳🇱', '🌷'), ('Kasper_CPH', '🇩🇰', '🚲'),
+    ('Ivan_Kazan', '🇷🇺', '🐻'), ('Sara_Tehran', '🇮🇷', '🐆'),
+    ('Liam_Dublin', '🇮🇪', '🍀'), ('Noor_KL', '🇲🇾', '🌺'),
+    ('Pablo_Madrid', '🇪🇸', '🥘'), ('Zeynep_35', '🇹🇷', '🦋'),
+    ('Farhan_Dhaka', '🇧🇩', '🐅'), ('Amara_Lagos', '🇳🇬', '🥁'),
+    ('Luca_Zurich', '🇨🇭', '🏔️'), ('Hana_Praha', '🇨🇿', '🏰'),
+    ('Piotr_WAW', '🇵🇱', '♞'), ('Thao_Hanoi', '🇻🇳', '🎋'),
+    ('Keiko_Osaka', '🇯🇵', '🍙'), ('Ahmed_Riyadh', '🇸🇦', '🌙'),
+    ('Elif_06', '🇹🇷', '🎓'), ('Marta_Lisboa', '🇵🇹', '🌊'),
+    ('Nikos_Athens', '🇬🇷', '🏛️'), ('Ingrid_STO', '🇸🇪', '🦌'),
+    ('Carlos_Bogota', '🇨🇴', '☕'), ('Tane_Auckland', '🇳🇿', '🥝'),
+    ('Anya_Beograd', '🇷🇸', '🎻'), ('Yusuf_34', '🇹🇷', '⚓'),
+    ('Priya_Mumbai', '🇮🇳', '🪷'), ('Jonas_Vilnius', '🇱🇹', '🏀'),
+  ];
+
+  /// Eşleşme dersi — .tr() ile uygulama dilinde gösterilir.
+  static const List<String> _subjects = [
+    'Matematik', 'Fizik', 'Kimya', 'Biyoloji',
+    'Tarih', 'Coğrafya', 'İngilizce', 'Edebiyat',
+  ];
+
+  final math.Random _rnd = math.Random();
+  Timer? _timer;
+  int _idx = 0;
+  double _vsScale = 1.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _idx = _rnd.nextInt(_pool.length);
+    _timer = Timer.periodic(const Duration(milliseconds: 4500), (_) => _tick());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _tick() {
+    if (!mounted) return;
+    // Kütüphanem önde değilse (başka sayfa push'landıysa) boşa çizim yapma.
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    setState(() {
+      _idx = (_idx + 1 + _rnd.nextInt(_pool.length - 1)) % _pool.length;
+      _vsScale = 1.3; // punch — aşağıdaki delayed ile yerine oturur
+    });
+    Future.delayed(const Duration(milliseconds: 220), () {
+      if (mounted) setState(() => _vsScale = 1.0);
+    });
+  }
+
+  /// [name] null → avatar altına isim yazılmaz (soldaki "sen" çipi: yalnız
+  /// SEN rozeti yeter — kullanıcı isteği).
+  Widget _chip(String avatar, String? name,
+      {String? flag, bool me = false, Key? key}) {
+    return Column(
+      key: key,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withValues(alpha: 0.05),
+                border: Border.all(
+                  color: me
+                      ? const Color(0xFFFFB800)
+                      : Colors.black.withValues(alpha: 0.14),
+                  width: me ? 1.4 : 1.0,
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Text(avatar, style: const TextStyle(fontSize: 14)),
+            ),
+            if (flag != null)
+              Positioned(
+                right: -5,
+                bottom: -3,
+                child: Text(flag, style: const TextStyle(fontSize: 11)),
+              ),
+          ],
+        ),
+        // "SEN" rozeti avatarın ALTINDA (kullanıcı isteği).
+        if (me) ...[
+          const SizedBox(height: 3),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFB800),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text('SEN'.tr(),
+                maxLines: 1,
+                style: GoogleFonts.poppins(
+                  fontSize: 6.5,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.black,
+                )),
+          ),
+        ],
+        if (name != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+              fontSize: 7.5,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF1F2430),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final me = UserProfileService.instance;
+    final myAvatar = me.avatar.isNotEmpty ? me.avatar : '🙂';
+    final opp = _pool[_idx];
+    final subject = _subjects[_idx % _subjects.length];
+
+    return Container(
+      // Beyaz zemin — hero kartlar hariç tüm kartlarla uyumlu.
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFF4F6FA)],
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Eşleşmenin dersi — rakiple birlikte döner, uygulama dilinde.
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: Container(
+              key: ValueKey('subj_$_idx'),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: Colors.black.withValues(alpha: 0.08)),
+              ),
+              child: Text(
+                subject.tr(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                  fontSize: 7.5,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF1F2430),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 3),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Solda sen: yalnız avatar + SEN rozeti (isim yazılmaz).
+              Expanded(child: _chip(myAvatar, null, me: true)),
+              Padding(
+                padding: const EdgeInsets.only(top: 5, left: 2, right: 2),
+                child: AnimatedScale(
+                  scale: _vsScale,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutBack,
+                  child: ShaderMask(
+                    shaderCallback: (r) => const LinearGradient(
+                      colors: [Color(0xFFFF6A00), Color(0xFFDB2777)],
+                    ).createShader(r),
+                    child: Text(
+                      'VS',
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 380),
+                  transitionBuilder: (child, anim) => FadeTransition(
+                    opacity: anim,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0.6, 0),
+                        end: Offset.zero,
+                      ).animate(anim),
+                      child: child,
+                    ),
+                  ),
+                  child: _chip(opp.$3, opp.$1,
+                      flag: opp.$2, key: ValueKey(_idx)),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -4107,17 +4955,39 @@ class _HeroCardState extends State<_HeroCard> {
   @override
   Widget build(BuildContext context) {
     // Kullanıcı Renk Seç ile kart rengi atadıysa düz renk; yoksa degrade.
+    // Yazı rengi zeminin açıklığından hesaplanır (açık gümüş zemin → siyah).
     final custom = widget.customBg;
-    Color inkBase;
-    if (custom != null) {
-      final lum =
-          0.299 * custom.r + 0.587 * custom.g + 0.114 * custom.b;
-      inkBase = lum < 0.55 ? Colors.white : Colors.black;
-    } else {
-      inkBase = Colors.white;
-    }
+    final inkRef = custom ?? widget.gradient.first;
+    final lum = 0.299 * inkRef.r + 0.587 * inkRef.g + 0.114 * inkRef.b;
+    final Color inkBase = lum < 0.55 ? Colors.white : Colors.black;
     final ink = widget.customTextColor ?? inkBase;
     final glow = widget.gradient.first;
+
+    // Dikey ton merdiveni: ALTTA en koyu, yukarı çıktıkça açılır (kullanıcı
+    // isteği). Marka çiftinin iki rengi ortada tam tonuyla korunur; alt uç
+    // karartılır, üst uç beyaza doğru açılır. Kullanıcı özel renk seçtiyse
+    // aynı merdiven o renkten türetilir.
+    Color shade(Color c, double t) => t < 0
+        ? Color.lerp(c, Colors.black, -t)!
+        : Color.lerp(c, Colors.white, t)!;
+    final List<Color> tones;
+    if (custom != null) {
+      tones = [
+        shade(custom, -0.35),
+        custom,
+        shade(custom, 0.28),
+        shade(custom, 0.52),
+      ];
+    } else {
+      final c1 = widget.gradient.first;
+      final c2 = widget.gradient.last;
+      tones = [
+        shade(Color.lerp(c1, c2, 0.5)!, -0.38), // alt: en koyu
+        c2,                                     // tam renk
+        c1,                                     // tam renk
+        shade(c1, 0.48),                        // üst: en açık
+      ];
+    }
 
     return DragTarget<Color>(
       onAcceptWithDetails: (d) => widget.onColorAccept?.call(d.data),
@@ -4133,16 +5003,13 @@ class _HeroCardState extends State<_HeroCard> {
           child: AnimatedContainer(
             duration: Duration(milliseconds: 160),
             height: 88,
-            padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
             decoration: BoxDecoration(
-              color: custom,
-              gradient: custom == null
-                  ? LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: widget.gradient,
-                    )
-                  : null,
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.topCenter,
+                colors: tones,
+                stops: const [0.0, 0.34, 0.66, 1.0],
+              ),
               borderRadius: BorderRadius.circular(18),
               border: cand.isNotEmpty
                   ? Border.all(color: Color(0xFFFF6A00), width: 2)
@@ -4165,7 +5032,9 @@ class _HeroCardState extends State<_HeroCard> {
                 ),
               ],
             ),
-            child: Row(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+              child: Row(
               children: [
                 Expanded(
                   child: Column(
@@ -4204,12 +5073,12 @@ class _HeroCardState extends State<_HeroCard> {
                 if (widget.imageAsset != null)
                   ClipRRect(
                     borderRadius: BorderRadius.circular(16),
-                    child: Image.asset(
-                      widget.imageAsset!,
-                      width: 60,
-                      height: 60,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _HexBadge(
+                    // Kitap görseli sabit; üstünde yavaş sayfa çevirme
+                    // animasyonu döner (_PageFlipImage).
+                    child: _PageFlipImage(
+                      asset: widget.imageAsset!,
+                      size: 60,
+                      fallback: () => _HexBadge(
                         icon: widget.icon,
                         color: widget.gradient.first,
                         size: 50,
@@ -4231,6 +5100,7 @@ class _HeroCardState extends State<_HeroCard> {
                   size: 22,
                 ),
               ],
+            ),
             ),
           ),
         ),
@@ -6902,7 +7772,7 @@ class _AcademicPlannerState extends State<AcademicPlanner> {
             await UsageQuota.decrement(kind);
             // Boş özeti listeden çıkar — kullanıcı boş kart görmesin.
             for (final s in _subjects) {
-              s.summaries.removeWhere((sum) => sum.id == summary.id);
+              s.summaries.removeWhere((sm) => sm.id == summary.id);
             }
             _subjects.removeWhere((s) => s.summaries.isEmpty);
             await _persistSubjects();
@@ -8531,8 +9401,8 @@ Bu listeyi çıktıya YAZMA — sadece uygula.
             pageBg: _summaryCardColors[s.id],
             onAddTopic: (topic, {length}) =>
                 _generateForExistingSubject(s, topic, forcedLength: length),
-            onDelete: (sum) async {
-              s.summaries.removeWhere((x) => x.id == sum.id);
+            onDelete: (sm) async {
+              s.summaries.removeWhere((x) => x.id == sm.id);
               await _persistSubjects();
               if (mounted) setState(() {});
             },
@@ -12684,7 +13554,7 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
   // aşağı kaymasını istemiyor; özetin ilk sayfası ekranda kalsın,
   // okuyucu kendi kaydırdığı kadar görsün. Kullanıcı manuel olarak
   // aşağı inerse zaten yeni içerik orada bekliyor olacak.
-  bool _autoFollowBottom = false;
+  final bool _autoFollowBottom = false;
 
   /// StudyToolbarOverlay sticky highlights için — ListView ile overlay
   /// Stack'te sibling olduğundan Scrollable.maybeOf(context) bulamıyor.
@@ -13950,7 +14820,9 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
       try {
         final j = jsonDecode(s) as Map<String, dynamic>;
         if ((j['name'] as String).toLowerCase() !=
-            widget.subjectName.toLowerCase()) continue;
+            widget.subjectName.toLowerCase()) {
+          continue;
+        }
         final summaries = (j['summaries'] as List?) ?? [];
         for (final em in summaries) {
           final m = em as Map<String, dynamic>;

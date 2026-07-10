@@ -7,14 +7,18 @@
 //    child_invites/{childUid}/from/{parentUid}        → çocuğun gelen istekleri
 //        {parentUsername, parentDisplayName, requestedAt, status}
 //
-//  Akış:
-//    1) Ebeveyn çocuğun username veya davet kodunu girer
-//    2) requestLink() → her iki tarafa "pending" doc yazar
-//    3) Çocuk uygulamada bildirim görür → kabul/red eder
-//    4) Çocuk kabul edince her iki taraf "active" olur
-//    5) Ebeveyn child_invites'tan stats okur
+//  Akış (kod/QR — birincil):
+//    1) Çocuk profilinden kod üretir (QR + WhatsApp linki olarak paylaşılır)
+//    2) Ebeveyn QR okutur / linke dokunur / kodu yazar → linkByCode()
+//    3) Bağlantı DOĞRUDAN 'active' kurulur — kodu üreten ve paylaşan çocuğun
+//       kendisi olduğu için kod ibrazı rıza sayılır, ek onay istenmez
+//       (firestore.rules'ta viaCode istisnası). Çocuğa bilgi bildirimi düşer.
 //
-//  Anti-fraud: Çocuk kendisi onaylamadıkça ebeveyn veri göremez.
+//  Akış (username — ikincil):
+//    1) Ebeveyn çocuğun username'ini girer → requestLink() "pending" yazar
+//    2) Çocuk uygulamada banner görür → kabul/red eder → 'active'
+//
+//  Anti-fraud: Kod olmadan (username yolu) çocuk onaylamadıkça veri görünmez.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import 'dart:async';
@@ -321,9 +325,10 @@ class ParentLinkService {
     return buf.toString();
   }
 
-  /// Çocuk profilinden çağrılır. 6 karakterlik kısa ömürlü (15 dk) kod
-  /// üretir ve Firestore'a yazar. Aynı çocuk için varsa süresi dolmamış
-  /// önceki kodu döndürür — gereksiz yazım önlenir. Ebeveyn bu kodu girer.
+  /// Çocuk profilinden çağrılır. 6 karakterlik 24 saat ömürlü kod üretir ve
+  /// Firestore'a yazar (WhatsApp'tan uzaktaki veliye gönderilebildiği için
+  /// süre kısa tutulmaz). Aynı çocuk için varsa süresi dolmamış önceki kodu
+  /// döndürür — gereksiz yazım önlenir. Ebeveyn QR okutur / linke dokunur.
   static Future<ChildLinkCode?> generateChildLinkCode() async {
     final myUid = _myUid;
     if (myUid == null) return null;
@@ -351,7 +356,7 @@ class ParentLinkService {
         if (!ex.exists) { code = candidate; break; }
       }
       if (code == null) return null;
-      final expires = now.add(const Duration(minutes: 15));
+      final expires = now.add(const Duration(hours: 24));
       await _fs.collection('parent_link_codes').doc(code).set({
         'childUid': myUid,
         'createdAt': FieldValue.serverTimestamp(),
@@ -364,17 +369,26 @@ class ParentLinkService {
     }
   }
 
-  /// Ebeveyn tarafı: kodu yazar, çocuğa bağlantı isteği oluşturulur. Kod
-  /// kontrol edilir → childUid bulunur → mevcut requestLink akışına gider.
-  /// Kod kullanıldığında doc silinir (tek kullanımlık değil ama bağlantı
-  /// kurulduğunda gereksiz — temizlik için kaldırıyoruz).
-  static Future<LinkRequestResult> requestLinkByCode(String rawCode) async {
+  /// Ham girişi `EBEV-XXXXXX` biçimine çevirir. Çıplak 6 karakter de kabul
+  /// edilir (veli "EBEV-" önekini yazmayı unutursa takılmasın). Geçersizse
+  /// null.
+  static String? normalizeCode(String raw) {
+    var s = raw.trim().toUpperCase();
+    if (RegExp(r'^[A-Z0-9]{6}$').hasMatch(s)) s = 'EBEV-$s';
+    return RegExp(r'^EBEV-[A-Z0-9]{6}$').hasMatch(s) ? s : null;
+  }
+
+  /// Ebeveyn tarafı: çocuğun ürettiği kodla (QR / WhatsApp linki / elle giriş)
+  /// bağlantıyı DOĞRUDAN AKTİF kurar — çocuğa ayrıca onay sorulmaz. Güvenlik
+  /// dayanağı: kodu üreten ve ebeveynine ulaştıran çocuğun kendisidir; kodun
+  /// ibrazı rıza sayılır. Kurallar bunu `viaCode` alanı üzerinden doğrular
+  /// (parent_link_codes/{viaCode}.childUid == childUid && süresi geçmemiş).
+  /// Kod kullanılınca silinir (tek kullanımlık). Çocuğa bilgi bildirimi düşer.
+  static Future<LinkRequestResult> linkByCode(String rawCode) async {
     final myUid = _myUid;
     if (myUid == null) return LinkRequestResult.notAuthed;
-    final code = rawCode.trim().toUpperCase();
-    if (!RegExp(r'^EBEV-[A-Z0-9]{6}$').hasMatch(code)) {
-      return LinkRequestResult.invalidCode;
-    }
+    final code = normalizeCode(rawCode);
+    if (code == null) return LinkRequestResult.invalidCode;
     try {
       final codeDoc = await _fs
           .collection('parent_link_codes').doc(code).get();
@@ -388,24 +402,72 @@ class ParentLinkService {
       }
       if (childUid == myUid) return LinkRequestResult.selfLink;
 
-      // Çocuğun username'i ile mevcut requestLink akışını çağır.
       final childProfile =
           await _fs.collection('users').doc(childUid).get();
-      final childUsername =
-          (childProfile.data()?['username'] ?? '').toString();
-      if (childUsername.isEmpty) return LinkRequestResult.childNotFound;
-      final res = await requestLink(childUsername);
-      // Kod kullanıldı → sil (idempotent — bir daha geçerli olmasın).
-      if (res == LinkRequestResult.success ||
-          res == LinkRequestResult.pending ||
-          res == LinkRequestResult.alreadyLinked) {
-        try {
-          await _fs.collection('parent_link_codes').doc(code).delete();
-        } catch (_) {}
+      final childData = childProfile.data() ?? const <String, dynamic>{};
+      if ((childData['username'] ?? '').toString().isEmpty) {
+        return LinkRequestResult.childNotFound;
       }
-      return res;
+      final myProfile = await _fs.collection('users').doc(myUid).get();
+      final myData = myProfile.data() ?? const <String, dynamic>{};
+
+      // Mevcut kayıt: aktifse iş yok; pending/rejected ise sil — kurallar
+      // 'active' yazımına yalnızca CREATE'te (viaCode kanıtıyla) izin verir,
+      // update yolu ['status','acceptedAt'] ile sınırlı olduğundan viaCode'lu
+      // set() UPDATE sayılırsa permission-denied alırdı.
+      final linkRef = _fs.collection('parent_links').doc(myUid)
+          .collection('children').doc(childUid);
+      final inviteRef = _fs.collection('child_invites').doc(childUid)
+          .collection('from').doc(myUid);
+      final existing = await linkRef.get();
+      if (existing.exists) {
+        if ((existing.data()?['status'] ?? '').toString() == 'active') {
+          return LinkRequestResult.alreadyLinked;
+        }
+        try { await linkRef.delete(); } catch (_) {}
+        try { await inviteRef.delete(); } catch (_) {}
+      }
+
+      final now = FieldValue.serverTimestamp();
+      final batch = _fs.batch();
+      batch.set(linkRef, {
+        'childUsername': childData['username'] ?? '',
+        'childDisplayName': childData['displayName'] ?? '',
+        'childAvatar': childData['avatar'] ?? '👤',
+        'linkedAt': now,
+        'acceptedAt': now,
+        'status': 'active',
+        'viaCode': code,
+      });
+      batch.set(inviteRef, {
+        'parentUsername': myData['username'] ?? '',
+        'parentDisplayName': myData['displayName'] ?? '',
+        'requestedAt': now,
+        'acceptedAt': now,
+        'status': 'active',
+        'viaCode': code,
+      });
+      // Çocuğa BİLGİ bildirimi (onay istemez) — pushOnNotificationCreated.
+      batch.set(
+        _fs.collection('notifications').doc(childUid)
+            .collection('items').doc(),
+        {
+          'type': 'parent_linked',
+          'fromUsername': myData['username'] ?? 'Ebeveyn',
+          'fromDisplayName': myData['displayName'] ?? '',
+          'when': now,
+          'read': false,
+        },
+      );
+      await batch.commit();
+      // Kod tek kullanımlık — commit'ten SONRA sil (kurallar batch sırasında
+      // parent_link_codes/{code} dokümanını okuyabilmeli).
+      try {
+        await _fs.collection('parent_link_codes').doc(code).delete();
+      } catch (_) {}
+      return LinkRequestResult.success;
     } catch (e) {
-      debugPrint('[ParentLink] requestLinkByCode fail: $e');
+      debugPrint('[ParentLink] linkByCode fail: $e');
       return LinkRequestResult.error;
     }
   }
@@ -595,8 +657,8 @@ class ParentLinkService {
   /// Kod → childUid çözer (bağlamadan önce slot'a yazmak için). Geçersiz /
   /// süresi dolmuş kodda null döner.
   static Future<String?> resolveCodeChildUid(String rawCode) async {
-    final code = rawCode.trim().toUpperCase();
-    if (!RegExp(r'^EBEV-[A-Z0-9]{6}$').hasMatch(code)) return null;
+    final code = normalizeCode(rawCode);
+    if (code == null) return null;
     try {
       final doc =
           await _fs.collection('parent_link_codes').doc(code).get();

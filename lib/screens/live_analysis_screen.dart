@@ -2204,13 +2204,15 @@ class _HistorySheetState extends State<_HistorySheet> {
 
   @override
   Widget build(BuildContext context) {
+    // Açık tema (kullanıcı isteği): panel zemini soluk beyaz, her sohbet
+    // kaydı BEYAZ çerçeveli kart — siyah zemin yok, mesaj sayısı yazılmaz.
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 8, 16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.78,
       ),
       decoration: const BoxDecoration(
-        color: Color(0xF0111122),
+        color: Color(0xFFF4F5F9),
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
       child: Column(
@@ -2221,38 +2223,35 @@ class _HistorySheetState extends State<_HistorySheet> {
             child: Container(
               width: 40,
               height: 4,
-              margin: const EdgeInsets.only(bottom: 12, right: 8),
+              margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: Colors.black.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Row(
-              children: [
-                const Icon(Icons.history_rounded,
-                    color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text('Geçmiş sohbetler'.tr(),
+          Row(
+            children: [
+              const Icon(Icons.history_rounded,
+                  color: Color(0xFF1F2430), size: 18),
+              const SizedBox(width: 8),
+              Text('Geçmiş sohbetler'.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF1F2430))),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: widget.onNew,
+                icon: const Icon(Icons.add_rounded,
+                    size: 18, color: Color(0xFF7C3AED)),
+                label: Text('Yeni'.tr(),
                     style: GoogleFonts.poppins(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white)),
-                const Spacer(),
-                TextButton.icon(
-                  onPressed: widget.onNew,
-                  icon: const Icon(Icons.add_rounded,
-                      size: 18, color: Color(0xFFA78BFA)),
-                  label: Text('Yeni'.tr(),
-                      style: GoogleFonts.poppins(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFFA78BFA))),
-                ),
-              ],
-            ),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF7C3AED))),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           if (_sessions.isEmpty)
@@ -2261,17 +2260,16 @@ class _HistorySheetState extends State<_HistorySheet> {
               child: Center(
                 child: Text('Henüz kayıtlı konuşma yok.'.tr(),
                     style: GoogleFonts.poppins(
-                        fontSize: 13, color: Colors.white38)),
+                        fontSize: 13,
+                        color: Colors.black.withValues(alpha: 0.45))),
               ),
             )
           else
             Flexible(
               child: ListView.separated(
-                padding: const EdgeInsets.only(right: 8),
                 shrinkWrap: true,
                 itemCount: _sessions.length,
-                separatorBuilder: (_, __) =>
-                    Divider(color: Colors.white.withValues(alpha: 0.06), height: 1),
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
                 itemBuilder: (_, i) {
                   final s = _sessions[i];
                   final active = s.id == widget.currentId;
@@ -2281,7 +2279,10 @@ class _HistorySheetState extends State<_HistorySheet> {
                     background: Container(
                       alignment: Alignment.centerRight,
                       padding: const EdgeInsets.only(right: 20),
-                      color: const Color(0xFFE83D3D),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE83D3D),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                       child: const Icon(Icons.delete_rounded,
                           color: Colors.white, size: 20),
                     ),
@@ -2289,42 +2290,66 @@ class _HistorySheetState extends State<_HistorySheet> {
                       await LiveChatHistory.delete(s.id);
                       setState(() => _sessions.removeAt(i));
                     },
-                    child: ListTile(
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 4),
-                      onTap: () => widget.onOpen(s),
-                      leading: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
+                    // Kart: beyaz zemin + ince çerçeve; aktif sohbette mor
+                    // vurgu çerçevesi.
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
                           color: active
                               ? const Color(0xFF7C3AED)
-                              : Colors.white.withValues(alpha: 0.08),
+                              : Colors.black.withValues(alpha: 0.07),
+                          width: active ? 1.4 : 1.0,
                         ),
-                        alignment: Alignment.center,
-                        child: Icon(Icons.chat_bubble_outline_rounded,
-                            size: 18,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 2),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        onTap: () => widget.onOpen(s),
+                        leading: Container(
+                          width: 38,
+                          height: 38,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
                             color: active
-                                ? Colors.white
-                                : Colors.white60),
+                                ? const Color(0xFF7C3AED)
+                                : const Color(0xFFEDE9FE),
+                          ),
+                          alignment: Alignment.center,
+                          child: Icon(Icons.chat_bubble_outline_rounded,
+                              size: 18,
+                              color: active
+                                  ? Colors.white
+                                  : const Color(0xFF7C3AED)),
+                        ),
+                        title: Text(
+                          s.title.isEmpty ? 'Konuşma'.tr() : s.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.poppins(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1F2430)),
+                        ),
+                        subtitle: Text(
+                          _fmtDate(s.ts),
+                          style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: Colors.black.withValues(alpha: 0.45)),
+                        ),
+                        trailing: Icon(Icons.chevron_right_rounded,
+                            color: Colors.black.withValues(alpha: 0.30)),
                       ),
-                      title: Text(
-                        s.title.isEmpty ? 'Konuşma'.tr() : s.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white),
-                      ),
-                      subtitle: Text(
-                        '${_fmtDate(s.ts)} · ${s.messages.length} ${'mesaj'.tr()}',
-                        style: GoogleFonts.poppins(
-                            fontSize: 11, color: Colors.white38),
-                      ),
-                      trailing: const Icon(Icons.chevron_right_rounded,
-                          color: Colors.white24),
                     ),
                   );
                 },

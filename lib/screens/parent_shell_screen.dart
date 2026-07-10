@@ -29,9 +29,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/feature_flags.dart';
 import '../widgets/parent_actions_bar.dart';
+import '../widgets/parent_qr_scan_dialog.dart';
 import '../widgets/teacher_help_dialog.dart';
 import '../models/education_models.dart';
+import '../services/account_service.dart';
 import '../services/analytics.dart';
+import '../services/deep_link_service.dart';
 import '../services/parent_link_service.dart';
 import '../services/parent_preview.dart';
 import '../services/runtime_translator.dart';
@@ -60,6 +63,10 @@ class _ParentShellScreenState extends State<ParentShellScreen> {
   void initState() {
     super.initState();
     Analytics.logFeatureOpen('parent_panel');
+    // WhatsApp veli linkinden geldiyse (cold start / login sonrası) bekleyen
+    // kodu tüket — bağlantı burada kurulur.
+    WidgetsBinding.instance.addPostFrameCallback(
+        (_) => consumePendingParentLinkCode(context));
   }
 
   @override
@@ -372,62 +379,170 @@ class _ParentShellScreenState extends State<ParentShellScreen> {
 
 }
 
-/// Çocuğun profilinden ürettiği kodla bağlantı isteği gönderir — FAB
-/// menüsü ve ana sayfadaki pill ➕ ortak kullanır.
+/// Çocuğun WhatsApp'tan gönderdiği /veli/{kod} linkinden gelen BEKLEYEN kodu
+/// tüketir: giriş yapmış VELİ hesabıyla bağlantıyı doğrudan kurar ve sonucu
+/// dialog ile bildirir. İki çağıran var:
+///   • main.dart — uygulama açıkken link gelirse (warm)
+///   • ParentShellScreen.initState — cold start / login sonrası
+/// Giriş yoksa kod BEKLETİLİR (temizlenmez); veli girişten sonra shell
+/// açılınca tekrar denenir. Veli olmayan hesapta bilgi verilip temizlenir.
+Future<void> consumePendingParentLinkCode(BuildContext context) async {
+  final code = DeepLinkService.instance.pendingParentLinkCode.value;
+  if (code == null || code.isEmpty) return;
+  if (FirebaseAuth.instance.currentUser == null) return;
+  DeepLinkService.instance.clearParentLinkCode();
+
+  String msg;
+  bool ok = false;
+  if (!AccountService.instance.isParent) {
+    msg = 'Bu bağlantı veli hesapları içindir. Velin, bu linke KENDİ '
+        'telefonundaki QuAlsar veli hesabıyla dokunmalı.'.tr();
+  } else {
+    final res = await ParentLinkService.linkByCode(code);
+    ok = res == LinkRequestResult.success ||
+        res == LinkRequestResult.alreadyLinked;
+    msg = switch (res) {
+      LinkRequestResult.success =>
+        'Bağlantı kuruldu 🎉 Çocuğunun verileri artık panelinde.'.tr(),
+      LinkRequestResult.alreadyLinked => 'Bu çocuk zaten bağlı.'.tr(),
+      LinkRequestResult.invalidCode ||
+      LinkRequestResult.codeExpired =>
+        'Bağlantının süresi dolmuş — çocuğundan yeni bir bağlantı iste.'.tr(),
+      LinkRequestResult.selfLink =>
+        'Kendi hesabına bağlanamazsın — bu linke velin dokunmalı.'.tr(),
+      _ => 'Bağlanamadı. İnterneti kontrol edip linke tekrar dokun.'.tr(),
+    };
+  }
+  if (!context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: AppPalette.card(ctx),
+      icon: Icon(
+          ok ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+          color: ok ? _kGreen : const Color(0xFFF59E0B),
+          size: 40),
+      content: Text(msg,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.poppins(
+              fontSize: 13.5,
+              height: 1.4,
+              fontWeight: FontWeight.w600,
+              color: AppPalette.textPrimary(ctx))),
+      actions: [
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: _kBrand),
+          onPressed: () => Navigator.pop(ctx),
+          child: Text('Tamam'.tr(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white)),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Çocuğu bağlar — FAB menüsü ve ana sayfadaki pill ➕ ortak kullanır.
+/// Birincil yol: çocuğun ekranındaki QR'ı okut → ANINDA bağlanır (onay yok).
+/// İkincil yol: kodu elle yaz. Her ikisi de ParentLinkService.linkByCode.
 Future<void> showLinkChildSheet(BuildContext context) async {
     final ctrl = TextEditingController();
     final res = await showDialog<LinkRequestResult>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppPalette.card(ctx),
-        title: Text('Çocuk Bağla'.tr(),
+        title: Text('Çocuğunu Bağla'.tr(),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w800,
                 color: AppPalette.textPrimary(ctx))),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Çocuğun, kendi telefonunda Profil → "Ebeveyni Bağla" '
-              'bölümünden kod üretsin; kodu buraya yaz.'.tr(),
-              style: GoogleFonts.poppins(
-                  fontSize: 12,
-                  color: AppPalette.textSecondary(ctx),
-                  height: 1.4),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctrl,
-              autofocus: true,
-              textCapitalization: TextCapitalization.characters,
-              style: GoogleFonts.poppins(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
-                  color: AppPalette.textPrimary(ctx)),
-              decoration: InputDecoration(
-                hintText: 'EBEV-XXXXXX',
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Çocuğunun telefonunda Profil → "Veliyi Bağla" ekranını '
+                'açtır, çıkan QR kodu okut — hepsi bu.'.tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    color: AppPalette.textSecondary(ctx),
+                    height: 1.4),
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: _kGreen,
+                  padding: const EdgeInsets.symmetric(
+                      vertical: 14, horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () async {
+                  final code = await showParentQrScanner(ctx);
+                  if (code == null || !ctx.mounted) return;
+                  final r = await ParentLinkService.linkByCode(code);
+                  if (ctx.mounted) Navigator.pop(ctx, r);
+                },
+                icon: const Icon(Icons.qr_code_scanner_rounded,
+                    color: Colors.white, size: 20),
+                label: Text('QR Kodu Okut'.tr(),
+                    maxLines: 2,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white)),
+              ),
+              const SizedBox(height: 14),
+              Row(children: [
+                Expanded(child: Divider(color: AppPalette.border(ctx))),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text('veya kodu yaz'.tr(),
+                      style: GoogleFonts.poppins(
+                          fontSize: 11,
+                          color: AppPalette.textSecondary(ctx))),
+                ),
+                Expanded(child: Divider(color: AppPalette.border(ctx))),
+              ]),
+              const SizedBox(height: 10),
+              TextField(
+                controller: ctrl,
+                textCapitalization: TextCapitalization.characters,
+                style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                    color: AppPalette.textPrimary(ctx)),
+                decoration: InputDecoration(
+                  hintText: 'EBEV-XXXXXX',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Vazgeç'.tr()),
+            child: Text('Vazgeç'.tr(),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: _kBrand),
             onPressed: () async {
               if (ctrl.text.trim().isEmpty) return;
-              final r =
-                  await ParentLinkService.requestLinkByCode(ctrl.text);
+              final r = await ParentLinkService.linkByCode(ctrl.text);
               if (ctx.mounted) Navigator.pop(ctx, r);
             },
-            child: Text('Bağlantı İsteği Gönder'.tr(),
+            child: Text('Bağla'.tr(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(color: Colors.white)),
           ),
         ],
@@ -435,16 +550,15 @@ Future<void> showLinkChildSheet(BuildContext context) async {
     );
     if (!context.mounted || res == null) return;
     final msg = switch (res) {
-      LinkRequestResult.success ||
-      LinkRequestResult.pending =>
-        'İstek gönderildi — çocuğun onaylayınca burada görünecek.'.tr(),
+      LinkRequestResult.success =>
+        'Bağlantı kuruldu 🎉 Çocuğunun verileri artık panelinde.'.tr(),
       LinkRequestResult.alreadyLinked => 'Bu çocuk zaten bağlı.'.tr(),
       LinkRequestResult.invalidCode ||
       LinkRequestResult.codeExpired =>
         'Kod geçersiz ya da süresi dolmuş — çocuğundan yeni kod iste.'.tr(),
       LinkRequestResult.selfLink =>
         'Kendi hesabına bağlanamazsın.'.tr(),
-      _ => 'İstek gönderilemedi. Tekrar dene.'.tr(),
+      _ => 'Bağlanamadı. İnterneti kontrol edip tekrar dene.'.tr(),
     };
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(msg), behavior: SnackBarBehavior.floating));

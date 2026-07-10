@@ -74,6 +74,9 @@
                 <data android:scheme="https"
                       android:host="qualsar.app"
                       android:pathPrefix="/grup/" />
+                <data android:scheme="https"
+                      android:host="qualsar.app"
+                      android:pathPrefix="/veli/" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

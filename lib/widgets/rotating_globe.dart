@@ -29,6 +29,9 @@ class RotatingGlobe extends StatefulWidget {
   /// Kullanıcının ülkesi (ISO-2) — bu bayrak küme nöbetine GİRMEZ, ülke ön
   /// yüzdeyken HER ZAMAN görünür (kullanıcı kendi bayrağını hep görsün).
   final String? pinnedCountry;
+  /// false → küre üstünde HİÇ bayrak çizilmez (ör. Kütüphanem'deki küçük
+  /// Dünya Sıralaması ikonu: sadece temiz dönen dünya).
+  final bool showFlags;
 
   const RotatingGlobe({
     super.key,
@@ -37,6 +40,7 @@ class RotatingGlobe extends StatefulWidget {
     this.paused = false,
     this.period = const Duration(seconds: 22),
     this.pinnedCountry,
+    this.showFlags = true,
   });
 
   @override
@@ -173,6 +177,7 @@ class _RotatingGlobeState extends State<RotatingGlobe>
               rotation: _spin.value * 2 * math.pi + _dragOffset,
               timeSec: _clock.elapsedMilliseconds / 1000.0,
               pinnedCountry: widget.pinnedCountry,
+              showFlags: widget.showFlags,
             ),
           ),
         ),
@@ -187,12 +192,14 @@ class _GlobePainter extends CustomPainter {
   final double rotation;
   final double timeSec;
   final String? pinnedCountry;
+  final bool showFlags;
   _GlobePainter({
     required this.program,
     required this.texture,
     required this.rotation,
     required this.timeSec,
     this.pinnedCountry,
+    this.showFlags = true,
   });
 
   /// Bayraklar nöbetleşe: yan yana ülkeler tek kümede toplanır; kümede aynı
@@ -254,6 +261,7 @@ class _GlobePainter extends CustomPainter {
 
     // ── Bayraklar — shader'la aynı ortografik projeksiyon ──────────────────
     // Kümede aynı anda TEK bayrak: 5 sn'de bir sıradaki komşuya geçer.
+    if (!showFlags) return; // temiz küre modu (ör. Kütüphanem ikonu)
     final c = Offset(size.width / 2, size.height / 2);
     final r = math.min(size.width, size.height) / 2 - 2.0;
     final clusters = _clusters ??= _buildClusters();

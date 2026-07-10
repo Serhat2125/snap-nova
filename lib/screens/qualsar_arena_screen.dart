@@ -3705,7 +3705,7 @@ class _FriendsVsHeroState extends State<_FriendsVsHero> {
                       Text(
                         'ARKADAŞLARINLA YARIŞ'.tr(),
                         style: _serif(
-                          size: 19,
+                          size: 15,
                           weight: FontWeight.w900,
                           color: Colors.white,
                           letterSpacing: 0.3,
@@ -4039,18 +4039,18 @@ class _GroupRaceHeroState extends State<_GroupRaceHero> {
             Row(
               children: [
                 Container(
-                  width: 11,
-                  height: 11,
+                  width: 9,
+                  height: 9,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,
                     border: Border.all(
                         color: _barColors[i].withValues(alpha: 0.9),
-                        width: 0.8),
+                        width: 0.7),
                   ),
                   alignment: Alignment.center,
                   child: Text(_avatars[(_tick + i * 4) % _avatars.length],
-                      style: const TextStyle(fontSize: 6)),
+                      style: const TextStyle(fontSize: 5)),
                 ),
                 const SizedBox(width: 3),
                 Expanded(
@@ -4059,24 +4059,24 @@ class _GroupRaceHeroState extends State<_GroupRaceHero> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: _sans(
-                        size: 7.5,
+                        size: 6.5,
                         weight: FontWeight.w700,
                         color: Colors.white),
                   ),
                 ),
                 Text('${scores[i]}',
                     style: _sans(
-                        size: 7.5,
+                        size: 6.5,
                         weight: FontWeight.w800,
                         color: _barColors[i])),
               ],
             ),
-            const SizedBox(height: 1.5),
+            const SizedBox(height: 1),
             ClipRRect(
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.circular(1.5),
               child: LinearProgressIndicator(
                 value: ratio,
-                minHeight: 2,
+                minHeight: 1.6,
                 backgroundColor: Colors.white.withValues(alpha: 0.15),
                 valueColor: AlwaysStoppedAnimation(_barColors[i]),
               ),
@@ -4118,7 +4118,7 @@ class _GroupRaceHeroState extends State<_GroupRaceHero> {
               ),
               Positioned(
                 left: 14,
-                right: 124, // sağdaki küçük panelin genişliği kadar boşluk
+                right: 100, // sağdaki küçük panelin genişliği kadar boşluk
                 bottom: 10,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -4132,7 +4132,7 @@ class _GroupRaceHeroState extends State<_GroupRaceHero> {
                         'ARKADAŞ GRUBUYLA YARIŞ'.tr(),
                         maxLines: 1,
                         style: _serif(
-                          size: 17,
+                          size: 14,
                           weight: FontWeight.w900,
                           color: Colors.white,
                           letterSpacing: 0.3,
@@ -4158,12 +4158,12 @@ class _GroupRaceHeroState extends State<_GroupRaceHero> {
               Positioned(
                 right: 8,
                 bottom: 8,
-                width: 108,
+                width: 86,
                 child: Container(
-                  padding: const EdgeInsets.fromLTRB(7, 5, 7, 3),
+                  padding: const EdgeInsets.fromLTRB(6, 4, 6, 2),
                   decoration: BoxDecoration(
                     color: const Color(0xB3101418), // ~%70 opak (şeffaf)
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(9),
                     border: Border.all(
                         color: Colors.white.withValues(alpha: 0.10)),
                   ),
@@ -4173,7 +4173,7 @@ class _GroupRaceHeroState extends State<_GroupRaceHero> {
                     children: [
                       Row(
                         children: [
-                          const Text('🏆', style: TextStyle(fontSize: 9)),
+                          const Text('🏆', style: TextStyle(fontSize: 7.5)),
                           const SizedBox(width: 3),
                           Expanded(
                             child: Text(
@@ -4181,14 +4181,14 @@ class _GroupRaceHeroState extends State<_GroupRaceHero> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: _sans(
-                                  size: 8.5,
+                                  size: 7.5,
                                   weight: FontWeight.w800,
                                   color: Colors.white),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
                       row(0),
                       row(1),
                       row(2),
@@ -6079,6 +6079,13 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
   static const _duelFrameColorKey = 'duelo_frame_color';
   static const _duelTileColorsKey = 'duelo_tile_colors';
   static const _duelTileTextColorsKey = 'duelo_tile_text_colors';
+  static const _duelRacesFrameColorKey = 'duelo_races_frame_color';
+  static const _duelRaceTabColorsKey = 'duelo_race_tab_colors';
+
+  // "Yarışlarım" renkleri — paletten sürükle-bırak: dış çerçevenin zemini
+  // ve her sekmenin (Dünya/Ülke/Arkadaş/Grup) kendi zemini ayrı boyanabilir.
+  Color? _racesFrameColor;
+  final Map<String, Color> _raceTabColors = {};
   static const _duelOrderKey = 'duelo_subject_order';
 
   // Scope bazlı ders sırası (sürükle-bırak ile değişir).
@@ -6149,10 +6156,22 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
       final frameInt = prefs.getInt(_duelFrameColorKey);
       final tilesRaw = prefs.getString(_duelTileColorsKey);
       final tilesTextRaw = prefs.getString(_duelTileTextColorsKey);
+      final racesInt = prefs.getInt(_duelRacesFrameColorKey);
+      final raceTabsRaw = prefs.getString(_duelRaceTabColorsKey);
       if (!mounted) return;
       setState(() {
         if (bgInt != null) _pageBgOverride = Color(bgInt);
         if (frameInt != null) _frameOverride = Color(frameInt);
+        if (racesInt != null) _racesFrameColor = Color(racesInt);
+        if (raceTabsRaw != null && raceTabsRaw.isNotEmpty) {
+          try {
+            final m = jsonDecode(raceTabsRaw) as Map<String, dynamic>;
+            _raceTabColors.clear();
+            m.forEach((k, v) {
+              if (v is num) _raceTabColors[k] = Color(v.toInt());
+            });
+          } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
+        }
         if (tilesRaw != null && tilesRaw.isNotEmpty) {
           try {
             final m = jsonDecode(tilesRaw) as Map<String, dynamic>;
@@ -6203,6 +6222,19 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
         final json = jsonEncode(_subjectTextColors
             .map((k, v) => MapEntry(k, v.toARGB32())));
         await prefs.setString(_duelTileTextColorsKey, json);
+      }
+      if (_racesFrameColor == null) {
+        await prefs.remove(_duelRacesFrameColorKey);
+      } else {
+        await prefs.setInt(
+            _duelRacesFrameColorKey, _racesFrameColor!.toARGB32());
+      }
+      if (_raceTabColors.isEmpty) {
+        await prefs.remove(_duelRaceTabColorsKey);
+      } else {
+        final json = jsonEncode(
+            _raceTabColors.map((k, v) => MapEntry(k, v.toARGB32())));
+        await prefs.setString(_duelRaceTabColorsKey, json);
       }
     } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
   }
@@ -7105,7 +7137,20 @@ KURALLAR:
   @override
   Widget build(BuildContext context) {
     if (_matching) return _buildMatchingOverlay();
-    return Scaffold(
+    // Sistem geri tuşu: kurulum sayfası / Diğer Dersler paneli AÇIKKEN
+    // route'u kapatıp ana sayfaya düşmesin — önce bir önceki görünüme
+    // (arena ilk sayfası) dönsün; ancak hepsi kapalıyken route pop edilir.
+    return PopScope(
+      canPop: !_contestSetup && !_showOtherSheet,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_contestSetup) {
+          _exitContestSetup();
+        } else if (_showOtherSheet) {
+          setState(() => _showOtherSheet = false);
+        }
+      },
+      child: Scaffold(
       backgroundColor: _pageBgOverride ?? AppPalette.bg(context),
       body: Stack(
         children: [
@@ -7226,21 +7271,9 @@ KURALLAR:
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              // Başlık — 4 sekmenin çerçevesinin ÜSTÜNDE,
-                              // dışında; sekmeler de bu sayede biraz aşağı
-                              // kayar (kullanıcı isteği).
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                    left: 4, top: 12, bottom: 8),
-                                child: Text(
-                                  'NASIL YARIŞMAK İSTERSİN?'.tr(),
-                                  style: _sans(
-                                      size: 11,
-                                      weight: FontWeight.w900,
-                                      color: AppPalette.textPrimary(context),
-                                      letterSpacing: 0.04),
-                                ),
-                              ),
+                              // "NASIL YARIŞMAK İSTERSİN?" başlığı kaldırıldı
+                              // (kullanıcı isteği) — kartlar kendini anlatıyor.
+                              const SizedBox(height: 10),
                               // Dünya/Ülke + Arkadaşınla Yarış/Grup — hepsi TEK
                               // çerçeve içinde; basılı olan beyaz, diğerleri
                               // "Ülke Çapında basılı değilken" gibi şeffaf.
@@ -7322,7 +7355,8 @@ KURALLAR:
                   // _groupModeBanner() / _buildSavedGroupsRow() / _FriendsSection
                   // gizlendi; kod ileride tekrar açılabilsin diye korunuyor.
                   const SizedBox(height: 18),
-                  const _MasterySection(),
+                  // "Konu Ustalığın" bölümü kaldırıldı (kullanıcı isteği) —
+                  // geri açmak için: const _MasterySection(),
                   _BadgesSectionTitle(
                     onInfoTap: () => _showBadgesInfoSheet(context),
                   ),
@@ -7355,6 +7389,7 @@ KURALLAR:
           // Inline yarış kurulum paneli — her şeyin ÜSTÜNDE tam ekran.
           if (_contestSetup) _buildContestSetupOverlay(),
         ],
+      ),
       ),
     );
   }
@@ -7438,7 +7473,7 @@ KURALLAR:
   /// verisi olan ülkelerde (şimdilik TR + DE, _countryHeroShapes) sınırlar
   /// parlak çizgiyle çizilir; diğer ülkelerde merkezde bayrak işareti.
   /// Ülke koordinatı bilinmiyorsa null → klasik beyaz satır.
-  Widget? _countryHeroCard() {
+  Widget? _countryHeroCard({VoidCallback? onTap}) {
     var cc = (EduProfile.current?.country ?? '').toLowerCase().trim();
     if (cc == 'uk') cc = 'gb';
     final anchor = countryAnchor(cc);
@@ -7446,7 +7481,7 @@ KURALLAR:
     final borders = _countryHeroShapes[cc];
     final name = _countryDisplayName(cc);
     return GestureDetector(
-      onTap: _startCountryContest,
+      onTap: onTap ?? _startCountryContest,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Container(
@@ -7499,7 +7534,7 @@ KURALLAR:
                       Text(
                         'ÜLKE ÇAPINDA YARIŞ'.tr(),
                         style: _serif(
-                          size: 19,
+                          size: 15,
                           weight: FontWeight.w900,
                           color: Colors.white,
                           letterSpacing: 0.3,
@@ -7520,6 +7555,96 @@ KURALLAR:
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Dünya Çapında HERO kartı — GERÇEK NASA dokusuyla tam tur dönen 3D küre
+  /// (shaders/globe.frag) + ülke bayrakları + köşe rozetleri. Hem ana
+  /// sayfadaki seçenek hem de kurulum sayfasının üst banner'ı bunu kullanır.
+  Widget _worldHeroCard({required VoidCallback onTap, bool paused = false}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            Container(
+              width: double.infinity,
+              height: 180,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF06121F), Color(0xFF0D2B44)],
+                ),
+              ),
+              child: RotatingGlobe(
+                height: 180,
+                paused: paused,
+                // Kullanıcının kendi bayrağı nöbete girmeden HEP görünür
+                // ('uk' → ISO 'gb' normalize).
+                pinnedCountry:
+                    (EduProfile.current?.country ?? 'tr').toLowerCase() == 'uk'
+                        ? 'gb'
+                        : (EduProfile.current?.country ?? 'tr').toLowerCase(),
+                fallback: Image.asset(
+                  'assets/library_icons/duello_world_hero.jpg',
+                  width: double.infinity,
+                  height: 180,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            // Kürenin sağındaki/solundaki boş üst alanlar: 3 sn'de bir
+            // değişen kullanıcı rozetleri (ad + bayrak + ülke).
+            const Positioned(
+              left: 10,
+              right: 10,
+              top: 10,
+              child: _WorldVsChips(),
+            ),
+            // Alt karartma + başlık — görselin ÜSTÜNDE, kartın altında.
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(14, 34, 14, 10),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.transparent, Color(0xCC00312B)],
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'DÜNYA ÇAPINDA YARIŞ'.tr(),
+                      style: _serif(
+                        size: 15,
+                        weight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Milyonlarca rakiple küresel arenada yarış.'.tr(),
+                      style: _sans(
+                        size: 11.5,
+                        weight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.92),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -7573,100 +7698,15 @@ KURALLAR:
       ),
       child: Column(
         children: [
-          // Dünya Çapında — HERO kart: GERÇEK NASA dokusuyla tam tur dönen
-          // 3D küre (shaders/globe.frag) + her ülkenin üstünde konumuna
-          // sabit küçük bayrağı. Üstte tam ekran panel açıkken dönüş durur.
-          GestureDetector(
+          // Dünya Çapında — HERO kart (_worldHeroCard: kurulum sayfasının
+          // üst banner'ı da aynı görseli kullanır).
+          _worldHeroCard(
             onTap: () => setState(() {
               _scope = 'world';
               _worldCountryContestMode = true;
               _enterContestSetup('🌍 ${"Dünya Çapında Yarış".tr()}');
             }),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Stack(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    height: 180,
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF06121F), Color(0xFF0D2B44)],
-                      ),
-                    ),
-                    child: RotatingGlobe(
-                      height: 180,
-                      paused: _contestSetup || _matching || _showOtherSheet,
-                      // Kullanıcının kendi bayrağı nöbete girmeden HEP görünür
-                      // ('uk' → ISO 'gb' normalize).
-                      pinnedCountry: (EduProfile.current?.country ?? 'tr')
-                                  .toLowerCase() ==
-                              'uk'
-                          ? 'gb'
-                          : (EduProfile.current?.country ?? 'tr').toLowerCase(),
-                      fallback: Image.asset(
-                        'assets/library_icons/duello_world_hero.jpg',
-                        width: double.infinity,
-                        height: 180,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  // Kürenin sağındaki/solundaki boş üst alanlar: 3 sn'de bir
-                  // değişen kullanıcı rozetleri (ad + bayrak + ülke).
-                  const Positioned(
-                    left: 10,
-                    right: 10,
-                    top: 10,
-                    child: _WorldVsChips(),
-                  ),
-                  // Alt karartma + başlık — görselin ÜSTÜNDE, kartın altında.
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      padding: const EdgeInsets.fromLTRB(14, 34, 14, 10),
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Color(0xCC00312B),
-                          ],
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'DÜNYA ÇAPINDA YARIŞ'.tr(),
-                            style: _serif(
-                              size: 19,
-                              weight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Milyonlarca rakiple küresel arenada yarış.'.tr(),
-                            style: _sans(
-                              size: 11.5,
-                              weight: FontWeight.w600,
-                              color: Colors.white.withValues(alpha: 0.92),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            paused: _contestSetup || _matching || _showOtherSheet,
           ),
           const SizedBox(height: 4),
           // Ülke Çapında — kullanıcının ülkesi TR/DE ise 2.5D siluetli HERO
@@ -7842,17 +7882,34 @@ KURALLAR:
   }
 
   // Tek yarış sekmesi — çerçeve içinde, zemini BEYAZ.
-  Widget _raceTab(String emoji, String title, int count, VoidCallback onTap) {
+  Widget _raceTab(String emoji, String title, int count, VoidCallback onTap,
+      {String? colorKey}) {
+    // Paletten renk sürüklenip bırakılırsa bu sekmenin kendi zemini boyanır;
+    // koyu renklerde yazı otomatik beyaza döner.
+    final key = colorKey ?? title;
+    final bg = _raceTabColors[key] ?? Colors.white;
+    final dark = (0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b) < 0.55;
+    final ink = dark ? Colors.white : const Color(0xFF1A1A1A);
     return Padding(
       padding: const EdgeInsets.only(bottom: 3),
-      child: GestureDetector(
+      child: DragTarget<Color>(
+        onWillAcceptWithDetails: (_) => true,
+        onAcceptWithDetails: (d) {
+          setState(() => _raceTabColors[key] = d.data);
+          _saveDuelColorPrefs();
+        },
+        builder: (tctx, tcand, _) => GestureDetector(
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: bg,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E4E8), width: 0.8),
+            border: Border.all(
+                color: tcand.isNotEmpty
+                    ? const Color(0xFFFF6A00)
+                    : const Color(0xFFE2E4E8),
+                width: tcand.isNotEmpty ? 1.6 : 0.8),
           ),
           child: Row(
             children: [
@@ -7865,7 +7922,7 @@ KURALLAR:
                     style: _sans(
                         size: 13,
                         weight: FontWeight.w800,
-                        color: const Color(0xFF1A1A1A))),
+                        color: ink)),
               ),
               if (count > 0)
                 Container(
@@ -7882,10 +7939,14 @@ KURALLAR:
                           color: _Palette.brand)),
                 ),
               const SizedBox(width: 6),
-              const Icon(Icons.chevron_right_rounded,
-                  size: 18, color: Color(0xFF9AA0A6)),
+              Icon(Icons.chevron_right_rounded,
+                  size: 18,
+                  color: dark
+                      ? Colors.white.withValues(alpha: 0.8)
+                      : const Color(0xFF9AA0A6)),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -7902,12 +7963,25 @@ KURALLAR:
         _records.where((r) => r.scope == 'friend' || r.scope == '').length;
     const green = Color(0xFF22C55E);
     // Başlık + Göster/Gizle + 4 sekme HEP AYNI çerçevede: beyaz zemin, yeşil
-    // çizgiler; sekme araları çok dar.
-    return Container(
+    // çizgiler; sekme araları çok dar. Dış çerçeve renk paletinden
+    // sürükle-bırak ile boyanabilir (sekmeler kendi DragTarget'ını taşır).
+    final frameBg = _racesFrameColor ?? Colors.white;
+    final frameDark =
+        (0.299 * frameBg.r + 0.587 * frameBg.g + 0.114 * frameBg.b) < 0.55;
+    final titleInk = frameDark ? Colors.white : const Color(0xFF1A1A1A);
+    return DragTarget<Color>(
+      onWillAcceptWithDetails: (_) => true,
+      onAcceptWithDetails: (d) {
+        setState(() => _racesFrameColor = d.data);
+        _saveDuelColorPrefs();
+      },
+      builder: (fctx, fcand, _) => Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: frameBg,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: green, width: 1.4),
+        border: Border.all(
+            color: fcand.isNotEmpty ? const Color(0xFFFF6A00) : green,
+            width: fcand.isNotEmpty ? 2 : 1.4),
       ),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: Column(
@@ -7921,7 +7995,7 @@ KURALLAR:
                     style: _serif(
                         size: 18,
                         weight: FontWeight.w800,
-                        color: const Color(0xFF1A1A1A))),
+                        color: titleInk)),
               ),
               // Başlık hizasında en sağda aç/kapa: açıkken Gizle, kapalıyken Göster.
               GestureDetector(
@@ -7959,11 +8033,14 @@ KURALLAR:
           if (_racesExpanded) ...[
             const SizedBox(height: 8),
             _raceTab('🌍', 'Dünya Çapında Yarışlarım', worldN,
-                () => _openRecordsPage(scope: 'world')),
+                () => _openRecordsPage(scope: 'world'),
+                colorKey: 'world'),
             _raceTab('🇹🇷', 'Ülke Çapında Yarışlarım', countryN,
-                () => _openRecordsPage(scope: 'country')),
+                () => _openRecordsPage(scope: 'country'),
+                colorKey: 'country'),
             _raceTab('👤', 'Arkadaşımla Yarışlarım', friendN,
-                () => _openRecordsPage(scope: 'friend')),
+                () => _openRecordsPage(scope: 'friend'),
+                colorKey: 'friend'),
             StreamBuilder<List<GroupContest>>(
               stream: GroupContestService.myContestsStream(),
               builder: (c, snap) {
@@ -7975,11 +8052,13 @@ KURALLAR:
                 }
                 final n = (snap.data ?? const <GroupContest>[]).length;
                 return _raceTab('👥', 'Grup Arkadaşımla Yarışlarım', n,
-                    _openGroupRacesPage);
+                    _openGroupRacesPage,
+                    colorKey: 'group');
               },
             ),
           ],
         ],
+      ),
       ),
     );
   }
@@ -11661,10 +11740,28 @@ KURALLAR:
 
     // Ders şeridi (başlık + yatay kayan çerçeve) — hem "ortada" hem "yukarıda"
     // aynı widget kullanılır.
+    // Seçilen yarış tipinin HERO görseli — ders tablosunun ÜSTÜNDE, ana
+    // sayfadakiyle aynı görsel ve yazılar (dokunuş burada işlevsiz).
+    final String heroCc = (EduProfile.current?.country ?? 'tr').toLowerCase();
+    Widget? setupHero;
+    if (_worldCountryContestMode) {
+      setupHero = _scope == 'world'
+          ? _worldHeroCard(onTap: () {})
+          : (_countryHeroCard(onTap: () {}) ?? _worldHeroCard(onTap: () {}));
+    } else if (_groupMode || (_pendingDemo?.isGroup ?? false)) {
+      setupHero = _GroupRaceHero(countryCode: heroCc, onTap: () {});
+    } else if (_pendingFriend != null || _pendingDemo != null) {
+      setupHero = _FriendsVsHero(countryCode: heroCc, onTap: () {});
+    }
+
     final subjectSection = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (setupHero != null) ...[
+          setupHero,
+          const SizedBox(height: 12),
+        ],
         // Kapsam açıklaması — ders sekmelerinin ÜSTÜNDE, seçilen yarış
         // tipine göre (ilk sayfadan buraya taşındı). Yalnız Dünya/Ülke
         // Çapında akışında anlamlı; arkadaş/grup kurulumunda gösterilmez.
@@ -11755,8 +11852,10 @@ KURALLAR:
               // YUKARI/AŞAĞI kayar. Kaydırılabilir olduğunu belli etmek
               // için 3. sıranın üst kısmı azıcık (peek) görünür.
               const spacing = 10.0;
-              const tileH = 108.0;
-              const peek = 26.0;
+              // Dikeyde daraltıldı (108 → 92, kullanıcı isteği) — emoji +
+              // 2 satır ders adı hâlâ rahat sığıyor.
+              const tileH = 92.0;
+              const peek = 24.0;
               final rows = (subjects.length / 4).ceil();
               final double height = rows == 0
                   ? 0
@@ -12615,9 +12714,11 @@ KURALLAR:
                         _chosenLanguage[s.key] != null
                     ? _chosenLanguage[s.key]!.emoji
                     : s.emoji,
-                style: TextStyle(fontSize: 32),
+                // 92px karoya sığması için küçültüldü (32 → 26) — 2 satır
+                // ders adıyla birlikte taşma (overflow) yapmıyor.
+                style: TextStyle(fontSize: 26),
               ),
-              SizedBox(height: 6),
+              SizedBox(height: 4),
               Text(
                 _isLanguagePickerSubject(s.key) &&
                         _chosenLanguage[s.key] != null
@@ -20693,7 +20794,7 @@ String _displayUsername() {
   if (dn.isNotEmpty) return dn;
   final un = p.username.trim();
   if (un.isNotEmpty) return un;
-  return _currentUsername != 'ahmet' ? _currentUsername : 'Sen';
+  return _currentUsername != 'ahmet' ? _currentUsername : 'Sen'.tr();
 }
 String? _currentLevel; // 'ilkokul' | 'ortaokul' | 'lise' | 'universite' | 'yuksek_lisans' | 'doktora' | 'sinav_hazirlik'
 String? _currentFaculty; // 'muhendislik', 'insaat_muh', 'tip' vb.

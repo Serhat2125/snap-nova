@@ -71,6 +71,10 @@
       {
         "source": "/grup/**",
         "destination": "/davet.html"
+      },
+      {
+        "source": "/veli/**",
+        "destination": "/davet.html"
       }
     ]
   },

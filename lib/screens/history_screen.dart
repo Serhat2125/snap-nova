@@ -845,61 +845,72 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           letterSpacing: -0.3,
                         ),
                       ),
-                      // Sağ üstte renkli "Renk Seç" pill — diğer sayfalardakiyle aynı.
+                      // Sağ üstte: (?) yardım + ⭐ favori + renkli palet
+                      // simgesi (Renk Seç — yazısız, sadece simge).
                       Align(
                         alignment: Alignment.centerRight,
-                        child: GestureDetector(
-                          onTap: () => setState(
-                              () => _showColorPicker = !_showColorPicker),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFFFF6A00),
-                                  Color(0xFFDB2777),
-                                  Color(0xFF7C3AED),
-                                  Color(0xFF2563EB),
-                                ],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            GestureDetector(
+                              onTap: _showHelpSheet,
+                              behavior: HitTestBehavior.opaque,
+                              child: SizedBox(
+                                width: 36, height: 44,
+                                child: Icon(
+                                  Icons.help_outline_rounded,
+                                  color: AppPalette.textPrimary(context),
+                                  size: 24,
+                                ),
                               ),
-                              borderRadius: BorderRadius.circular(999),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black
-                                      .withValues(alpha: 0.12),
-                                  blurRadius: 8,
-                                  offset: Offset(0, 2),
-                                ),
-                              ],
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  _showColorPicker
-                                      ? Icons.close_rounded
-                                      : Icons.palette_rounded,
-                                  size: 14,
-                                  color: Colors.white,
+                            GestureDetector(
+                              onTap: () => setState(() {
+                                _showFavoritesOnly = !_showFavoritesOnly;
+                                if (_showFavoritesOnly) {
+                                  _selectedFilter = 'Tümü';
+                                }
+                              }),
+                              behavior: HitTestBehavior.opaque,
+                              child: SizedBox(
+                                width: 36, height: 44,
+                                child: Icon(
+                                  _showFavoritesOnly
+                                      ? Icons.star_rounded
+                                      : Icons.star_border_rounded,
+                                  color: Colors.yellow,
+                                  size: 28,
                                 ),
-                                SizedBox(width: 5),
-                                Text(
-                                  _showColorPicker
-                                      ? localeService.tr('close')
-                                      : 'Renk Seç'.tr(),
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => setState(
+                                  () => _showColorPicker = !_showColorPicker),
+                              behavior: HitTestBehavior.opaque,
+                              child: SizedBox(
+                                width: 40, height: 44,
+                                child: ShaderMask(
+                                  shaderCallback: (r) => const LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      Color(0xFFFF6A00),
+                                      Color(0xFFDB2777),
+                                      Color(0xFF7C3AED),
+                                      Color(0xFF2563EB),
+                                    ],
+                                  ).createShader(r),
+                                  child: Icon(
+                                    _showColorPicker
+                                        ? Icons.close_rounded
+                                        : Icons.palette_rounded,
                                     color: Colors.white,
-                                    letterSpacing: 0.2,
+                                    size: 27,
                                   ),
                                 ),
-                              ],
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
                     ],
@@ -948,62 +959,29 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             ),
                           ),
 
-                        // Sağ üst aksiyon ikonları — beyaz daire yok, sadece ikon
+                        // Sağda yalnız arama ikonu — (?) ve ⭐ üst başlığa,
+                        // Renk Seç simgesinin soluna taşındı.
                         Align(
                           alignment: Alignment.centerRight,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Search toggle
-                              GestureDetector(
-                                onTap: () => setState(() {
-                                  _showSearch = !_showSearch;
-                                  if (!_showSearch) {
-                                    _searchCtrl.clear();
-                                    _searchQuery = '';
-                                  }
-                                }),
-                                behavior: HitTestBehavior.opaque,
-                                child: SizedBox(
-                                  width: 40, height: 44,
-                                  child: Icon(
-                                    _showSearch
-                                        ? Icons.search_off_rounded
-                                        : Icons.search_rounded,
-                                    color: AppPalette.textPrimary(context),
-                                    size: 24,
-                                  ),
-                                ),
+                          child: GestureDetector(
+                            onTap: () => setState(() {
+                              _showSearch = !_showSearch;
+                              if (!_showSearch) {
+                                _searchCtrl.clear();
+                                _searchQuery = '';
+                              }
+                            }),
+                            behavior: HitTestBehavior.opaque,
+                            child: SizedBox(
+                              width: 40, height: 44,
+                              child: Icon(
+                                _showSearch
+                                    ? Icons.search_off_rounded
+                                    : Icons.search_rounded,
+                                color: AppPalette.textPrimary(context),
+                                size: 24,
                               ),
-                              GestureDetector(
-                                onTap: _showHelpSheet,
-                                behavior: HitTestBehavior.opaque,
-                                child: SizedBox(
-                                  width: 40, height: 44,
-                                  child: Icon(
-                                    Icons.help_outline_rounded,
-                                    color: AppPalette.textPrimary(context),
-                                    size: 26,
-                                  ),
-                                ),
-                              ),
-                              SizedBox(width: 4),
-                              GestureDetector(
-                                onTap: () => setState(() {
-                                  _showFavoritesOnly = !_showFavoritesOnly;
-                                  if (_showFavoritesOnly) _selectedFilter = 'Tümü';
-                                }),
-                                behavior: HitTestBehavior.opaque,
-                                child: SizedBox(
-                                  width: 40, height: 44,
-                                  child: Icon(
-                                    _showFavoritesOnly ? Icons.star_rounded : Icons.star_border_rounded,
-                                    color: Colors.yellow,
-                                    size: 30,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ],

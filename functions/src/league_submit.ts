@@ -35,9 +35,9 @@ import { logger } from "firebase-functions";
 import { getFirestore, FieldValue, Timestamp } from "firebase-admin/firestore";
 
 // ── Politika sabitleri ───────────────────────────────────────────────────────
-const MIN_INTERVAL_SEC = 45;    // iki gönderim arası min. süre (10 soruluk test < 45sn bitmez)
+const MIN_INTERVAL_SEC = 20;    // iki gönderim arası min. süre (en kısa test 5 soru — 20sn altında dürüstçe bitmez)
 const DAILY_CAP = 300;          // kullanıcı başına günlük gönderim tavanı (bot freni)
-const MAX_SCORE = 10.01;        // tek test tavanı (10 net + float payı)
+const MAX_SCORE = 20.01;        // tek test tavanı (soru sayısı seçimi 5/10/15/20 → max 20 net + float payı)
 const MIN_DURATION_SEC = 5;
 const MAX_DURATION_SEC = 3600;
 const CLIENT_WHEN_TOLERANCE_MS = 12 * 3600 * 1000; // offline senkron toleransı

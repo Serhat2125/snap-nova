@@ -441,6 +441,62 @@ class LeagueScores {
     });
   }
 
+  /// TEK SEFERLİK ONARIM — soru sayısı seçimi (5/10/15/20) eklendiğinde
+  /// sunucu tek-test tavanı hâlâ 10 puandı; 10 üzeri netler invalid-argument
+  /// ile KALICI reddedilip outbox'a bile girmeden kayboluyordu (puan yerelde
+  /// görünüyor ama şehir/ülke/dünya sıralamasına hiç yazılmıyordu). Tavan
+  /// 20'ye çıkarıldı; bu rutin yerel kayıtlardaki 10 üzeri puanlı attempt'leri
+  /// outbox'a koyar — flushOutbox idempotent gönderir (CF clientSubmitId ile
+  /// dedupe eder, çift sayım imkânsız). Başarıyla tarandıktan sonra pref
+  /// bayrağıyla bir daha çalışmaz.
+  static const _capRepairKey = 'bilgi_ligi_cap10_repair_done_v1';
+  static Future<void> repairCapRejectedScores({
+    EduProfile? profile,
+    UserLocation? location,
+    String? displayName,
+  }) {
+    return _serialize(() async {
+      if (profile == null) return;
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_capRepairKey) ?? false) return;
+      final fallbackCc = effectiveCountryCode(profile, location);
+      final list = await loadAll();
+      final resolvedName = (displayName ?? '').trim().isEmpty
+          ? (FirebaseAuth.instance.currentUser?.displayName ?? '')
+          : displayName!.trim();
+      var queued = 0;
+      for (final a in list) {
+        // Eski tavanın (10.01) altındakiler zaten kabul edilmişti.
+        if (a.score <= 10.01) continue;
+        final csid = a.clientSubmitId;
+        if (csid == null || csid.isEmpty) continue;
+        final cc = (a.countryCodeSnapshot ?? '').isNotEmpty
+            ? a.countryCodeSnapshot!
+            : fallbackCc;
+        if (cc.isEmpty) continue;
+        await _enqueueOutbox({
+          'clientSubmitId': csid,
+          'subjectKey': a.subjectKey,
+          'topic': a.topic ?? '',
+          'score': a.score,
+          'durationSec': a.durationSec,
+          'whenMs': a.when.toUtc().millisecondsSinceEpoch,
+          'countryCode': cc,
+          'cityCode': a.cityCodeSnapshot ?? location?.cityCode ?? '',
+          'level': profile.level,
+          'grade': profile.grade,
+          'displayName': resolvedName,
+          'avatar': '',
+        });
+        queued++;
+      }
+      if (queued > 0) {
+        debugPrint('[LeagueScores] tavan onarımı: $queued kayıt outbox\'a alındı');
+      }
+      await prefs.setBool(_capRepairKey, true);
+    });
+  }
+
   /// Liderlik adı/avatarını geriye dönük senkronize eder (anonim mod
   /// açıldı/kapandı veya profil adı değişti). Fire-and-forget kullanım için
   /// güvenli — hata yutulur, bir sonraki gönderimde zaten güncellenir.

@@ -24,6 +24,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -206,8 +207,11 @@ class QuizPoolService {
     }
   }
 
-  /// Havuza yeni test ekle (cap kontrolü ile).
-  /// Cap'e ulaşılmışsa yazma yapılmaz, false döner.
+  /// Havuza yeni test ekle — SUNUCU doğrulamalı (addQuizPoolTest CF).
+  /// Havuz tavanı, şema doğrulama ve rate limit sunucuda uygulanır;
+  /// istemci quiz_pool'a doğrudan YAZAMAZ (rules admin-only).
+  /// Cap dolmuşsa veya doğrulama geçmezse false döner — çağıran taraf
+  /// için davranış eskisiyle aynı (yazılamadı = sessizce devam).
   static Future<bool> addToPool({
     required String key,
     required EduProfile profile,
@@ -220,9 +224,6 @@ class QuizPoolService {
     if (uid == null) return false;
 
     try {
-      final size = await poolSize(key);
-      if (size >= kQuizPoolCap) return false;
-
       // Soru schema'sını sade tut — pool'da minimum alanlar yeter.
       final cleanQuestions = questions
           .map((q) => {
@@ -233,7 +234,13 @@ class QuizPoolService {
               })
           .toList();
 
-      await _col.add({
+      final res = await FirebaseFunctions.instanceFor(region: 'us-central1')
+          .httpsCallable(
+            'addQuizPoolTest',
+            options:
+                HttpsCallableOptions(timeout: const Duration(seconds: 20)),
+          )
+          .call<Map<dynamic, dynamic>>({
         'poolKey': key,
         'country': profile.country,
         'level': profile.level,
@@ -241,12 +248,10 @@ class QuizPoolService {
         'subjectKey': subjectKey,
         'topic': (topic ?? '').isEmpty ? '*' : topic,
         'questions': cleanQuestions,
-        'questionCount': cleanQuestions.length,
-        'createdBy': uid,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      return true;
-    } catch (_) {
+      }).timeout(_poolTimeout + const Duration(seconds: 14));
+      return res.data['accepted'] == true;
+    } catch (e) {
+      debugPrint('[QuizPool] addToPool fail: $e');
       return false;
     }
   }

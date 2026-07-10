@@ -168,6 +168,7 @@ class _NotificationCard extends StatelessWidget {
   IconData _iconFor(String type) {
     switch (type) {
       case 'parent_link_request': return Icons.family_restroom_rounded;
+      case 'parent_linked':       return Icons.family_restroom_rounded;
       case 'homework_assigned':   return Icons.assignment_rounded;
       case 'homework_reminder':   return Icons.alarm_rounded;
       case 'streak_milestone':    return Icons.emoji_events_rounded;
@@ -202,6 +203,7 @@ class _NotificationCard extends StatelessWidget {
   Color _colorFor(String type) {
     switch (type) {
       case 'parent_link_request': return const Color(0xFF10B981);
+      case 'parent_linked':       return const Color(0xFF10B981);
       case 'homework_assigned':   return const Color(0xFF7C3AED);
       case 'homework_reminder':   return const Color(0xFFEF4444);
       case 'streak_milestone':    return const Color(0xFFFBBF24);
@@ -237,6 +239,8 @@ class _NotificationCard extends StatelessWidget {
     switch (type) {
       case 'parent_link_request':
         return 'Ebeveyn bağlantı isteği'.tr();
+      case 'parent_linked':
+        return 'Velin bağlandı 👨‍👩‍👧'.tr();
       case 'homework_assigned':
         return '${'Yeni ödev'.tr()}: ${data['fromDisplayName'] ?? ''}';
       case 'homework_reminder':
@@ -303,6 +307,8 @@ class _NotificationCard extends StatelessWidget {
     switch (type) {
       case 'parent_link_request':
         return '${data['fromDisplayName'] ?? data['fromUsername'] ?? ''} ${'senin için izin istedi.'.tr()}';
+      case 'parent_linked':
+        return '${data['fromDisplayName'] ?? data['fromUsername'] ?? ''} ${'paylaştığın kodla bağlandı — artık gelişimini görebilir.'.tr()}';
       case 'homework_assigned':
         return 'Sınıfa yeni ödev geldi — bitişe kadar tamamla.'.tr();
       case 'homework_reminder':

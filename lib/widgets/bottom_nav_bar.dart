@@ -19,31 +19,36 @@ class CameraBottomNav extends StatelessWidget {
     required this.onItemSelected,
   });
 
+  // Tüm sekme ikonları TEK ORTAK yeşil çizgiyle (kullanıcı isteği —
+  // kırmızı/mor/pembe kaldırıldı, marka yeşili her sekmede).
+  static const _navGreen = Color(0xFF34D399);
+
   static const _items = [
     // Sesli Komut → LiveAnalysisScreen (canlı sesli + kamera AI modu).
     _NavItem(
       icon: Icons.mic_none_rounded,
       activeIcon: Icons.mic_rounded,
       labelKey: 'voice_command',
-      color: Color(0xFFEF4444),
+      color: _navGreen,
     ),
     _NavItem(
       icon: Icons.qr_code_scanner_rounded,
       activeIcon: Icons.qr_code_scanner_rounded,
       labelKey: 'scan',
-      color: Color(0xFFAA44FF),
+      color: _navGreen,
     ),
     _NavItem(
-      icon: Icons.calendar_month_outlined,
-      activeIcon: Icons.calendar_month_rounded,
+      // Kütüphane sekmesi: takvim yerine açık kitap (kullanıcı isteği).
+      icon: Icons.menu_book_outlined,
+      activeIcon: Icons.menu_book_rounded,
       labelKey: 'academic_planner',
-      color: Color(0xFF34D399),
+      color: _navGreen,
     ),
     _NavItem(
       icon: Icons.person_outline_rounded,
       activeIcon: Icons.person_rounded,
       labelKey: 'profile',
-      color: Color(0xFFEC4899),
+      color: _navGreen,
     ),
   ];
 
@@ -53,7 +58,11 @@ class CameraBottomNav extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 28),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       decoration: BoxDecoration(
-            color: AppPalette.card(context),
+        // Pill içi açık temada SAF BEYAZ (kullanıcı isteği); koyu temada
+        // kart rengi.
+        color: AppPalette.isDark(context)
+            ? AppPalette.card(context)
+            : Colors.white,
         borderRadius: BorderRadius.circular(28),
         border: Border.all(
           color: Colors.black.withValues(alpha: 0.12),
@@ -101,10 +110,13 @@ class _NavButton extends StatelessWidget {
     final color = item.color;
     final locale = LocaleInherited.of(context);
     final label = locale.tr(item.labelKey);
-    // Karanlık zeminde sabit siyah idle rengi okunmuyor — temaya göre değiş.
-    final idleColor = AppPalette.isDark(context)
-        ? Colors.white.withValues(alpha: 0.55)
-        : Colors.black.withValues(alpha: 0.38);
+    // İkon çizgileri her durumda sekmenin KENDİ renginde (kullanıcı isteği:
+    // mic kırmızı, tara mor, kitap yeşil, profil pembe) — seçili tam ton,
+    // pasifken hafif soluk. Yazılar temaya göre siyah/beyaz ve belirgin.
+    final idleIconColor = item.color.withValues(alpha: 0.78);
+    final labelColor = AppPalette.isDark(context)
+        ? Colors.white.withValues(alpha: 0.92)
+        : Colors.black;
 
     return GestureDetector(
       onTap: onTap,
@@ -131,7 +143,7 @@ class _NavButton extends StatelessWidget {
               child: Icon(
                 isSelected ? item.activeIcon : item.icon,
                 size: 22,
-                color: isSelected ? color : idleColor,
+                color: isSelected ? color : idleIconColor,
               ),
             ),
             SizedBox(height: 2),
@@ -142,8 +154,8 @@ class _NavButton extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 9,
                   fontWeight:
-                      isSelected ? FontWeight.w700 : FontWeight.w400,
-                  color: isSelected ? color : idleColor,
+                      isSelected ? FontWeight.w800 : FontWeight.w700,
+                  color: labelColor,
                   letterSpacing: 0.1,
                 ),
                 child: Text(

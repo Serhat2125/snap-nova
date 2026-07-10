@@ -569,9 +569,11 @@ class _CameraScreenState extends State<CameraScreen>
             ),
           ),
 
-          // ── Nav bar — temaya bağlı arka plan ───────────────────────────
+          // ── Nav bar — pill dışı açık temada soluk beyaz ────────────────
           Container(
-            color: AppPalette.bg(context),
+            color: AppPalette.isDark(context)
+                ? AppPalette.bg(context)
+                : const Color(0xFFF6F7FA),
             child: SafeArea(
               top: false,
               child: Padding(
@@ -822,7 +824,12 @@ class _NavShell extends StatelessWidget {
         child,
         Positioned(
           left: 0, right: 0, bottom: 0,
-          child: Container(color: AppPalette.card(context),
+          // Pill'in DIŞINDA kalan şerit: açık temada soluk beyaz
+          // (pill'in saf beyazından bir tık kırık — kullanıcı isteği).
+          child: Container(
+            color: AppPalette.isDark(context)
+                ? AppPalette.card(context)
+                : const Color(0xFFF6F7FA),
             child: SafeArea(
               top: false,
               child: MediaQuery(

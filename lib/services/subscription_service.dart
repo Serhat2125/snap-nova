@@ -32,6 +32,8 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'analytics.dart';
+
 import 'ai_quota_service.dart';
 
 /// Plan tipi ve karşılık gelen Play/Store product ID + süresi.
@@ -208,6 +210,9 @@ class SubscriptionService {
           // başarılı dönerse UI'a `success` bildirilir; aksi halde `error`
           // ile döner ki kullanıcıya "premium aktif" yalanı söylenmesin.
           final verified = await _grantPremiumFor(p);
+          if (verified && p.status == PurchaseStatus.purchased) {
+            Analytics.logPurchaseCompleted(p.productID);
+          }
           // Play Billing: complete edilmezse 3 gün içinde para iade edilir.
           // Doğrulama başarısız olsa da satın alma akışını kapatmak gerekir;
           // aksi halde aynı purchase tekrar tekrar stream'e düşer.

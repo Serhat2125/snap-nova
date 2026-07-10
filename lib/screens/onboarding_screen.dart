@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart' show localeService;
+import '../services/analytics.dart';
 import '../data/teacher_branches.dart';
 import '../services/account_service.dart';
 import '../services/auth_service.dart';
@@ -131,6 +132,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Future<void> _finish() async {
+    // Aktivasyon hunisinin ilk kilometre taşı — retention analizinin temeli.
+    Analytics.logEvent('onboarding_complete', params: {
+      'profiles': _selectedProfiles.length,
+    });
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(OnboardingScreen.prefKey, true);
 

@@ -8,10 +8,13 @@
 //  açılabilir (homework_assigned tap).
 // ═══════════════════════════════════════════════════════════════════════════
 
+import 'dart:ui' show ImageFilter;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/education_models.dart';
 import '../services/class_service.dart';
@@ -39,10 +42,151 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
   // kullanıcıya hata + tekrar dene sunulur.
   bool _error = false;
 
+  // ── Sayfa arka planı — çalışma odası fotoğrafları ─────────────────────────
+  // Sağ üstteki duvar kağıdı ikonundan seçilir (1..5), hafif flu çizilir ve
+  // SharedPreferences'ta kalıcıdır. null → düz tema zemini.
+  static const _kBgPrefKey = 'student_hw_bg_v1';
+  static const int _bgCount = 5;
+  int? _bgIndex;
+
   @override
   void initState() {
     super.initState();
+    _loadBgPref();
     _load();
+  }
+
+  Future<void> _loadBgPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final v = prefs.getInt(_kBgPrefKey);
+      if (mounted && v != null && v >= 1 && v <= _bgCount) {
+        setState(() => _bgIndex = v);
+      }
+    } catch (_) {/* okunamazsa düz zeminle devam */}
+  }
+
+  Future<void> _saveBgPref() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_bgIndex == null) {
+        await prefs.remove(_kBgPrefKey);
+      } else {
+        await prefs.setInt(_kBgPrefKey, _bgIndex!);
+      }
+    } catch (_) {}
+  }
+
+  /// Arka plan seçim sayfası — 5 çalışma odası fotoğrafı + "arka plan yok".
+  Future<void> _pickBackground() async {
+    final ink = AppPalette.textPrimary(context);
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      backgroundColor: AppPalette.bg(context),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(18, 14, 18, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppPalette.border(ctx),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text('Arka Plan Seç'.tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 16, fontWeight: FontWeight.w800, color: ink)),
+            const SizedBox(height: 4),
+            Text('Beğendiğin çalışma odası bu sayfanın arka planı olur.'.tr(),
+                style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppPalette.textSecondary(ctx))),
+            const SizedBox(height: 14),
+            GridView.count(
+              crossAxisCount: 3,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 0.72,
+              children: [
+                for (int i = 1; i <= _bgCount; i++)
+                  GestureDetector(
+                    onTap: () => Navigator.of(ctx).pop(i),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.asset('assets/library_icons/hw_bg_$i.jpg',
+                              fit: BoxFit.cover),
+                          if (_bgIndex == i)
+                            Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(
+                                    color: const Color(0xFF22C55E),
+                                    width: 3),
+                              ),
+                              alignment: Alignment.topRight,
+                              padding: const EdgeInsets.all(4),
+                              child: const Icon(Icons.check_circle_rounded,
+                                  color: Color(0xFF22C55E), size: 18),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                // Arka planı kaldır — düz tema zemini.
+                GestureDetector(
+                  onTap: () => Navigator.of(ctx).pop(0),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppPalette.cardMuted(ctx),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                          color: _bgIndex == null
+                              ? const Color(0xFF22C55E)
+                              : AppPalette.border(ctx),
+                          width: _bgIndex == null ? 3 : 1),
+                    ),
+                    alignment: Alignment.center,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.hide_image_outlined,
+                            size: 24,
+                            color: AppPalette.textSecondary(ctx)),
+                        const SizedBox(height: 6),
+                        Text('Arka plan yok'.tr(),
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.inter(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppPalette.textSecondary(ctx))),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _bgIndex = picked == 0 ? null : picked);
+    _saveBgPref();
   }
 
   Future<void> _load() async {
@@ -143,6 +287,12 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
             style: GoogleFonts.poppins(
               fontSize: 16, fontWeight: FontWeight.w800, color: ink)),
         actions: [
+          // Arka plan seçici — çalışma odası fotoğrafları.
+          IconButton(
+            icon: Icon(Icons.wallpaper_rounded, color: ink),
+            tooltip: 'Arka Plan Seç'.tr(),
+            onPressed: _pickBackground,
+          ),
           IconButton(
             icon: Icon(Icons.refresh_rounded, color: ink),
             onPressed: _loading ? null : _load,
@@ -150,7 +300,30 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
         ],
       ),
       body: SafeArea(
-        child: _loading
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Seçili çalışma odası — hafif FLU + tema uyumlu okunabilirlik
+            // perdesi (yazılar/kartlar fotoğrafın üstünde net kalır).
+            if (_bgIndex != null) ...[
+              Positioned.fill(
+                child: ImageFiltered(
+                  // Çok flu bulundu → hafifletildi (2.5 → 1.0); oda net
+                  // seçilebiliyor, yazılar yine okunaklı.
+                  imageFilter: ImageFilter.blur(sigmaX: 1.0, sigmaY: 1.0),
+                  child: Image.asset(
+                    'assets/library_icons/hw_bg_$_bgIndex.jpg',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              Positioned.fill(
+                child: ColoredBox(
+                  color: AppPalette.bg(context).withValues(alpha: 0.28),
+                ),
+              ),
+            ],
+            _loading
             ? const Center(child: CircularProgressIndicator())
             : Column(
                 children: [
@@ -196,6 +369,8 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
               )),
                 ],
               ),
+          ],
+        ),
       ),
     );
   }

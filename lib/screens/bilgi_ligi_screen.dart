@@ -902,9 +902,20 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     });
 
     // setState sonrası süslemeler — UI hazır, isterse arka planda çalışır.
-    // 1) Gönderilememiş skorları (outbox) arka planda tekrar dene —
-    //    zayıf ağda "kaybolan puan" kalmasın (idempotent, çift sayım yok).
-    unawaited(LeagueScores.flushOutbox());
+    // 1) Önce tavan onarımı (eski 10 puan sunucu tavanına takılıp kaybolan
+    //    15/20 soruluk test skorlarını outbox'a alır), ardından outbox'ı
+    //    arka planda gönder — zayıf ağda "kaybolan puan" kalmasın
+    //    (idempotent, çift sayım yok).
+    unawaited(LeagueScores.repairCapRejectedScores(
+      profile: prof,
+      location: loc,
+      displayName: _myDisplayName(),
+    ).then((_) => LeagueScores.flushOutbox()));
+    // Demo dolgu uzaktan-kontrol bayrağı (10k kullanıcıda CF otomatik
+    // kapatır) — güncel değer gelince liste yenilensin.
+    unawaited(LeagueDemoStudents.refreshEnabledFromCloud().then((_) {
+      if (mounted) _refreshLeaderboard();
+    }));
     // 2) Liderlik adını geriye dönük senkronize et — anonim mod veya profil
     //    adı değiştiyse eski kovalarda eski ad kalmasın. Değişiklik yoksa
     //    hiçbir ağ çağrısı yapmaz.
@@ -3432,14 +3443,16 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
   String _myDisplayName() {
     if (_anonymousMode) {
       final u = _safeAuthUser()?.uid;
-      return u != null && u.length >= 5 ? 'Öğrenci #${u.substring(0, 5)}' : 'Sen';
+      return u != null && u.length >= 5
+          ? '${'Öğrenci'.tr()} #${u.substring(0, 5)}'
+          : 'Sen'.tr();
     }
     // Username öncelikli — sıralamada herkes kullanıcı adı ile gözükür.
     final uname = UserProfileService.instance.username;
     if (uname.isNotEmpty) return uname;
     if (_profileName.isNotEmpty) return _profileName;
     final dn = (_safeAuthUser()?.displayName ?? '').trim();
-    return dn.isEmpty ? 'Sen' : dn;
+    return dn.isEmpty ? 'Sen'.tr() : dn;
   }
 
   List<_LbEntry> _toLbEntries(List<LeagueLeaderRow> rows) {
@@ -3826,6 +3839,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
 
   void _showWorldPremiumGate() {
     if (!mounted) return;
+    Analytics.logPaywallShown('league_daily_limit');
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,

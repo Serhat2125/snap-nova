@@ -43,5 +43,7 @@ export {
   submitLeagueAttempt,
   updateLeagueDisplayName,
 } from "./league_submit";
+export { autoDisableLeagueDemo } from "./league_demo_config";
+export { addQuizPoolTest } from "./quiz_pool_submit";
 export { verifyPurchase } from "./verify_purchase";
 export { rtdnWebhook } from "./rtdn_webhook";

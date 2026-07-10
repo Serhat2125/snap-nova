@@ -21,6 +21,7 @@ import '../features/league/league_scores.dart';
 import '../features/league/quiz_pool_service.dart';
 import '../services/education_profile.dart';
 import '../services/gemini_service.dart';
+import '../services/analytics.dart';
 import '../services/runtime_translator.dart';
 import '../services/usage_quota.dart';
 import '../theme/app_theme.dart';
@@ -416,6 +417,12 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
         wrong++;
       }
     }
+    // Retention'ın en güçlü sinyali: tamamlanan lig testi.
+    Analytics.logFeatureAction('league', 'quiz_completed', {
+      'questions': _questions.length,
+      'correct': correct,
+      'subject': widget.subjectKey,
+    });
     final started = _quizStartedAt;
     final elapsed =
         started == null ? 0 : DateTime.now().difference(started).inSeconds;

@@ -1,9 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 //  ParentOnboardingScreen — Ebeveyn hesabı için ilk kurulum.
 //
-//  Çocuğun kullanıcı adı girilir → ParentLinkService.requestLink → çocuk
-//  uygulamada onay verince ebeveyn dashboard'una geçer.
-//  Onay beklenmeden de "Atla → Dashboard" mümkün — kullanıcı sonra ekleyebilir.
+//  Birincil yol: çocuğun ekranındaki QR okutulur → ParentLinkService.linkByCode
+//  → bağlantı ANINDA aktif, dashboard'a geçilir (çocuk onayı gerekmez).
+//  İkincil yol: EBEV- kodu elle yazılır (aynı linkByCode).
+//  "Atla → Dashboard" da mümkün — kullanıcı sonra ekleyebilir.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import 'package:flutter/material.dart';
@@ -12,6 +13,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/parent_link_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
+import '../widgets/parent_qr_scan_dialog.dart';
 import 'parent_shell_screen.dart';
 
 class ParentOnboardingScreen extends StatefulWidget {
@@ -33,31 +35,30 @@ class _ParentOnboardingScreenState extends State<ParentOnboardingScreen> {
     super.dispose();
   }
 
-  Future<void> _request() async {
-    final text = _ctrl.text.trim();
-    if (text.isEmpty || _sending) return;
+  /// QR'dan ya da elle girilen koddan DOĞRUDAN bağlar; başarıda kısa bir
+  /// onay mesajı gösterip dashboard'a geçer.
+  Future<void> _linkWithCode(String rawCode) async {
+    if (rawCode.trim().isEmpty || _sending) return;
     setState(() {
       _sending = true;
       _msg = null;
     });
-    final res = await ParentLinkService.requestLinkByCode(text);
+    final res = await ParentLinkService.linkByCode(rawCode);
     if (!mounted) return;
     setState(() => _sending = false);
     switch (res) {
       case LinkRequestResult.success:
+      case LinkRequestResult.alreadyLinked:
         setState(() {
           _success = true;
-          _msg = 'İstek gönderildi. Çocuğun uygulamada onaylaması bekleniyor.'
-              .tr();
+          _msg = 'Bağlantı kuruldu 🎉 Panele geçiliyor...'.tr();
         });
         _ctrl.clear();
-        break;
-      case LinkRequestResult.alreadyLinked:
-        setState(() => _msg = 'Bu çocuk hesabıyla zaten bağlısın.'.tr());
+        await Future<void>.delayed(const Duration(milliseconds: 900));
+        if (mounted) _skipToDashboard();
         break;
       case LinkRequestResult.pending:
-        setState(() => _msg =
-            'Bu çocuk için bekleyen bir isteğin var. Onay bekleniyor.'.tr());
+        setState(() => _msg = 'Bu çocuk için bekleyen bir isteğin var.'.tr());
         break;
       case LinkRequestResult.childNotFound:
         setState(() => _msg =
@@ -84,6 +85,14 @@ class _ParentOnboardingScreenState extends State<ParentOnboardingScreen> {
     }
   }
 
+  Future<void> _scanQr() async {
+    final code = await showParentQrScanner(context);
+    if (code == null || !mounted) return;
+    await _linkWithCode(code);
+  }
+
+  Future<void> _request() => _linkWithCode(_ctrl.text);
+
   void _skipToDashboard() {
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
@@ -108,8 +117,14 @@ class _ParentOnboardingScreenState extends State<ParentOnboardingScreen> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          // Dikey taşma önlemi: içerik uzun çevirilerde / küçük ekranda /
+          // klavye açıkken sığmayabilir — üst blok kaydırılabilir.
           child: Column(
             children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
               const SizedBox(height: 12),
               Container(
                 width: 72, height: 72,
@@ -133,9 +148,8 @@ class _ParentOnboardingScreenState extends State<ParentOnboardingScreen> {
                   )),
               const SizedBox(height: 8),
               Text(
-                'Çocuğun uygulamada profilinden ürettiği EBEV- kodunu yaz. '
-                'Çocuğun bildirim alır ve onaylar.'
-                    .tr(),
+                'Çocuğunun telefonunda Profil → "Veliyi Bağla" ekranını '
+                'açtır ve çıkan QR kodu okut — bağlantı anında kurulur.'.tr(),
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 13,
@@ -144,6 +158,46 @@ class _ParentOnboardingScreenState extends State<ParentOnboardingScreen> {
                 ),
               ),
               const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 14, horizontal: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  onPressed: _sending ? null : _scanQr,
+                  icon: const Icon(Icons.qr_code_scanner_rounded,
+                      color: Colors.white, size: 22),
+                  label: Text('QR Kodu Okut'.tr(),
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      )),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(children: [
+                Expanded(
+                    child: Divider(color: AppPalette.border(context))),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Text('veya kodu yaz'.tr(),
+                      style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: AppPalette.textSecondary(context))),
+                ),
+                Expanded(
+                    child: Divider(color: AppPalette.border(context))),
+              ]),
+              const SizedBox(height: 16),
               Container(
                 decoration: BoxDecoration(
                   color: AppPalette.card(context),
@@ -228,7 +282,9 @@ class _ParentOnboardingScreenState extends State<ParentOnboardingScreen> {
                             color: Colors.white,
                           ),
                         )
-                      : Text('İstek Gönder'.tr(),
+                      : Text('Bağla'.tr(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.poppins(
                             fontSize: 14.5,
                             fontWeight: FontWeight.w800,
@@ -236,10 +292,16 @@ class _ParentOnboardingScreenState extends State<ParentOnboardingScreen> {
                           )),
                 ),
               ),
-              const Spacer(),
+                    ],
+                  ),
+                ),
+              ),
               TextButton(
                 onPressed: _skipToDashboard,
                 child: Text('Daha sonra ekle → Dashboard\'a git'.tr(),
+                    maxLines: 2,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.poppins(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,

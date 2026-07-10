@@ -34,6 +34,7 @@ import '../config/feature_flags.dart';
 import '../models/education_models.dart';
 import '../services/analytics.dart';
 import '../services/parent_link_service.dart';
+import '../widgets/parent_qr_scan_dialog.dart';
 import 'parent_child_homeworks_screen.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
@@ -985,17 +986,21 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppPalette.card(ctx),
-        title: Text('Ebeveyn Bağlanma Kodu'.tr(),
+        title: Text('Veli Bağlanma Kodu'.tr(),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w800,
                 color: AppPalette.textPrimary(ctx))),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Bu kodu ebeveynine ver; kendi uygulamasında Gelişim Paneli '
-                    'sekmesine girip "Çocuğu Bağla" ile yazsın.'.tr(),
+            Text('Bu kodu veline ver; kendi uygulamasında Gelişim Paneli '
+                    'sekmesine girip "Çocuğu Bağla" ile yazsın — bağlantı '
+                    'anında kurulur.'.tr(),
                 style: GoogleFonts.poppins(
-                    fontSize: 12, color: AppPalette.textSecondary(ctx))),
+                    fontSize: 12, height: 1.4,
+                    color: AppPalette.textSecondary(ctx))),
             const SizedBox(height: 14),
             SelectableText(code.code,
                 style: GoogleFonts.poppins(
@@ -1003,7 +1008,7 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
                   letterSpacing: 2, color: const Color(0xFF10B981),
                 )),
             const SizedBox(height: 8),
-            Text('15 dakika geçerli.'.tr(),
+            Text('24 saat geçerli.'.tr(),
                 style: GoogleFonts.poppins(
                     fontSize: 11, color: AppPalette.textSecondary(ctx))),
           ],
@@ -1031,15 +1036,38 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
                 color: AppPalette.textPrimary(ctx))),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Çocuğun uygulamasında Gelişim Paneli\'nden aldığı kodu gir.'
+            Text('Çocuğunun ekranındaki QR kodu okut ya da kodu elle gir.'
                     .tr(),
                 style: GoogleFonts.poppins(
                     fontSize: 12, color: AppPalette.textSecondary(ctx))),
             const SizedBox(height: 12),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () async {
+                final scanned = await showParentQrScanner(ctx);
+                if (scanned == null || !ctx.mounted) return;
+                codeCtrl.text = scanned;
+                Navigator.pop(ctx, true);
+              },
+              icon: const Icon(Icons.qr_code_scanner_rounded,
+                  color: Colors.white, size: 18),
+              label: Text('QR Kodu Okut'.tr(),
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w800, color: Colors.white)),
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: codeCtrl,
-              autofocus: true,
               textCapitalization: TextCapitalization.characters,
               decoration: const InputDecoration(hintText: 'EBEV-XXXXXX'),
             ),
@@ -1048,11 +1076,13 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('İptal'.tr()),
+            child: Text('İptal'.tr(),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Bağla'.tr()),
+            child: Text('Bağla'.tr(),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
         ],
       ),
@@ -1064,15 +1094,13 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
       _snack('Kod geçersiz ya da süresi dolmuş.'.tr());
       return;
     }
-    final res = await ParentLinkService.requestLinkByCode(code);
+    final res = await ParentLinkService.linkByCode(code);
     if (res == LinkRequestResult.success ||
-        res == LinkRequestResult.pending ||
         res == LinkRequestResult.alreadyLinked) {
       final p = await SharedPreferences.getInstance();
       await p.setString('progress_child_${slot}_uid', childUid);
       if (mounted) setState(() => _childUids[slot] = childUid);
-      _snack('İstek gönderildi. Çocuk profilinden onayladığında veriler görünür.'
-          .tr());
+      _snack('Bağlantı kuruldu 🎉 Çocuğun verileri görünüyor.'.tr());
       _selectSlot(slot);
     } else if (res == LinkRequestResult.selfLink) {
       _snack('Kendi hesabını bağlayamazsın.'.tr());

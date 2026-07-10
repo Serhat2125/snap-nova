@@ -1,0 +1,52 @@
+# QuAlsar CI — her push/PR'da statik analiz + birim testleri.
+# Amaç: "düzelttim ama başka yeri bozdum" döngüsünü main'e ulaşmadan kesmek.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # secrets.dart gitignored — taze klonda derleme için şablondan stub üret
+      - name: Secrets stub oluştur
+        run: cp lib/services/secrets_example.dart lib/services/secrets.dart
+
+      - name: Bağımlılıkları indir
+        run: flutter pub get
+
+      - name: Statik analiz
+        run: flutter analyze --no-fatal-infos
+
+      - name: Birim testleri
+        run: flutter test
+
+  functions-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Functions derle (tsc)
+        working-directory: functions
+        run: |
+          npm ci
+          npx tsc --noEmit

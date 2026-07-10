@@ -21,14 +21,52 @@
 //  dünya kapsamında karma ülkeler bayraklarıyla görünür.
 // ═══════════════════════════════════════════════════════════════════════════════
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../services/education_profile.dart';
 import '../leaderboard/domain/user_location.dart';
 import 'league_leaderboard_service.dart';
 import 'league_scores.dart';
 
 class LeagueDemoStudents {
-  /// Kapalı test dönemi anahtarı — lansmanda false yapılır.
-  static const bool enabled = true;
+  /// Demo dolgu anahtarı — UZAKTAN kontrollü (APK güncellemesi gerekmez).
+  ///
+  /// Karar (2026-07-10): demo dolgu, gerçek kullanıcı sayısı 10.000'e
+  /// ulaşana kadar AÇIK kalır. Günlük scheduled Cloud Function
+  /// (autoDisableLeagueDemo) kullanıcı sayısını sayar ve eşik aşılınca
+  /// Firestore `app_config/league.demoEnabled=false` yazar; istemci bunu
+  /// [refreshEnabledFromCloud] ile okur. Doküman yoksa / offline'da
+  /// varsayılan AÇIK (son bilinen değer prefs'te saklanır).
+  static bool _enabled = true;
+  static bool get enabled => _enabled;
+
+  static const _prefsKey = 'league_demo_enabled_v1';
+  static bool _cloudChecked = false;
+
+  /// Bulut bayrağını yükle — Bilgi Ligi ekranı açılışında çağrılır.
+  /// Önce prefs'teki son bilinen değer anında uygulanır (offline garanti),
+  /// ardından Firestore'dan taze değer çekilir. Oturum başına bir kez ağa
+  /// çıkar; hata durumunda mevcut değer korunur.
+  static Future<void> refreshEnabledFromCloud() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getBool(_prefsKey);
+      if (cached != null) _enabled = cached;
+      if (_cloudChecked) return;
+      _cloudChecked = true;
+      final doc = await FirebaseFirestore.instance
+          .collection('app_config')
+          .doc('league')
+          .get()
+          .timeout(const Duration(seconds: 6));
+      final v = doc.data()?['demoEnabled'];
+      if (v is bool) {
+        _enabled = v;
+        await prefs.setBool(_prefsKey, v);
+      }
+    } catch (_) {/* offline / izin → son bilinen değerle devam */}
+  }
 
   /// Görünüm başına demo öğrenci sayısı — her şehir/ülke/dünya görünümünde
   /// ve her periyotta (günlük/haftalık/aylık/genel) EN AZ bu kadar demo

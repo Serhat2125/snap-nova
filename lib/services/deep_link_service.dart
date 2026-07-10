@@ -45,6 +45,12 @@ class DeepLinkService {
   /// dinler, GroupContestScreen'i autoJoin ile açar.
   final ValueNotifier<String?> pendingGroupContest = ValueNotifier<String?>(null);
 
+  /// Bekleyen veli bağlantı kodu — `/veli/{EBEV-XXXXXX}` linkinden (çocuğun
+  /// WhatsApp'tan gönderdiği link). Veli hesabı hazır olunca
+  /// ParentLinkService.linkByCode ile DOĞRUDAN bağlanır. Kullanıcı henüz
+  /// giriş yapmadıysa değer bekletilir; ParentShellScreen açılışta tüketir.
+  final ValueNotifier<String?> pendingParentLinkCode = ValueNotifier<String?>(null);
+
   Future<void> init() async {
     if (_initialized) return;
     _initialized = true;
@@ -86,6 +92,12 @@ class DeepLinkService {
     } else if (segs.length >= 2 && segs[0] == 'u') {
       // /u/{username}
       pendingProfile.value = segs[1];
+    } else if (segs.length >= 2 && segs[0] == 'veli') {
+      // /veli/{EBEV-XXXXXX} — kod uppercase saklanır (Firestore doc id).
+      final code = uri.pathSegments.length >= 2
+          ? uri.pathSegments[1].toUpperCase()
+          : segs[1].toUpperCase();
+      pendingParentLinkCode.value = code;
     } else if (segs.length >= 2 && segs[0] == 'i') {
       // /i/{referralCode} — case-insensitive case'i orijinal koru
       final original = uri.pathSegments.length >= 2
@@ -100,6 +112,7 @@ class DeepLinkService {
   void clearProfile() => pendingProfile.value = null;
   void clearReferralCode() => pendingReferralCode.value = null;
   void clearGroupContest() => pendingGroupContest.value = null;
+  void clearParentLinkCode() => pendingParentLinkCode.value = null;
 
   Future<void> dispose() async {
     await _sub?.cancel();
@@ -115,5 +128,10 @@ class DeepLinkService {
 
   static String profileLinkFor(String username) {
     return 'https://qualsar.app/u/$username';
+  }
+
+  /// Veli bağlantı linki — çocuğun QR'ında ve WhatsApp paylaşımında kullanılır.
+  static String parentLinkFor(String code) {
+    return 'https://qualsar.app/veli/$code';
   }
 }

@@ -4,8 +4,10 @@ import '../data/teacher_branches.dart';
 import '../services/account_service.dart';
 import '../services/local_reminder_service.dart';
 import '../services/error_logger.dart';
+import '../services/deep_link_service.dart';
 import '../services/parent_link_service.dart';
 import '../services/runtime_translator.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'delete_account_screen.dart';
 import 'dart:io';
 import 'dart:math';
@@ -112,9 +114,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _premium = s);
   }
 
-  /// Öğrenci: ebeveynini bağlamak için kod üretir ve gösterir. Ebeveyn bu kodu
-  /// kendi uygulamasında (Kütüphanem üstündeki panele basıp) girer; ardından
-  /// öğrenciye gelen onay banner'ından (ParentInviteBanner) onaylanır.
+  /// Öğrenci: velisini bağlamak için kod üretir; QR + WhatsApp linki olarak
+  /// sunar. Veli QR'ı okutunca ya da linke dokununca bağlantı DOĞRUDAN
+  /// kurulur — ek onay adımı yok (kodu üretip paylaşan çocuk = rıza).
   Future<void> _showParentLinkCode() async {
     final code = await ParentLinkService.generateChildLinkCode();
     if (!mounted) return;
@@ -125,52 +127,98 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ));
       return;
     }
+    final link = DeepLinkService.parentLinkFor(code.code);
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppPalette.card(ctx),
-        title: Text('Ebeveyn Bağlanma Kodu'.tr(),
+        title: Text('Veliyi Bağla'.tr(),
             style: GoogleFonts.poppins(
                 fontWeight: FontWeight.w800,
                 color: AppPalette.textPrimary(ctx))),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-                'Bu kodu ebeveynine ver. Ebeveynin, kendi uygulamasında '
-                'ebeveyn hesabıyla girip Kütüphanem sayfasının üstündeki '
-                'panele basıp bu kodu yazsın. Sonra sana gelen istekten '
-                'onayla — bağlantı kurulur.'.tr(),
-                style: GoogleFonts.poppins(
-                    fontSize: 12, color: AppPalette.textSecondary(ctx))),
-            const SizedBox(height: 16),
-            GestureDetector(
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: code.code));
-                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                  content: Text('Kod kopyalandı'.tr()),
-                  behavior: SnackBarBehavior.floating,
-                ));
-              },
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SelectableText(code.code,
-                      style: GoogleFonts.poppins(
-                        fontSize: 28, fontWeight: FontWeight.w900,
-                        letterSpacing: 2, color: const Color(0xFF10B981),
-                      )),
-                  const SizedBox(width: 8),
-                  Icon(Icons.copy_rounded, size: 20,
-                      color: AppPalette.textSecondary(ctx)),
-                ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                  'Velin yanındaysa: kendi telefonundaki QuAlsar\'da '
+                  '"QR Kodu Okut" deyip bu kodu okutsun — bağlantı anında '
+                  'kurulur. Uzaktaysa: WhatsApp\'tan gönder, linke dokunması '
+                  'yeterli.'.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      height: 1.4,
+                      color: AppPalette.textSecondary(ctx))),
+              const SizedBox(height: 16),
+              // QR — beyaz zemin üstünde (koyu temada da okunur olsun).
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: QrImageView(
+                  data: link,
+                  version: QrVersions.auto,
+                  size: 180,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text('15 dakika geçerli.'.tr(),
-                style: GoogleFonts.poppins(
-                    fontSize: 11, color: AppPalette.textSecondary(ctx))),
-          ],
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: code.code));
+                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                    content: Text('Kod kopyalandı'.tr()),
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                },
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SelectableText(code.code,
+                        style: GoogleFonts.poppins(
+                          fontSize: 22, fontWeight: FontWeight.w900,
+                          letterSpacing: 2, color: const Color(0xFF10B981),
+                        )),
+                    const SizedBox(width: 8),
+                    Icon(Icons.copy_rounded, size: 18,
+                        color: AppPalette.textSecondary(ctx)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text('24 saat geçerli.'.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 11, color: AppPalette.textSecondary(ctx))),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366), // WhatsApp yeşili
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    Share.share(
+                      '${'QuAlsar veli daveti 👨‍👩‍👧'.tr()}\n\n'
+                      '${'Çocuğunuzun ders gelişimini takip etmek için bu bağlantıya dokunun:'.tr()}\n'
+                      '$link\n\n'
+                      '${'Uygulama yüklü değilse önce QuAlsar\'ı indirip veli hesabı oluşturun, sonra bağlantıya tekrar dokunun.'.tr()}',
+                    );
+                  },
+                  icon: const Icon(Icons.share_rounded,
+                      color: Colors.white, size: 18),
+                  label: Text('WhatsApp\'tan Gönder'.tr(),
+                      style: GoogleFonts.poppins(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -184,11 +232,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadProfile() async {
     final prefs = await SharedPreferences.getInstance();
+    // Kayıtlı foto yolu, dosya silinmişse (önbellek temizliği / yeniden
+    // kurulum) null'a düşürülür — FileImage ölü yola çakılmasın (Crashlytics:
+    // _ProfileScreenState null-check kilitlenmeleri).
+    final imgPath = prefs.getString('profile_image');
+    final imgOk = imgPath != null && File(imgPath).existsSync();
+    if (!mounted) return;
     setState(() {
       _nameCtrl.text = prefs.getString('profile_name') ?? '';
       _emailCtrl.text = prefs.getString('profile_email') ?? '';
       _membershipCtrl.text = prefs.getString('profile_membership') ?? '';
-      _profileImagePath = prefs.getString('profile_image');
+      _profileImagePath = imgOk ? imgPath : null;
     });
   }
 
@@ -610,7 +664,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Ebeveyni Bağla'.tr(),
+                                'Veliyi Bağla'.tr(),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: GoogleFonts.poppins(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
@@ -620,7 +676,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                               SizedBox(height: 4),
                               Text(
-                                'Kod üret, ebeveynine ver — gelişimini takip etsin'.tr(),
+                                'QR göster ya da WhatsApp\'tan gönder — velin anında bağlansın'.tr(),
                                 style: GoogleFonts.poppins(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
@@ -1208,16 +1264,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       // ── Ebeveyne özgü SSS ──
                       _faqTile(
                         'Çocuğumu nasıl bağlarım?'.tr(),
-                        'Çocuğun kendi telefonunda Profil → "Ebeveyni Bağla" '
-                                'ile 15 dakika geçerli bir kod üretir. Sen bu '
-                                'kodu Çocuklarım sekmesindeki ➕ menüsünden '
-                                'girersin; çocuk gelen isteği onaylayınca '
-                                'bağlantı kurulur.'
+                        'Çocuğun telefonunda Profil → "Veliyi Bağla" ekranını '
+                                'açtır; Çocuklarım sekmesindeki ➕ menüsünden '
+                                '"QR Kodu Okut" deyip ekrandaki QR\'ı okut — '
+                                'bağlantı anında kurulur. Uzaktaysan çocuğun '
+                                'WhatsApp\'tan link gönderir, dokunman yeterli.'
                             .tr(),
                       ),
                       _faqTile(
                         'Çocuğumun verilerini kimler görebilir?'.tr(),
-                        'Yalnızca çocuğun onayladığı bağlı veliler — onay '
+                        'Yalnızca bağlı veliler — bağlantı, çocuğun kendi '
+                                'ürettiği ve paylaştığı kodla kurulur; kod '
                                 'olmadan hiçbir veri paylaşılmaz. Bağlantıyı '
                                 'istediğin an "Bağlantıyı kaldır" ile '
                                 'kesebilirsin.'
@@ -1248,11 +1305,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             .tr(),
                       ),
                       _faqTile(
-                        'Ebeveynimi nasıl bağlarım?'.tr(),
-                        'Aile bölümündeki "Ebeveyni Bağla" ile kod üret ve '
-                                'ebeveynine ver. Ebeveynin kendi uygulamasında '
-                                'kodu girince sana onay isteği gelir; '
-                                'onaylarsan gelişimini takip edebilir.'
+                        'Velimi nasıl bağlarım?'.tr(),
+                        'Aile bölümündeki "Veliyi Bağla" ekranını aç: velin '
+                                'yanındaysa QR kodu okutsun, uzaktaysa '
+                                'WhatsApp\'tan bağlantıyı gönder — linke '
+                                'dokunması yeterli, bağlantı anında kurulur.'
                             .tr(),
                       ),
                     ],

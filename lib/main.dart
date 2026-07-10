@@ -499,6 +499,9 @@ class _StartupRouterState extends State<_StartupRouter>
     // Grup yarışı daveti — /grup/{contestId} → GroupContestScreen (autoJoin).
     DeepLinkService.instance.pendingGroupContest
         .addListener(_handleGroupContest);
+    // Veli bağlantısı — /veli/{EBEV-kod} → doğrudan bağla (warm link).
+    DeepLinkService.instance.pendingParentLinkCode
+        .addListener(_handleParentLinkCode);
   }
 
   @override
@@ -507,6 +510,8 @@ class _StartupRouterState extends State<_StartupRouter>
     DeepLinkService.instance.pendingInvite.removeListener(_handleInvite);
     DeepLinkService.instance.pendingGroupContest
         .removeListener(_handleGroupContest);
+    DeepLinkService.instance.pendingParentLinkCode
+        .removeListener(_handleParentLinkCode);
     super.dispose();
   }
 
@@ -533,6 +538,18 @@ class _StartupRouterState extends State<_StartupRouter>
       nav.push(MaterialPageRoute(
         builder: (_) => GroupContestScreen(contestId: id, autoJoin: true),
       ));
+    });
+  }
+
+  void _handleParentLinkCode() {
+    final code = DeepLinkService.instance.pendingParentLinkCode.value;
+    if (code == null || code.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = globalNavigatorKey.currentContext;
+      if (ctx == null) return;
+      // Giriş yoksa helper kodu BEKLETİR (temizlemez) — login sonrası
+      // ParentShellScreen açılışında tüketilir.
+      consumePendingParentLinkCode(ctx);
     });
   }
 
@@ -1137,16 +1154,26 @@ class QuAlsarApp extends StatelessWidget {
               builder: (context, child) {
                 // Global "Buton tıklama sesi" — ayar açıksa her GERÇEK tıklamada
                 // (sürükleme/scroll değil) sistem click sesi çalar.
+                //
+                // withClampedTextScaling: sistem yazı boyutu aşırı büyükse
+                // (erişilebilirlik ayarı %200 vb.) TÜM ekranlarda taşma olurdu;
+                // 55 dilde uzun kelimelerle birleşince en sık overflow nedeni.
+                // 0.85-1.30 aralığına kelepçelenir — erişilebilirlik korunur,
+                // yerleşim kırılmaz.
                 return _GlobalTapSound(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (child != null) child,
-                      const _GlobalSidebarOverlay(),
-                      // Ebeveyn kontrolü kilidi (yalnız öğrenci hesabı + ayar
-                      // varsa görünür). Her şeyin ÜSTÜNDE.
-                      const ParentalControlGate(),
-                    ],
+                  child: MediaQuery.withClampedTextScaling(
+                    minScaleFactor: 0.85,
+                    maxScaleFactor: 1.30,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (child != null) child,
+                        const _GlobalSidebarOverlay(),
+                        // Ebeveyn kontrolü kilidi (yalnız öğrenci hesabı + ayar
+                        // varsa görünür). Her şeyin ÜSTÜNDE.
+                        const ParentalControlGate(),
+                      ],
+                    ),
                   ),
                 );
               },

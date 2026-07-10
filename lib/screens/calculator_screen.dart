@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -7,6 +6,7 @@ import '../services/gemini_service.dart';
 import '../services/runtime_translator.dart';
 import 'ai_result_screen.dart';
 
+import '../features/calculator/calc_engine.dart';
 import '../theme/app_theme.dart';
 // ═══════════════════════════════════════════════════════════════════════════════
 //  CalculatorScreen — Yeni tasarım (Qanda tarzı)
@@ -31,15 +31,29 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   _Tab _tab = _Tab.abc;
   String _result = '';
   bool _solving = false;
+  bool _isRad = false; // açı birimi: false = derece (varsayılan), true = radyan
   final List<String> _history = [];
   static const _cursorGreen = Color(0xFF22C55E);
   static const _cursorOrange = Color(0xFFFF6A00);
   static const _btnBlue = Color(0xFF2563EB);
   static const _placeholder = '□';
 
-  static const _keyBg = Colors.white;
-  static const _borderColor = Color(0xFFE5E7EB);
-  static const _tabSelected = Color(0xFFF1F3F7);
+
+  /// Long-press alternatiflerinde görünen etiket → gerçekte eklenecek şablon.
+  /// (Etiket ham eklenirse motor ayrıştıramıyordu: 'ⁿ√' gibi.)
+  static const _altTemplates = <String, String>{
+    'ⁿ√': '√[□](□)',
+    '∛': '∛(□)',
+    '∜': '∜(□)',
+    '{}': '{□}',
+    '[]': '[□]',
+  };
+
+  // Tema-duyarlı yüzeyler — koyu temada da doğru görünsün (eskiden sabit
+  // beyaz/gri değerlerdi, koyu temada klavye beyaz yama gibi kalıyordu).
+  Color get _keyBg => AppPalette.card(context);
+  Color get _borderColor => AppPalette.border(context);
+  Color get _tabSelected => AppPalette.cardMuted(context);
 
   @override
   void initState() {
@@ -57,24 +71,45 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
     super.dispose();
   }
 
+  // Bake tarayıcısı kayıtları — CalcEquationSolver'ın SABİT sonuç metinleri.
+  // Sonuç pill'i bunları `_result.tr()` ile DİNAMİK çevirir; bake tarayıcısı
+  // yalnız literal '...'.tr() gördüğü için burada literal olarak da geçmeleri
+  // gerekir, yoksa 55 dile bake edilmezler.
+  // ignore: unused_element
+  static List<String> _solverPhraseKeysForBake() => [
+        'Her değer için doğru'.tr(),
+        'Çözüm yok'.tr(),
+        'Doğru'.tr(),
+        'Yanlış'.tr(),
+        'Gerçek çözüm yok'.tr(),
+      ];
+
   // ── Canlı sonuç hesaplama — her metin değişikliğinde UI yenilensin ────────
   void _evaluate() {
     if (!mounted) return;
     setState(() {
-      final text = _ctrl.text;
-      if (text.trim().isEmpty || text.contains(_placeholder)) {
+      // Çok satırlı girişte SON dolu satır değerlendirilir (⏎ yeni ifade
+      // başlatır) — eskiden satırlar birleşip yanlış sonuç üretiyordu:
+      // "2+2⏎3+3" → "2+23+3" = 28 gibi.
+      final lines = _ctrl.text
+          .split('\n')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+      final text = lines.isEmpty ? '' : lines.last;
+      if (text.isEmpty || text.contains(_placeholder)) {
         _result = '';
         return;
       }
       // Karşılaştırma operatörü var mı? → denklem / eşitsizlik olarak çöz
       if (text.contains(RegExp(r'[<>=≤≥≠]'))) {
-        final solved = _EquationSolver.solve(text);
+        final solved = CalcEquationSolver.solve(text, isDeg: !_isRad);
         _result = solved ?? '';
         return;
       }
       // Düz ifade
       try {
-        final v = _SimpleEval().eval(text);
+        final v = CalcEvaluator().eval(text, isDeg: !_isRad);
         _result = (v.isNaN || v.isInfinite) ? '' : _fmt(v);
       } catch (_) {
         _result = '';
@@ -85,6 +120,12 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   String _fmt(double v) {
     if (v == v.roundToDouble() && v.abs() < 1e13) {
       return v.toInt().toString();
+    }
+    // Çok büyük/küçük değerler bilimsel gösterimle (20! gibi)
+    if (v.abs() >= 1e13 || (v != 0 && v.abs() < 1e-8)) {
+      var s = v.toStringAsExponential(6);
+      s = s.replaceFirst(RegExp(r'\.?0+e'), 'e');
+      return s;
     }
     var s = v.toStringAsFixed(8);
     s = s.replaceFirst(RegExp(r'0+$'), '');
@@ -283,131 +324,6 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
     );
   }
 
-  // ── Metin → LaTeX dönüştürücüsü ─────────────────────────────────────────
-  // Klavye ile girilen custom notasyonu flutter_math_fork'un anlayacağı LaTeX'e çevirir.
-  static String _toLatex(String input) {
-    if (input.isEmpty) return '';
-    var s = input;
-
-    // Placeholder kutusu
-    s = s.replaceAll('□', r'{\square}');
-
-    // Türev: (d/dx)(X) → \frac{d}{dx}(X) ;  (d/d{}).. benzerleri
-    s = s.replaceAllMapped(
-      RegExp(r'\(d/dx\)'),
-      (m) => r'\frac{d}{dx}',
-    );
-    s = s.replaceAllMapped(
-      RegExp(r'\(d/d(\{\\square\})\)'),
-      (m) => '\\frac{d}{d${m[1]}}',
-    );
-    s = s.replaceAllMapped(
-      RegExp(r'\(d\^(\{\\square\})/d(\{\\square\})\^(\{\\square\})\)'),
-      (m) => '\\frac{d^${m[1]}}{d${m[2]}^${m[3]}}',
-    );
-
-    // lim_(a→b)(X), lim_(a→b⁺)(X), lim_(a→b⁻)(X)
-    s = s.replaceAllMapped(
-      RegExp(r'lim_\(([^()]*?)→([^()]*?)⁺\)'),
-      (m) => '\\lim_{${m[1]} \\to ${m[2]}^+}',
-    );
-    s = s.replaceAllMapped(
-      RegExp(r'lim_\(([^()]*?)→([^()]*?)⁻\)'),
-      (m) => '\\lim_{${m[1]} \\to ${m[2]}^-}',
-    );
-    s = s.replaceAllMapped(
-      RegExp(r'lim_\(([^()]*?)→([^()]*?)\)'),
-      (m) => '\\lim_{${m[1]} \\to ${m[2]}}',
-    );
-
-    // İntegral: ∫_(a)^(b)(f)dx ve ∫(f)dx
-    s = s.replaceAllMapped(
-      RegExp(r'∫_\(([^()]*?)\)\^\(([^()]*?)\)'),
-      (m) => '\\int_{${m[1]}}^{${m[2]}}',
-    );
-    s = s.replaceAll('∫', r'\int ');
-
-    // Σ_(a)^(b)(f)
-    s = s.replaceAllMapped(
-      RegExp(r'Σ_\(([^()]*?)\)\^\(([^()]*?)\)'),
-      (m) => '\\sum_{${m[1]}}^{${m[2]}}',
-    );
-    s = s.replaceAll('Σ', r'\sum ');
-
-    // Alt indis: a_b (basit tek karakter)
-    s = s.replaceAllMapped(
-      RegExp(r'([a-zA-Z])_([a-zA-Z0-9]|\{\\square\})'),
-      (m) => '${m[1]}_{${m[2]}}',
-    );
-
-    // Karekök ve n-kök
-    s = s.replaceAllMapped(
-      RegExp(r'√\[([^\[\]]*?)\]\(([^()]*?)\)'),
-      (m) => '\\sqrt[${m[1]}]{${m[2]}}',
-    );
-    s = s.replaceAllMapped(
-      RegExp(r'√\(([^()]*?)\)'),
-      (m) => '\\sqrt{${m[1]}}',
-    );
-    s = s.replaceAll('√', r'\sqrt ');
-    s = s.replaceAll('∛', r'\sqrt[3]');
-    s = s.replaceAll('∜', r'\sqrt[4]');
-
-    // Mutlak değer: |X|
-    s = s.replaceAllMapped(
-      RegExp(r'\|([^|]+)\|'),
-      (m) => '\\left|${m[1]}\\right|',
-    );
-
-    // det(X), conj(X) gibi
-    s = s.replaceAllMapped(
-      RegExp(r'\bconj\(([^()]*?)\)'),
-      (m) => '\\overline{${m[1]}}',
-    );
-    s = s.replaceAllMapped(
-      RegExp(r'\bdet\(([^()]*?)\)'),
-      (m) => '\\det\\left(${m[1]}\\right)',
-    );
-
-    // Trigonometri ve log fonksiyonları
-    s = s.replaceAllMapped(
-      RegExp(
-          r'\b(sin|cos|tan|cot|sec|csc|sinh|cosh|tanh|coth|sech|log|ln|exp|arcsin|arccos|arctan|arccot|arcsec)\('),
-      (m) => '\\${m[1]}(',
-    );
-    // asin vs → \sin^{-1}
-    s = s.replaceAllMapped(
-      RegExp(r'\b(a)(sin|cos|tan|cot|sec)\('),
-      (m) => '\\${m[2]}^{-1}(',
-    );
-
-    // Üstler: x^2, x^{2}
-    s = s.replaceAllMapped(
-      RegExp(r'\^(\d+(?:\.\d+)?)'),
-      (m) => '^{${m[1]}}',
-    );
-    s = s.replaceAll('^(-1)', '^{-1}');
-    s = s.replaceAll('^n', '^{n}');
-
-    // Kesir: a/b (basit) — sadece iki placeholder arasında kullanırız
-    s = s.replaceAllMapped(
-      RegExp(r'(\{\\square\})/(\{\\square\})'),
-      (m) => '\\frac{${m[1]}}{${m[2]}}',
-    );
-
-    // Operatörler ve sabitler
-    s = s.replaceAll('π', '\\pi ');
-    s = s.replaceAll('×', '\\cdot ');
-    s = s.replaceAll('÷', '\\div ');
-    s = s.replaceAll('∞', '\\infty ');
-    s = s.replaceAll('≥', '\\ge ');
-    s = s.replaceAll('≤', '\\le ');
-    s = s.replaceAll('≠', '\\ne ');
-    s = s.replaceAll('≈', '\\approx ');
-    s = s.replaceAll('→', '\\to ');
-
-    return s;
-  }
 
   // Sonraki placeholder'a atla (Tab davranışı)
   bool _jumpToNextPlaceholder() {
@@ -494,7 +410,12 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
     );
   }
 
-  // ── LaTeX görsel önizleme: imleç gerçek konumda görünür ──────────────────
+  // ── LaTeX görsel önizleme ──────────────────────────────────────────────────
+  // Metin TEK parça render edilir; imleç, LaTeX içine gömülü turuncu karet
+  // (□ üstündeyse vurgulu kutu) olarak gösterilir. Eskiden metin imleçten
+  // ikiye bölünüp iki ayrı parça render ediliyordu — imleç lim/∫/kesir gibi
+  // bir şablonun İÇİNDEYKEN desen regex'leri eşleşemiyor, limit Photomath'taki
+  // gibi "lim altında a→b⁺" yerine düz "lim_( □ → □⁺)(□)" görünüyordu.
   Widget _buildLatexPreview() {
     final text = _ctrl.text;
     final isEmpty = text.trim().isEmpty;
@@ -503,8 +424,8 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
     var cursorPos = _ctrl.selection.start;
     if (cursorPos < 0 || cursorPos > text.length) cursorPos = text.length;
 
-    final beforeText = text.substring(0, cursorPos);
-    final afterText = text.substring(cursorPos);
+    final marked = text.replaceRange(cursorPos, cursorPos, calcCaretMark);
+    final lines = marked.split('\n');
 
     return GestureDetector(
       onTap: () {
@@ -529,38 +450,38 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           reverse: true,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              if (beforeText.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(right: 1),
-                  child: _renderLatexSegment(beforeText),
+          child: isEmpty
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const _BlinkingCursor(
+                      color: _cursorOrange,
+                      width: 2.5,
+                      height: 30,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'Bir sayısal soru girin...'.tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w400,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final line in lines)
+                      if (line.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: _renderLatexSegment(line),
+                        ),
+                  ],
                 ),
-              const _BlinkingCursor(
-                color: _cursorOrange,
-                width: 2.5,
-                height: 30,
-              ),
-              if (afterText.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(left: 1),
-                  child: _renderLatexSegment(afterText),
-                ),
-              if (isEmpty) ...[
-                SizedBox(width: 6),
-                Text(
-                  'Bir sayısal soru girin...'.tr(),
-                  style: GoogleFonts.poppins(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.grey.shade400,
-                  ),
-                ),
-              ],
-            ],
-          ),
         ),
       ),
     );
@@ -568,7 +489,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
 
   // Tek bir metin parçasını LaTeX olarak render et; hatalıysa düz metne düş
   Widget _renderLatexSegment(String segment) {
-    final latex = _toLatex(segment);
+    final latex = calcToLatex(segment);
     return Math.tex(
       latex,
       textStyle: TextStyle(
@@ -576,7 +497,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
         color: AppPalette.textPrimary(context),
       ),
       onErrorFallback: (_) => Text(
-        segment,
+        segment.replaceAll(calcCaretMark, '|'),
         style: GoogleFonts.poppins(
           fontSize: 24,
           color: AppPalette.textPrimary(context),
@@ -587,12 +508,15 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
 
   // ── Sonuç: yeşil pill, sorunun altında ─────────────────────────────────────
   Widget _buildResultPill() {
-    // Denklem sonucu ("x < 6" gibi) ise "=" öneki yok; sayı ise "=" ekle
-    final isTextResult = RegExp(r'^(x |Her |Çözüm)').hasMatch(_result);
-    // Sabit metin sonuçları ("Her x için doğru" / "Çözüm yok") çevrilir;
-    // dinamik "x < 6" gibi denklem sonuçları matematik notasyonu olduğu
-    // için .tr() kaydına (gereksiz benzersiz string) sokulmaz.
-    final isFixedPhrase = RegExp(r'^(Her |Çözüm)').hasMatch(_result);
+    // Denklem sonucu ("x < 6", "y₁ = -2 ..." gibi) ise "=" öneki yok;
+    // sayı ise "=" ekle
+    final isTextResult = RegExp(r'^([a-zA-ZαβθρφΦω][₁₂]? |Her |Çözüm|Doğru|Yanlış|Gerçek)')
+        .hasMatch(_result);
+    // Sabit metin sonuçları ("Her değer için doğru" / "Çözüm yok" / "Doğru")
+    // çevrilir; dinamik "x < 6" gibi denklem sonuçları matematik notasyonu
+    // olduğu için .tr() kaydına (gereksiz benzersiz string) sokulmaz.
+    final isFixedPhrase =
+        RegExp(r'^(Her |Çözüm|Doğru|Yanlış|Gerçek)').hasMatch(_result);
     final display =
         isTextResult ? (isFixedPhrase ? _result.tr() : _result) : '= $_result';
     return Padding(
@@ -661,7 +585,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
     required Color color,
     bool filled = false,
   }) {
-    final bg = filled ? color : Colors.white;
+    final bg = filled ? color : AppPalette.card(context);
     final fg = filled ? Colors.white : color;
     return Material(
       color: bg,
@@ -766,7 +690,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
           style: GoogleFonts.poppins(
             fontSize: 17,
             fontWeight: FontWeight.w500,
-            color: selected ? Colors.black : Colors.black87,
+            color: AppPalette.textPrimary(context),
           ),
         ),
       ),
@@ -779,7 +703,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
       behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: const EdgeInsets.all(4),
-        child: Icon(icon, size: 24, color: Colors.black87),
+        child: Icon(icon, size: 24, color: AppPalette.textPrimary(context)),
       ),
     );
   }
@@ -839,8 +763,10 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
     required String bottomRight,
   }) {
     final selected = _tab == tab;
-    final bg = selected ? Colors.black : Colors.white;
-    final fg = selected ? Colors.white : Colors.black87;
+    // Seçili pill: metin/zemin tersine döner (koyu temada beyaz pill +
+    // koyu yazı) — her iki temada yüksek kontrast.
+    final bg = selected ? AppPalette.textPrimary(context) : AppPalette.card(context);
+    final fg = selected ? AppPalette.bg(context) : AppPalette.textPrimary(context);
     return GestureDetector(
       onTap: () => setState(() => _tab = tab),
       child: Container(
@@ -849,7 +775,8 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
           color: bg,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
-              color: selected ? Colors.black : _borderColor, width: 1),
+              color: selected ? AppPalette.textPrimary(context) : _borderColor,
+              width: 1),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1029,11 +956,11 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
     Color bg;
     switch (c.kind) {
       case _OpKind.num:
-        bg = Color(0xFFF1F3F7);
+        bg = AppPalette.cardMuted(context);
         break;
       case _OpKind.op:
       case _OpKind.tpl:
-        bg = Colors.white;
+        bg = AppPalette.card(context);
         break;
     }
     final key = GlobalKey();
@@ -1130,7 +1057,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
             child: Material(
               elevation: 6,
               borderRadius: BorderRadius.circular(14),
-              color: Colors.white,
+              color: AppPalette.card(context),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 4, vertical: 4),
@@ -1144,7 +1071,8 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                     return InkWell(
                       borderRadius: BorderRadius.circular(10),
                       onTap: () {
-                        _insert(s);
+                        // Etiket ≠ eklenecek metin olabilir (ⁿ√ → √[□](□))
+                        _insert(_altTemplates[s] ?? s);
                         _dismissAlt();
                       },
                       child: Container(
@@ -1338,7 +1266,22 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   Widget _trigGrid() {
     final rows = <List<Widget>>[
       [
-        _fnCellText('rad', onTap: () {}),
+        // Derece/radyan modu — Photomath'taki gibi gerçek bir toggle.
+        // (Eskiden onTap boştu, tuş hiçbir şey yapmıyordu.)
+        _fnCell(
+          Text(
+            _isRad ? 'rad' : 'deg',
+            style: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: _btnBlue,
+            ),
+          ),
+          onTap: () {
+            setState(() => _isRad = !_isRad);
+            _evaluate();
+          },
+        ),
         _fnCellText('sin', onTap: () => _insert('sin(□)')),
         _fnCellText('cos', onTap: () => _insert('cos(□)')),
         _fnCellText('tan', onTap: () => _insert('tan(□)')),
@@ -1438,7 +1381,7 @@ class _FracGlyph extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         _DottedBox(width: 18, height: 12),
-        Container(width: 22, height: 1, color: Colors.black87),
+        Container(width: 22, height: 1, color: AppPalette.textPrimary(context)),
         _DottedBox(width: 18, height: 12),
       ],
     );
@@ -1516,7 +1459,7 @@ class _Bar extends StatelessWidget {
   const _Bar();
   @override
   Widget build(BuildContext context) =>
-      Container(width: 1.2, height: 22, color: Colors.black87);
+      Container(width: 1.2, height: 22, color: AppPalette.textPrimary(context));
 }
 
 class _NRootGlyph extends StatelessWidget {
@@ -1553,10 +1496,10 @@ class _ListGlyph extends StatelessWidget {
       children: [
         _DottedBox(width: 10, height: 12),
         Text(',',
-            style: TextStyle(fontSize: 18, color: Colors.black87)),
+            style: TextStyle(fontSize: 18, color: AppPalette.textPrimary(context))),
         _DottedBox(width: 10, height: 12),
         Text(',',
-            style: TextStyle(fontSize: 18, color: Colors.black87)),
+            style: TextStyle(fontSize: 18, color: AppPalette.textPrimary(context))),
         _DottedBox(width: 10, height: 12),
       ],
     );
@@ -1592,10 +1535,10 @@ class _FxCallGlyph extends StatelessWidget {
       children: [
         _DottedBox(width: 14, height: 16),
         Text('(',
-            style: TextStyle(fontSize: 22, color: Colors.black87)),
+            style: TextStyle(fontSize: 22, color: AppPalette.textPrimary(context))),
         _DottedBox(width: 12, height: 14),
         Text(')',
-            style: TextStyle(fontSize: 22, color: Colors.black87)),
+            style: TextStyle(fontSize: 22, color: AppPalette.textPrimary(context))),
       ],
     );
   }
@@ -1656,7 +1599,7 @@ class _LogBaseGlyph extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Text('log',
-            style: TextStyle(fontSize: 17, color: Colors.black87)),
+            style: TextStyle(fontSize: 17, color: AppPalette.textPrimary(context))),
         SizedBox(width: 2),
         Padding(
           padding: const EdgeInsets.only(bottom: 2),
@@ -1674,7 +1617,7 @@ class _ConjGlyph extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 16, height: 1.2, color: Colors.black87),
+        Container(width: 16, height: 1.2, color: AppPalette.textPrimary(context)),
         Padding(
           padding: EdgeInsets.only(top: 1),
           child: Text('Z',
@@ -1786,13 +1729,13 @@ class _TwoArgGlyph extends StatelessWidget {
       children: [
         _DottedBox(width: 12, height: 14),
         Text('(',
-            style: TextStyle(fontSize: 22, color: Colors.black87)),
+            style: TextStyle(fontSize: 22, color: AppPalette.textPrimary(context))),
         _DottedBox(width: 10, height: 12),
         Text(',',
-            style: TextStyle(fontSize: 18, color: Colors.black87)),
+            style: TextStyle(fontSize: 18, color: AppPalette.textPrimary(context))),
         _DottedBox(width: 10, height: 12),
         Text(')',
-            style: TextStyle(fontSize: 22, color: Colors.black87)),
+            style: TextStyle(fontSize: 22, color: AppPalette.textPrimary(context))),
       ],
     );
   }
@@ -1846,7 +1789,7 @@ class _LimGlyph extends StatelessWidget {
             _DottedBox(width: 8, height: 8),
             SizedBox(width: 2),
             Text('→',
-                style: TextStyle(fontSize: 10, color: Colors.black87)),
+                style: TextStyle(fontSize: 10, color: AppPalette.textPrimary(context))),
             SizedBox(width: 2),
             _DottedBox(width: 8, height: 8),
           ],
@@ -1874,7 +1817,7 @@ class _LimPlusGlyph extends StatelessWidget {
             _DottedBox(width: 8, height: 8),
             SizedBox(width: 2),
             Text('→',
-                style: TextStyle(fontSize: 10, color: Colors.black87)),
+                style: TextStyle(fontSize: 10, color: AppPalette.textPrimary(context))),
             SizedBox(width: 2),
             _DottedBox(width: 8, height: 8),
           ],
@@ -1902,7 +1845,7 @@ class _LimMinusGlyph extends StatelessWidget {
             _DottedBox(width: 8, height: 8),
             SizedBox(width: 2),
             Text('→',
-                style: TextStyle(fontSize: 10, color: Colors.black87)),
+                style: TextStyle(fontSize: 10, color: AppPalette.textPrimary(context))),
             SizedBox(width: 2),
             _DottedBox(width: 8, height: 8),
           ],
@@ -1928,7 +1871,7 @@ class _DdxGlyph extends StatelessWidget {
                     fontSize: 14,
                     color: AppPalette.textPrimary(context),
                     fontWeight: FontWeight.w500)),
-            Container(width: 22, height: 1, color: Colors.black87),
+            Container(width: 22, height: 1, color: AppPalette.textPrimary(context)),
             Text('dx',
                 style: TextStyle(
                     fontSize: 14,
@@ -1959,7 +1902,7 @@ class _DdnGlyph extends StatelessWidget {
                     fontSize: 14,
                     color: AppPalette.textPrimary(context),
                     fontWeight: FontWeight.w500)),
-            Container(width: 22, height: 1, color: Colors.black87),
+            Container(width: 22, height: 1, color: AppPalette.textPrimary(context)),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1996,7 +1939,7 @@ class _DdnNthGlyph extends StatelessWidget {
                     fontSize: 14,
                     color: AppPalette.textPrimary(context),
                     fontWeight: FontWeight.w500)),
-            Container(width: 26, height: 1, color: Colors.black87),
+            Container(width: 26, height: 1, color: AppPalette.textPrimary(context)),
             Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2011,7 +1954,7 @@ class _DdnNthGlyph extends StatelessWidget {
                   padding: EdgeInsets.only(top: 2),
                   child: Text('N',
                       style: TextStyle(
-                          fontSize: 9, color: Colors.black87)),
+                          fontSize: 9, color: AppPalette.textPrimary(context))),
                 ),
               ],
             ),
@@ -2138,7 +2081,7 @@ class _SumGlyph extends StatelessWidget {
             _DottedBox(width: 7, height: 7),
             Text('=',
                 style: TextStyle(
-                    fontSize: 10, color: Colors.black87)),
+                    fontSize: 10, color: AppPalette.textPrimary(context))),
             _DottedBox(width: 7, height: 7),
           ],
         ),
@@ -2159,7 +2102,7 @@ class _DyDxGlyph extends StatelessWidget {
                 fontSize: 15,
                 color: AppPalette.textPrimary(context),
                 fontWeight: FontWeight.w500)),
-        Container(width: 22, height: 1, color: Colors.black87),
+        Container(width: 22, height: 1, color: AppPalette.textPrimary(context)),
         Text('dx',
             style: TextStyle(
                 fontSize: 15,
@@ -2206,15 +2149,15 @@ class _ListEllipsisGlyph extends StatelessWidget {
       children: [
         _DottedBox(width: 8, height: 10),
         Text(',',
-            style: TextStyle(fontSize: 14, color: Colors.black87)),
+            style: TextStyle(fontSize: 14, color: AppPalette.textPrimary(context))),
         _DottedBox(width: 8, height: 10),
         Text(',',
-            style: TextStyle(fontSize: 14, color: Colors.black87)),
+            style: TextStyle(fontSize: 14, color: AppPalette.textPrimary(context))),
         _DottedBox(width: 8, height: 10),
         Text(',',
-            style: TextStyle(fontSize: 14, color: Colors.black87)),
+            style: TextStyle(fontSize: 14, color: AppPalette.textPrimary(context))),
         Text('...',
-            style: TextStyle(fontSize: 13, color: Colors.black87)),
+            style: TextStyle(fontSize: 13, color: AppPalette.textPrimary(context))),
       ],
     );
   }
@@ -2287,280 +2230,6 @@ class _BlinkingCursorState extends State<_BlinkingCursor>
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  _SimpleEval — aritmetik + trig (derece) + değişken + örtük çarpım
-// ═══════════════════════════════════════════════════════════════════════════
-class _SimpleEval {
-  late String _s;
-  int _i = 0;
-  late Map<String, double> _vars;
-  late bool _isDeg;
-
-  double eval(String input,
-      {Map<String, double> vars = const {},
-      bool isDeg = true}) {
-    _vars = vars;
-    _isDeg = isDeg;
-    _s = input
-        .replaceAll('×', '*')
-        .replaceAll('÷', '/')
-        .replaceAll('−', '-')
-        .replaceAll(' ', '')
-        .replaceAll('\n', '');
-    _s = _s.replaceAllMapped(
-        RegExp(r'(\d),(\d)'), (m) => '${m[1]}.${m[2]}');
-    _i = 0;
-    if (_s.isEmpty) return double.nan;
-    final v = _expr();
-    if (_i != _s.length) {
-      throw FormatException('trailing: ${_s.substring(_i)}');
-    }
-    return v;
-  }
-
-  double _expr() {
-    var v = _term();
-    while (_i < _s.length && (_s[_i] == '+' || _s[_i] == '-')) {
-      final op = _s[_i++];
-      final r = _term();
-      v = op == '+' ? v + r : v - r;
-    }
-    return v;
-  }
-
-  double _term() {
-    var v = _pow();
-    while (_i < _s.length) {
-      final c = _s[_i];
-      if (c == '*' || c == '/' || c == '%') {
-        _i++;
-        final r = _pow();
-        if (c == '*') {
-          v *= r;
-        } else if (c == '/') {
-          v = r == 0 ? double.nan : v / r;
-        } else {
-          v = v % r;
-        }
-      } else if (_canStartAtom()) {
-        // Örtük çarpım: 2x, 2(x+1), 2sin30, 2π
-        final r = _pow();
-        v *= r;
-      } else {
-        break;
-      }
-    }
-    return v;
-  }
-
-  bool _canStartAtom() {
-    if (_i >= _s.length) return false;
-    final c = _s[_i];
-    if (c == '(' || c == 'π' || c == '√') return true;
-    if (RegExp(r'[a-zA-Z]').hasMatch(c)) return true;
-    return false;
-  }
-
-  double _pow() {
-    var v = _factor();
-    if (_i < _s.length && _s[_i] == '^') {
-      _i++;
-      v = math.pow(v, _pow()).toDouble();
-    }
-    while (_i < _s.length && _s[_i] == '!') {
-      _i++;
-      final n = v.toInt();
-      if (n < 0 || n > 20) return double.nan;
-      var f = 1;
-      for (var k = 2; k <= n; k++) { f *= k; }
-      v = f.toDouble();
-    }
-    return v;
-  }
-
-  double _factor() {
-    if (_i < _s.length && _s[_i] == '-') {
-      _i++;
-      return -_factor();
-    }
-    if (_i < _s.length && _s[_i] == '+') _i++;
-    return _atom();
-  }
-
-  double _atom() {
-    if (_i >= _s.length) throw FormatException('eof');
-    final c = _s[_i];
-    if (c == '(') {
-      _i++;
-      final v = _expr();
-      if (_i < _s.length && _s[_i] == ')') _i++;
-      return v;
-    }
-    if (c == 'π') {
-      _i++;
-      return math.pi;
-    }
-    if (RegExp(r'[0-9.]').hasMatch(c)) {
-      final st = _i;
-      while (_i < _s.length && RegExp(r'[0-9.]').hasMatch(_s[_i])) { _i++; }
-      return double.parse(_s.substring(st, _i));
-    }
-    // Fonksiyonlar (parantezli veya parantezsiz: sin 30 = sin(30))
-    for (final fn in const [
-      'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh',
-      'sin', 'cos', 'tan', 'log', 'ln', 'exp', 'sqrt', 'abs',
-    ]) {
-      if (_s.startsWith(fn, _i)) {
-        _i += fn.length;
-        double arg;
-        if (_i < _s.length && _s[_i] == '(') {
-          _i++;
-          arg = _expr();
-          if (_i < _s.length && _s[_i] == ')') _i++;
-        } else {
-          arg = _atom();
-        }
-        return _apply(fn, arg);
-      }
-    }
-    if (c == 'e' && !_s.startsWith('exp', _i)) {
-      _i++;
-      return math.e;
-    }
-    if (c == '√') {
-      _i++;
-      final arg = _atom();
-      return math.sqrt(arg);
-    }
-    // Değişken (tek harf)
-    if (RegExp(r'[a-zA-Z]').hasMatch(c)) {
-      final name = c;
-      _i++;
-      if (_vars.containsKey(name)) return _vars[name]!;
-      throw FormatException('unknown var: $name');
-    }
-    throw FormatException('unexpected "$c" at $_i');
-  }
-
-  double _apply(String fn, double x) {
-    final r = _isDeg ? math.pi / 180 : 1.0;
-    final d = _isDeg ? 180 / math.pi : 1.0;
-    switch (fn) {
-      case 'sin':  return math.sin(x * r);
-      case 'cos':  return math.cos(x * r);
-      case 'tan':  return math.tan(x * r);
-      case 'asin': return math.asin(x) * d;
-      case 'acos': return math.acos(x) * d;
-      case 'atan': return math.atan(x) * d;
-      case 'sinh': return (math.exp(x) - math.exp(-x)) / 2;
-      case 'cosh': return (math.exp(x) + math.exp(-x)) / 2;
-      case 'tanh':
-        final e2 = math.exp(2 * x);
-        return (e2 - 1) / (e2 + 1);
-      case 'log':  return math.log(x) / math.ln10;
-      case 'ln':   return math.log(x);
-      case 'exp':  return math.exp(x);
-      case 'sqrt': return math.sqrt(x);
-      case 'abs':  return x.abs();
-      default: return x;
-    }
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  _EquationSolver — 1 değişkenli doğrusal denklem/eşitsizlik çözücüsü
-//  Örnekler: 2x<12 → x<6 ; 3x+1=10 → x=3 ; 5-2x>=1 → x<=2
-// ═══════════════════════════════════════════════════════════════════════════
-class _EquationSolver {
-  static const _ops = ['≤', '≥', '≠', '=', '<', '>'];
-
-  static String? solve(String text) {
-    // Karşılaştırma operatörünü bul
-    String? op;
-    int? idx;
-    for (var i = 0; i < text.length; i++) {
-      final c = text[i];
-      if (_ops.contains(c)) {
-        op = c;
-        idx = i;
-        break;
-      }
-    }
-    if (op == null || idx == null) return null;
-
-    final leftRaw = text.substring(0, idx).trim();
-    final rightRaw = text.substring(idx + op.length).trim();
-    if (leftRaw.isEmpty || rightRaw.isEmpty) return null;
-
-    try {
-      double l(double x) =>
-          _SimpleEval().eval(leftRaw, vars: {'x': x});
-      double r(double x) =>
-          _SimpleEval().eval(rightRaw, vars: {'x': x});
-
-      final l0 = l(0), l1 = l(1), l2 = l(2);
-      final r0 = r(0), r1 = r(1), r2 = r(2);
-
-      // Doğrusallık kontrolü: f(2) ≈ 2·f(1) - f(0)
-      if ((l2 - (2 * l1 - l0)).abs() > 1e-6) return null;
-      if ((r2 - (2 * r1 - r0)).abs() > 1e-6) return null;
-
-      final aL = l1 - l0;
-      final aR = r1 - r0;
-      final a = aL - aR;
-      final c = r0 - l0;
-
-      if (a.abs() < 1e-12) {
-        // x yok — her iki taraf sabit
-        final holds = _check(0.0, op, c);
-        return holds ? 'Her x için doğru' : 'Çözüm yok';
-      }
-
-      final x = c / a;
-      var resultOp = op;
-      // a < 0 ise eşitsizlik yönü değişir
-      if (a < 0 && const ['<', '>', '≤', '≥'].contains(op)) {
-        resultOp = _flip(op);
-      }
-
-      return 'x $resultOp ${_fmt(x)}';
-    } catch (_) {
-      return null;
-    }
-  }
-
-  static bool _check(double a, String op, double b) {
-    switch (op) {
-      case '<':  return a < b;
-      case '>':  return a > b;
-      case '≤':  return a <= b;
-      case '≥':  return a >= b;
-      case '≠':  return a != b;
-      case '=':  return (a - b).abs() < 1e-9;
-      default: return false;
-    }
-  }
-
-  static String _flip(String op) {
-    switch (op) {
-      case '<': return '>';
-      case '>': return '<';
-      case '≤': return '≥';
-      case '≥': return '≤';
-      default: return op;
-    }
-  }
-
-  static String _fmt(double v) {
-    if (v == v.roundToDouble() && v.abs() < 1e13) {
-      return v.toInt().toString();
-    }
-    var s = v.toStringAsFixed(6);
-    s = s.replaceFirst(RegExp(r'0+$'), '');
-    s = s.replaceFirst(RegExp(r'\.$'), '');
-    return s;
-  }
-}
 
 // ── Trigonometri sekmesi glifleri (açı notasyonu) ───────────────────────────
 class _Deg1Glyph extends StatelessWidget {
@@ -2598,14 +2267,14 @@ class _Deg2Glyph extends StatelessWidget {
           child: _DottedBox(width: 10, height: 10),
         ),
         Text('°',
-            style: TextStyle(fontSize: 12, color: Colors.black87)),
+            style: TextStyle(fontSize: 12, color: AppPalette.textPrimary(context))),
         SizedBox(width: 2),
         Padding(
           padding: const EdgeInsets.only(top: 8),
           child: _DottedBox(width: 10, height: 10),
         ),
         Text("'",
-            style: TextStyle(fontSize: 14, color: Colors.black87)),
+            style: TextStyle(fontSize: 14, color: AppPalette.textPrimary(context))),
       ],
     );
   }
@@ -2624,21 +2293,21 @@ class _Deg3Glyph extends StatelessWidget {
           child: _DottedBox(width: 8, height: 8),
         ),
         Text('°',
-            style: TextStyle(fontSize: 11, color: Colors.black87)),
+            style: TextStyle(fontSize: 11, color: AppPalette.textPrimary(context))),
         SizedBox(width: 1),
         Padding(
           padding: const EdgeInsets.only(top: 8),
           child: _DottedBox(width: 8, height: 8),
         ),
         Text("'",
-            style: TextStyle(fontSize: 12, color: Colors.black87)),
+            style: TextStyle(fontSize: 12, color: AppPalette.textPrimary(context))),
         SizedBox(width: 1),
         Padding(
           padding: const EdgeInsets.only(top: 8),
           child: _DottedBox(width: 8, height: 8),
         ),
         Text('"',
-            style: TextStyle(fontSize: 12, color: Colors.black87)),
+            style: TextStyle(fontSize: 12, color: AppPalette.textPrimary(context))),
       ],
     );
   }
@@ -2652,16 +2321,18 @@ class _DottedBox extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomPaint(
       size: Size(width, height),
-      painter: _DottedBoxPainter(),
+      painter: _DottedBoxPainter(AppPalette.textSecondary(context)),
     );
   }
 }
 
 class _DottedBoxPainter extends CustomPainter {
+  final Color color;
+  const _DottedBoxPainter(this.color);
   @override
   void paint(Canvas canvas, Size size) {
     final p = Paint()
-      ..color = Colors.black54
+      ..color = color
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
@@ -2697,5 +2368,6 @@ class _DottedBoxPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DottedBoxPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
