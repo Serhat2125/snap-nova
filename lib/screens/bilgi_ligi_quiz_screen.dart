@@ -22,6 +22,7 @@ import '../features/league/quiz_pool_service.dart';
 import '../services/education_profile.dart';
 import '../services/gemini_service.dart';
 import '../services/analytics.dart';
+import '../services/app_settings_service.dart';
 import '../services/runtime_translator.dart';
 import '../services/usage_quota.dart';
 import '../theme/app_theme.dart';
@@ -357,7 +358,11 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
 
   /// Şık seçimi ANINDA `_userAnswers`e yazılır — serbest gezinme (pil
   /// navigatörüyle başka soruya atlayıp geri dönme) cevabı korur.
+  /// Doğru/yanlış SES VERİLMEZ (cevap sızdırır — sonuç testin sonunda);
+  /// yalnızca tık sesi + seçim haptiği.
   void _selectOption(int i) {
+    unawaited(AppSettingsService.instance.playClick());
+    AppSettingsService.instance.hapticSelection(inTest: true);
     setState(() {
       _selected = i;
       _userAnswers[_index] = i;
@@ -417,6 +422,8 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
         wrong++;
       }
     }
+    // Test tamamlandı — başarı jingle'ı (ayar: "Test tamamlandığında çalar").
+    unawaited(AppSettingsService.instance.notifySuccess());
     // Retention'ın en güçlü sinyali: tamamlanan lig testi.
     Analytics.logFeatureAction('league', 'quiz_completed', {
       'questions': _questions.length,

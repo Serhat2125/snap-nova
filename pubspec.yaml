@@ -140,6 +140,10 @@ flutter:
     - lib/assets/9ejrn (1).jpg
     - lib/assets/invite_hero.jpeg
     - assets/app_icon.png
+    # Uygulama SFX'leri — SystemSound Android'de güvenilir değil (alert hiç
+    # desteklenmiyor, click cihazın "Dokunma sesleri" ayarına bağlı); kendi
+    # ses dosyalarımız audioplayers ile çalınır.
+    - assets/sounds/
     # Kütüphanem kart ikonları (3D görsel set + gerçek Dünya fotoğrafı)
     - assets/library_icons/
     # 3D Eğitim Modelleri — Coğrafya: Dünyanın Şekli ve Hareketi

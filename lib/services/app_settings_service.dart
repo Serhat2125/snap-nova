@@ -32,6 +32,7 @@ import 'dart:convert';
 import 'preferences_sync_service.dart';
 import 'dart:math' as math;
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -339,36 +340,51 @@ class AppSettingsService extends ChangeNotifier {
   }
 
   // ── Ses ve haptic helper'ları (caller'lar bunları kullanır) ──────────────
-  /// Buton tıklama — eğer ayar açıksa SystemSound çal.
-  Future<void> playClick() async {
-    if (!_clickSound) return;
+  // SES ALTYAPISI: SystemSound Android'de GÜVENİLİR DEĞİL — `alert` hiç
+  // desteklenmiyor (sessiz no-op), `click` yalnızca cihazın sistem "Dokunma
+  // sesleri" ayarı açıksa çalıyor. "Hiçbir yerde ses gelmiyor" şikayetinin
+  // kök nedeni buydu. Artık kendi WAV'larımız (assets/sounds/) audioplayers
+  // ile çalınır — cihaz ayarından bağımsız, medya ses kanalı üzerinden.
+  static final AudioPlayer _sfx = AudioPlayer(playerId: 'app_sfx')
+    ..setPlayerMode(PlayerMode.lowLatency)
+    ..setReleaseMode(ReleaseMode.stop);
+
+  Future<void> _playAsset(String file) async {
     try {
-      await SystemSound.play(SystemSoundType.click);
-    } catch (_) {}
+      await _sfx.stop(); // üst üste hızlı tıklamada öncekini kes
+      await _sfx.play(AssetSource('sounds/$file'), volume: 1.0);
+    } catch (_) {
+      // Ses çalınamadı (izin/odak) — sessiz devam; SystemSound son çare.
+      try {
+        await SystemSound.play(SystemSoundType.click);
+      } catch (_) {}
+    }
   }
 
-  /// Başarı bildirimi — kısa ışıklı haptic + opsiyonel ses.
+  /// Buton tıklama — eğer ayar açıksa kısa tık sesi çal.
+  Future<void> playClick() async {
+    if (!_clickSound) return;
+    await _playAsset('click.wav');
+  }
+
+  /// Başarı bildirimi — pozitif iki ton + hafif haptic.
   Future<void> notifySuccess() async {
     // "Test sırasında sessiz" açıksa cevap geri-bildirim sesi/titreşimi çalmaz.
     if (_testSilent) return;
     if (_successSound) {
-      try {
-        await SystemSound.play(SystemSoundType.click);
-      } catch (_) {}
+      await _playAsset('success.wav');
     }
     if (_haptic) {
       HapticFeedback.lightImpact();
     }
   }
 
-  /// Hata bildirimi — orta ağır haptic + opsiyonel ses.
+  /// Hata bildirimi — pes çift vuruş + orta haptic.
   Future<void> notifyError() async {
     // "Test sırasında sessiz" açıksa cevap geri-bildirim sesi/titreşimi çalmaz.
     if (_testSilent) return;
     if (_errorSound) {
-      try {
-        await SystemSound.play(SystemSoundType.alert);
-      } catch (_) {}
+      await _playAsset('error.wav');
     }
     if (_haptic) {
       HapticFeedback.mediumImpact();
@@ -381,9 +397,7 @@ class AppSettingsService extends ChangeNotifier {
   /// tüm sesler kapalıyken bile alarm sesi geliyordu.
   Future<void> playAlert() async {
     if (!_clickSound && !_successSound && !_errorSound) return;
-    try {
-      await SystemSound.play(SystemSoundType.alert);
-    } catch (_) {}
+    await _playAsset('alert.wav');
   }
 
   /// Test sayfasında çağrılır — eğer "Test Sessiz Mod" açıksa hiçbir
@@ -419,22 +433,16 @@ class AppSettingsService extends ChangeNotifier {
   // Bunlar flag'lerden BAĞIMSIZ çalışır: kullanıcı kapalıyken bile "nasıl bir
   // ses/titreşim" olduğunu duyabilsin diye. Ayarın kendisi yine flag ile gate'li.
   Future<void> previewClick() async {
-    try {
-      await SystemSound.play(SystemSoundType.click);
-    } catch (_) {}
+    await _playAsset('click.wav');
   }
 
   Future<void> previewSuccess() async {
-    try {
-      await SystemSound.play(SystemSoundType.click);
-    } catch (_) {}
+    await _playAsset('success.wav');
     HapticFeedback.lightImpact();
   }
 
   Future<void> previewError() async {
-    try {
-      await SystemSound.play(SystemSoundType.alert);
-    } catch (_) {}
+    await _playAsset('error.wav');
     HapticFeedback.heavyImpact();
   }
 

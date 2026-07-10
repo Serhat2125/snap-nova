@@ -118,16 +118,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// sunar. Veli QR'ı okutunca ya da linke dokununca bağlantı DOĞRUDAN
   /// kurulur — ek onay adımı yok (kodu üretip paylaşan çocuk = rıza).
   Future<void> _showParentLinkCode() async {
-    final code = await ParentLinkService.generateChildLinkCode();
+    // Yavaş ağda buton "ölü" gibi görünmesin: spinner + 10sn tavan.
+    // Eskiden await süresince hiçbir geri bildirim yoktu; Firestore geç
+    // yanıt verince kullanıcı "buton çalışmıyor" sanıyordu.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    ChildLinkCode? code;
+    try {
+      code = await ParentLinkService.generateChildLinkCode()
+          .timeout(const Duration(seconds: 10));
+    } catch (_) {
+      code = null;
+    }
     if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // spinner kapat
     if (code == null) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Kod üretilemedi. Giriş yaptığından emin ol.'.tr()),
+        content: Text(
+            'Kod üretilemedi. İnternet bağlantını ve giriş yaptığını kontrol et.'
+                .tr()),
         behavior: SnackBarBehavior.floating,
       ));
       return;
     }
-    final link = DeepLinkService.parentLinkFor(code.code);
+    final linkCode = code; // null-check sonrası closure'lar için non-null yerel
+    final link = DeepLinkService.parentLinkFor(linkCode.code);
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -166,7 +184,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 12),
               GestureDetector(
                 onTap: () {
-                  Clipboard.setData(ClipboardData(text: code.code));
+                  Clipboard.setData(ClipboardData(text: linkCode.code));
                   ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
                     content: Text('Kod kopyalandı'.tr()),
                     behavior: SnackBarBehavior.floating,
@@ -175,7 +193,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    SelectableText(code.code,
+                    SelectableText(linkCode.code,
                         style: GoogleFonts.poppins(
                           fontSize: 22, fontWeight: FontWeight.w900,
                           letterSpacing: 2, color: const Color(0xFF10B981),
