@@ -4,7 +4,7 @@
     "details": [
       {
         "appIDs": ["TEAM_ID_PLACEHOLDER.com.qualsar.ai"],
-        "paths": ["/davet/*", "/u/*", "/i/*"]
+        "paths": ["/davet/*", "/u/*", "/grup/*", "/veli/*"]
       }
     ]
   },

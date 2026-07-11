@@ -63,7 +63,7 @@
       <!-- Davet kodu kartı — Al hecesi kırmızı + kopyala butonu sağda, tek satır -->
       <div class="code-card" id="codeCard" style="display:none;">
         <div class="code-text">
-          <div class="code-label">Davet kodun</div>
+          <div class="code-label" id="codeLabel">Davet kodun</div>
           <div class="code-value" id="codeValue"></div>
         </div>
         <button class="copy-btn" id="copyBtn" onclick="copyCode()">📋 Kopyala</button>
@@ -74,22 +74,22 @@
       <a class="btn btn-play" id="install" href="https://play.google.com/store/apps/details?id=com.qualsar.ai">
         📲 Play Store'dan İndir
       </a>
-      <!-- Apple Store (iOS) — app yayına alınınca tam URL'i güncelle. -->
+      <!-- Diğer mağazalar henüz yayında değil — yayına girince yorumu kaldır
+           (index.html'deki download bölümüyle aynı kural; Apple linki gerçek
+           App Store ID ile güncellenmeli, şu an placeholder).
       <a class="btn btn-apple" id="installApple" href="https://apps.apple.com/app/qualsar/id000000000">
          Apple Store'dan İndir
       </a>
-      <!-- Huawei AppGallery — global Huawei + Çin pazarı. -->
       <a class="btn btn-huawei" id="installHuawei" href="https://appgallery.huawei.com/app/qualsar">
         🔴 Huawei AppGallery'den İndir
       </a>
-      <!-- Samsung Galaxy Store — Samsung cihazlarda alternatif. -->
       <a class="btn btn-samsung" id="installSamsung" href="https://galaxystore.samsung.com/detail/com.qualsar.ai">
         💙 Samsung Galaxy Store'dan İndir
       </a>
-      <!-- Xiaomi GetApps — global + Çin Xiaomi cihazları. -->
       <a class="btn btn-xiaomi" id="installXiaomi" href="https://app.mi.com/details?id=com.qualsar.ai">
         🟠 Xiaomi GetApps'tan İndir
       </a>
+      -->
     </div>
   </div>
   <div class="footer">
@@ -100,6 +100,10 @@
     const path = window.location.pathname;
     const userMatch = path.match(/\/(davet|u)\/([^/]+)/);
     const codeMatch = path.match(/\/i\/([A-Za-z0-9-]+)/);
+    // Uygulama yüklü değilken App Link tarayıcıya düşer — veli bağlama ve
+    // grup yarışması linkleri de bu sayfaya gelir, içerik ona göre değişir.
+    const veliMatch = path.match(/\/veli\/([^/]+)/);
+    const grupMatch = path.match(/\/grup\/([^/]+)/);
 
     let currentCode = '';
 
@@ -120,7 +124,31 @@
       document.getElementById('copyHint').style.display = 'block';
     }
 
-    if (codeMatch) {
+    if (veliMatch) {
+      // Veli bağlama linki: kod EBEV-XXXXXX formatındadır, uygulamada elle girilebilir.
+      document.title = 'QuAlsar veli bağlama';
+      document.querySelector('.logo').textContent = '👨‍👩‍👧';
+      document.querySelector('h1').textContent =
+        'Çocuğunuzun gelişimini takip etmek için QuAlsar\'ı indirin';
+      document.querySelector('.card > p').textContent =
+        'Günlük çalışma süresi, ders bazlı başarı, ödev takibi ve haftalık AI raporu — hepsi ebeveyn panelinde.';
+      document.getElementById('codeLabel').textContent = 'Bağlama kodun';
+      currentCode = decodeURIComponent(veliMatch[1]);
+      document.getElementById('codeValue').innerHTML = renderCodeHtml(currentCode);
+      document.getElementById('codeCard').style.display = 'flex';
+      const veliHint = document.getElementById('copyHint');
+      veliHint.style.display = 'block';
+      veliHint.textContent =
+        'Uygulamayı indirip Ebeveyn olarak giriş yap; "Çocuk Bağla" ekranında bu kodu gir. Uygulama yüklüyse bu linke yeniden dokunman yeterli — otomatik bağlanır.';
+    } else if (grupMatch) {
+      // Grup yarışması daveti: contestId elle girilmez, link uygulamada açılmalı.
+      document.title = 'QuAlsar grup yarışması';
+      document.querySelector('.logo').textContent = '👥';
+      document.querySelector('h1').textContent =
+        'Bir arkadaşın seni grup yarışmasına davet etti!';
+      document.querySelector('.card > p').textContent =
+        'Herkes aynı soruları kendi vaktinde çözer, sıralama sadece grubunuz içinde yapılır. Uygulamayı indir, giriş yap ve bu davet linkine yeniden dokun — yarışmaya otomatik katılırsın.';
+    } else if (codeMatch) {
       showCode(decodeURIComponent(codeMatch[1]));
     } else if (userMatch) {
       const usernameLine = document.createElement('div');

@@ -17,7 +17,10 @@
   <meta property="og:title" content="QuAlsar — AI Sınav ve Öğrenme Asistanı">
   <meta property="og:description" content="Fotoğraftan saniyede soru çöz, özet ve test üret, dünya sıralamasıyla yarış. 55 dil, 131 ülke müfredatı.">
   <meta property="og:type" content="website">
+  <meta property="og:url" content="https://qualsar.app/">
   <meta property="og:image" content="https://qualsar.app/og_invite.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230F172A'/%3E%3Ctext x='32' y='44' font-size='34' font-weight='900' text-anchor='middle' font-family='Arial' fill='%23fff'%3EQ%3Ctspan fill='%23E53935'%3EA%3C/tspan%3E%3C/text%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800;900&display=swap" rel="stylesheet">
@@ -49,6 +52,9 @@
        80px üst boşluk bırak. */
     html { scroll-padding-top: 80px; }
     section[id], h2[id], h3[id] { scroll-margin-top: 80px; }
+    /* Dar ekranda yanlışlıkla oluşabilecek yatay kaymayı tamamen kapat.
+       'clip' scroll konteyneri yaratmaz — sticky nav'ı bozmaz. */
+    body { overflow-x: clip; }
     .container { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
 
     /* NAV */
@@ -370,6 +376,38 @@
       body { padding-left: 170px; }
     }
 
+    /* ── MOBİL HIZLI ERİŞİM ÇUBUĞU — sol side-nav'ın telefon karşılığı ──
+       1180px altında side-nav gizlenir, 640px altında nav linkleri de
+       gizlenir; bölümlere erişim bu yatay kaydırmalı çubuktan sağlanır. */
+    .mobile-quick {
+      display: none;
+      position: sticky; top: 60px; z-index: 90;
+      background: rgba(250, 250, 250, 0.92);
+      backdrop-filter: saturate(140%) blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 12px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      white-space: nowrap;
+    }
+    .mobile-quick::-webkit-scrollbar { display: none; }
+    .mobile-quick a {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 7px 12px; margin-right: 8px;
+      background: var(--card); border: 1.5px solid var(--border);
+      border-radius: 999px; text-decoration: none;
+      color: var(--black); font-size: 12px; font-weight: 700;
+    }
+    .mobile-quick a:last-child { margin-right: 0; }
+    .mobile-quick .ic { font-size: 14px; }
+    @media (max-width: 1180px) {
+      .mobile-quick { display: block; }
+      /* Anchor scroll'unda sticky nav + çubuk toplamı kadar boşluk bırak */
+      html { scroll-padding-top: 118px; }
+      section[id], h2[id], h3[id] { scroll-margin-top: 118px; }
+    }
+
     /* ── FOTO-ÇÖZÜM AKIŞ ŞEMASI ─────────────────────────────────────────── */
     .flow-hero {
       font-size: 22px; font-weight: 900; text-align: center;
@@ -672,6 +710,22 @@
     }
     .stat-label { font-size: 13px; color: var(--muted); font-weight: 600; }
 
+    /* ── MOBİL POLISH — dar ekranda boşluk/padding sıkılaştırma ───────── */
+    @media (max-width: 640px) {
+      section { padding: 44px 0; }
+      .title-card { padding: 18px 16px; border-radius: 20px; }
+      .premium { padding: 32px 18px; }
+      .premium h2 { font-size: 26px; }
+      .flow-solution { padding: 18px 14px; }
+      .tab-flow { padding: 16px 14px 14px; }
+      .stat-num { font-size: 30px; }
+    }
+    /* Çok dar telefonlar (≤380px): seviye kartları tek sütuna insin */
+    @media (max-width: 380px) {
+      .levels { grid-template-columns: 1fr; }
+      .flow-mini-grid { grid-template-columns: 1fr; }
+    }
+
     /* FOOTER — soluk beyaz, sayfanın geneliyle uyumlu */
     footer {
       background: var(--bg); color: var(--muted);
@@ -746,7 +800,7 @@
   <!-- NAV -->
   <nav>
     <div class="container nav-inner">
-      <a href="#" class="brand">
+      <a href="/" class="brand">
         <span class="brand-dot"></span>
         <span class="brand-text">Qu<span class="al">Al</span>sar</span>
       </a>
@@ -762,6 +816,23 @@
         </button>
       </div>
     </div>
+  </nav>
+
+  <!-- MOBİL HIZLI ERİŞİM — masaüstündeki sol side-nav'ın telefon karşılığı -->
+  <nav class="mobile-quick" aria-label="Hızlı erişim (mobil)">
+    <a href="#solve"><span class="ic">📸</span>Soru Çözme</a>
+    <a href="#library"><span class="ic">📖</span>Kütüphanem</a>
+    <a href="#edu3d"><span class="ic">🧊</span>3D Ders</a>
+    <a href="#voice"><span class="ic">🎙️</span>Sesli Komut</a>
+    <a href="#more"><span class="ic">✨</span>Daha Neler Var</a>
+    <a href="#panels"><span class="ic">👨‍👩‍👧</span>Ebeveyn & Öğretmen</a>
+    <a href="#levels"><span class="ic">🎓</span>Seviyeler</a>
+    <a href="#audience"><span class="ic">👥</span>Kim İçin</a>
+    <a href="#premium"><span class="ic">✨</span>Premium</a>
+    <a href="#security"><span class="ic">🔒</span>Güvenlik</a>
+    <a href="#faq"><span class="ic">❓</span>SSS</a>
+    <a href="#how"><span class="ic">⚙️</span>Nasıl Çalışır</a>
+    <a href="#download"><span class="ic">📲</span>İndir</a>
   </nav>
 
   <!-- HERO -->
@@ -1370,6 +1441,16 @@
           <p class="feature-desc">Premium yarış arenası: ülke & dünya sıralaması, rozet sistemi, sonucu QR kodla paylaş.</p>
         </div>
         <div class="feature-card">
+          <div class="feature-icon">🏆</div>
+          <h3 class="feature-title">Bilgi Ligi</h3>
+          <p class="feature-desc">10 soruluk süreli testlerle şehrinde, ülkende ve dünyada sıralan. Sunucu doğrulamalı adil puan, podyum 🥇🥈🥉 ve yakın rakip takibi.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">👥</div>
+          <h3 class="feature-title">Grup Yarışması</h3>
+          <p class="feature-desc">Ders + konu seç, sabit soru seti oluşsun; arkadaşların link veya QR ile katılsın. Herkes aynı soruları kendi vaktinde çözer, grup tablosunda sıralanır.</p>
+        </div>
+        <div class="feature-card">
           <div class="feature-icon">📥</div>
           <h3 class="feature-title">Çevrimdışı Paketler</h3>
           <p class="feature-desc">Konu paketlerini önceden indir, internet olmadan da çalışmaya devam et.</p>
@@ -1414,16 +1495,17 @@
       <!-- EBEVEYN -->
       <div class="title-card" style="margin-top: 24px;">
         <h3 id="parent" class="flow-hero">👨‍👩‍👧 <span class="accent">Ebeveyn Paneli</span></h3>
-        <p class="flow-sub">Çocuğunu bir kodla bağla, gelişimini sezgisel grafiklerle izle.</p>
+        <p class="flow-sub">Çocuğunu saniyede bağla, gelişimini sezgisel grafiklerle izle.</p>
       </div>
       <div class="flow-solution">
         <h4>📈 Neler görürsün?</h4>
-        <p class="sub">Çocuk profilinden 6 haneli kodu paylaşır, paneline yazarsın — gerisi otomatik.</p>
+        <p class="sub">Çocuğun ekranındaki QR kodu tarat ya da WhatsApp'tan gelen bağlantı linkine dokun — gerisi otomatik. İstersen 6 haneli kodu elle de girebilirsin.</p>
         <div class="flow-mini-grid">
+          <div class="flow-mini"><div class="em">📱</div><div class="lbl">Saniyede bağlan</div><div class="det">QR tara veya WhatsApp davet linkine dokun</div></div>
           <div class="flow-mini"><div class="em">⏱️</div><div class="lbl">Günlük çalışma süresi</div><div class="det">Hangi derste ne kadar odaklandı</div></div>
           <div class="flow-mini"><div class="em">📊</div><div class="lbl">Ders bazlı başarı</div><div class="det">Konu konu doğru/yanlış, zaman içinde gelişim</div></div>
-          <div class="flow-mini"><div class="em">🧠</div><div class="lbl">AI içgörü</div><div class="det">Haftalık performansın yapay zeka yorumu</div></div>
-          <div class="flow-mini"><div class="em">📚</div><div class="lbl">Ödev takibi</div><div class="det">Öğretmen ödevleri + sonuçları</div></div>
+          <div class="flow-mini"><div class="em">🧠</div><div class="lbl">AI içgörü</div><div class="det">Haftalık performansın yapay zeka yorumu + haftalık veli raporu bildirimi</div></div>
+          <div class="flow-mini"><div class="em">📚</div><div class="lbl">Ödev takibi</div><div class="det">Öğretmen ödevleri, teslimler ve sonuçları anında bildirimle</div></div>
         </div>
         <p class="sub" style="margin: 14px 0 0; text-align: center;">🔒 KVKK uyumlu — yalnızca özet veriler görünür; sohbet ve özel notlar korunur.</p>
       </div>
@@ -1441,6 +1523,8 @@
           <div class="flow-mini"><div class="em">📊</div><div class="lbl">Performans paneli</div><div class="det">Sınıf ortalaması, en zayıf konular, birey ilerleme</div></div>
           <div class="flow-mini"><div class="em">📤</div><div class="lbl">İçerik paylaşımı</div><div class="det">Özet/test üret, sınıf koduyla anında dağıt</div></div>
           <div class="flow-mini"><div class="em">🔔</div><div class="lbl">Otomatik hatırlatma</div><div class="det">Teslime 2 saat kala bekleyenlere ping</div></div>
+          <div class="flow-mini"><div class="em">📣</div><div class="lbl">Duyuru & materyal</div><div class="det">Sınıfa duyuru yayınla, PDF/kaynak paylaş — öğrenci ve veliye bildirim gider</div></div>
+          <div class="flow-mini"><div class="em">💯</div><div class="lbl">Yerel not sistemi</div><div class="det">100'lük, harf notu, GPA… değerlendirme ülkenin not sistemine göre yapılır</div></div>
         </div>
       </div>
     </div>
@@ -1666,6 +1750,15 @@
           </div>
         </details>
         <details class="faq-item">
+          <summary class="faq-q">Veli olarak çocuğumu nasıl bağlarım?</summary>
+          <div class="faq-a">
+            Uygulamayı indirip Ebeveyn olarak giriş yap. Çocuğunun telefonunda
+            Profil → "Veliyi Bağla" ekranındaki QR kodu tarat — veya çocuğun
+            WhatsApp'tan gönderdiği bağlantı linkine dokun. Saniyeler içinde
+            bağlanır; istersen 6 haneli kodu elle de girebilirsin.
+          </div>
+        </details>
+        <details class="faq-item">
           <summary class="faq-q">Verilerim güvende mi?</summary>
           <div class="faq-a">
             Tüm veriler Google Firebase üzerinde TLS şifrelemesi ile saklanır.
@@ -1686,7 +1779,7 @@
           Üç adımda QuAlsar deneyimine başlayın.
         </p>
       </div>
-      <div class="features" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="features">
         <div class="feature-card" style="text-align:center;">
           <div class="feature-icon" style="font-size: 40px;">1️⃣</div>
           <h3 class="feature-title">İndir & Kayıt Ol</h3>
@@ -1730,7 +1823,7 @@
 
   <!-- FOOTER -->
   <footer>
-    <a href="#" class="brand">
+    <a href="/" class="brand">
       <span class="brand-dot"></span>
       <span class="brand-text">Qu<span class="al">Al</span>sar</span>
     </a>
@@ -1739,6 +1832,7 @@
       <a href="/privacy-en.html">Privacy (EN)</a>
       <a href="/terms">Koşullar (TR)</a>
       <a href="/terms-en.html">Terms (EN)</a>
+      <a href="/delete">Hesap Silme</a>
       <a href="mailto:serhatdsme@gmail.com">İletişim</a>
     </div>
     <div class="copy" style="max-width: 720px; margin: 0 auto;">
