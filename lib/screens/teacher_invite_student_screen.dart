@@ -13,6 +13,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../services/class_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
+import '../widgets/user_avatar.dart';
 
 const _kBrand = Color(0xFF7C3AED);
 
@@ -180,14 +181,12 @@ class _TeacherInviteStudentScreenState
           ),
           child: Row(
             children: [
-              Container(
-                width: 40, height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _kBrand.withValues(alpha: 0.10),
-                ),
-                alignment: Alignment.center,
-                child: Text(r.avatar, style: const TextStyle(fontSize: 20)),
+              UserAvatar(
+                uid: r.uid,
+                avatar: r.avatar,
+                size: 40,
+                emojiSize: 20,
+                background: _kBrand.withValues(alpha: 0.10),
               ),
               const SizedBox(width: 12),
               Expanded(

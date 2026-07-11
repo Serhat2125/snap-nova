@@ -6761,25 +6761,13 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
 
     final matchFuture = safeMatchmaking();
 
-    // 1) Bank'ten SEÇİLEN konu için topla.
+    // 1) Konu havuzundan çek (hızlı Firestore okuma) — SORU KALİTESİ İÇİN
+    //    BİRİNCİL KAYNAK: havuz öğrencinin ülke + sınıf + müfredatına göre
+    //    üretilmiştir. (Statik banka seviye-bağımsız genel sorular içerir;
+    //    artık yalnızca SON ÇARE yedeği — adım 4'e taşındı.) Havuz hazırsa
+    //    (≥50 soru) AI üretimi gerekmez → ekran anında açılır; yoksa AI'ye
+    //    düşülür ve AI sonucu havuza yazılarak havuz ısıtılır.
     final bank = _questionBank[subjectKey];
-    if (bank != null) {
-      if (topic != null && bank[topic] != null) {
-        addUnique(List.of(bank[topic]!)..shuffle(rng));
-      } else if (topic == null) {
-        final all = <_QuizQuestion>[];
-        for (final list in bank.values) {
-          all.addAll(list);
-        }
-        all.shuffle(rng);
-        addUnique(all);
-      }
-    }
-
-    // 1.5) HIZ: Konu havuzundan çek (hızlı Firestore okuma) — AI'ye düşmeden
-    //      önce. Havuz hazırsa (≥50 soru) AI üretimi GEREKMEZ → ekran
-    //      saniyeler yerine anında açılır. Havuz yoksa null döner, AI'ye
-    //      düşülür (ve aşağıda AI sonucu havuza yazılarak havuz ısıtılır).
     final eduProfile = EduProfile.current;
     if (picks.length < targetCount && topic != null && eduProfile != null) {
       try {
@@ -6856,8 +6844,21 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
     final DueloMatchResult? match = await matchFuture;
     if (!mounted) return;
 
-    // 4) Hâlâ eksikse: AYNI DERSİN diğer konularından doldur (subject
-    //    fallback — çapraz-ders hâlâ yok).
+    // 4) Hâlâ eksikse: statik banka YEDEĞİ (seviye-bağımsız genel sorular —
+    //    havuz + AI erişilemezse test yine de başlayabilsin). Önce seçilen
+    //    konu, sonra aynı dersin diğer konuları.
+    if (picks.length < targetCount && bank != null) {
+      if (topic != null && bank[topic] != null) {
+        addUnique(List.of(bank[topic]!)..shuffle(rng));
+      } else if (topic == null) {
+        final all = <_QuizQuestion>[];
+        for (final list in bank.values) {
+          all.addAll(list);
+        }
+        all.shuffle(rng);
+        addUnique(all);
+      }
+    }
     if (picks.length < targetCount && bank != null && topic != null) {
       final extras = <_QuizQuestion>[];
       for (final entry in bank.entries) {
@@ -7037,7 +7038,7 @@ emoji başlık yok.
 Format:
 [
   {
-    "q": "soru metni — kısa ve net, en fazla 15 kelime",
+    "q": "soru kökü — net, kendi başına anlaşılır",
     "opts": {$optsExample},
     "ans": "B",
     "hint": "tek cümle yol gösterici ipucu",
@@ -7046,6 +7047,7 @@ Format:
   }
 ]
 
+$_kDueloQualityRules
 KURALLAR:
 • TAM $count soru.
 • "sol" ADIM ADIM DETAYLI ÇÖZÜM olsun — ders kitabı kalitesinde:
@@ -11224,8 +11226,13 @@ KURALLAR:
           ),
           child: Row(
             children: [
-              Text(f.avatar.isNotEmpty ? f.avatar : '👤',
-                  style: const TextStyle(fontSize: 20)),
+              // Profil fotoğrafı → URL → emoji önceliği; ham URL metni asla.
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: _GroupMemberAvatar(
+                    uid: f.uid, avatar: f.avatar, size: 20),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text('@$name',
@@ -12443,8 +12450,9 @@ KURALLAR:
     ));
   }
 
-  /// Grup yarışı için soru topla — bank → havuz → AI (1v1 ile aynı kaynaklar,
-  /// matchmaking yok).
+  /// Grup yarışı için soru topla — havuz → AI → bank yedeği (1v1 ile aynı
+  /// kaynak önceliği, matchmaking yok). Havuz + AI müfredat/sınıf odaklı
+  /// olduğundan birincil; seviye-bağımsız statik banka son çare.
   Future<List<_QuizQuestion>> _collectContestQuestions(
       _Subject subject, String topic, int targetCount) async {
     final rng = math.Random();
@@ -12457,13 +12465,9 @@ KURALLAR:
       }
     }
 
-    // 1) Bank
     final bank = _questionBank[subject.key];
-    if (bank != null && bank[topic] != null) {
-      addUnique(List.of(bank[topic]!)..shuffle(rng));
-    }
 
-    // 2) Havuz (hızlı)
+    // 1) Havuz (hızlı, müfredata özel)
     final eduProfile = EduProfile.current;
     if (picks.length < targetCount && eduProfile != null) {
       try {
@@ -12498,7 +12502,7 @@ KURALLAR:
       }
     }
 
-    // 3) AI (eksik kalırsa)
+    // 2) AI (eksik kalırsa)
     if (picks.length < targetCount) {
       try {
         final aiQs = await _generateAiQuestions(
@@ -12527,6 +12531,11 @@ KURALLAR:
       } catch (e) {
         debugPrint('[GroupContest] AI soru üretimi başarısız: $e');
       }
+    }
+
+    // 3) Statik banka YEDEĞİ — havuz + AI yetmezse test yine de başlasın.
+    if (picks.length < targetCount && bank != null && bank[topic] != null) {
+      addUnique(List.of(bank[topic]!)..shuffle(rng));
     }
 
     if (picks.length > targetCount) {
@@ -14192,6 +14201,9 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                         avatar: _displayUsername()
                             .substring(0, 1)
                             .toUpperCase(),
+                        // Profil fotoğrafı varsa harf yerine o görünür.
+                        avatarData:
+                            UserProfileService.instance.avatarData,
                         progress: _mySolved / _questions.length,
                         color: _Palette.brand,
                         flag: '🇹🇷',
@@ -16780,6 +16792,8 @@ class _DueloShareUserBox extends StatelessWidget {
 class _DueloAvatar extends StatelessWidget {
   final String name;
   final String avatar;
+  /// Base64 profil fotoğrafı — varsa harf/emoji yerine gösterilir.
+  final String avatarData;
   final double progress;
   final Color color;
   final String flag;
@@ -16789,6 +16803,7 @@ class _DueloAvatar extends StatelessWidget {
   const _DueloAvatar({
     required this.name,
     required this.avatar,
+    this.avatarData = '',
     required this.progress,
     required this.color,
     required this.flag,
@@ -16797,16 +16812,26 @@ class _DueloAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Profil fotoğrafı / URL avatar → görsel; kısa harf/emoji → yazı.
+    // URL'in ham metin olarak basılması engellendi.
+    final a = avatar.trim();
+    final bool asText =
+        avatarData.trim().isEmpty && !a.startsWith('http') && a.length <= 4;
     final avatarCircle = Container(
       width: 28,
       height: 28,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color,
       ),
       alignment: Alignment.center,
-      child: Text(avatar,
-          style: _sans(size: 11, weight: FontWeight.w800, color: Colors.white)),
+      child: asText
+          ? Text(a.isEmpty ? '👤' : a,
+              style: _sans(
+                  size: 11, weight: FontWeight.w800, color: Colors.white))
+          : _GroupMemberAvatar(uid: '', avatar: avatar,
+              avatarData: avatarData, size: 24),
     );
     final flagText = Text(flag, style: TextStyle(fontSize: 11));
     final nameText = Flexible(
@@ -17703,6 +17728,36 @@ class _FriendRequestsSheet extends StatelessWidget {
 //  üzerinden _DueloQuizScreen'e (gerçek mod) girer.
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// Düello/arena AI soru üretiminde TÜM prompt'ların paylaştığı KALİTE
+/// sözleşmesi. Amaç: "soru sormuş olmak için" yazılmış dolgu soruları
+/// engellemek — her soru gerçek bir kazanımı, anlaşılır bir kökle ölçsün.
+/// (Cloud Functions'taki quiz-havuzu üreticisi de aynı kuralları taşır:
+/// functions/src/question_pool_generator.ts — birini değiştirirsen
+/// diğerini de güncelle.)
+const String _kDueloQualityRules = '''
+SORU KALİTESİ (EN ÖNEMLİ BÖLÜM — her maddeye uy):
+• Her soru GERÇEK bir kazanımı ölçsün (kavrama, uygulama veya analiz).
+  Dolgu / ezber / "soru sormuş olmak için" yazılmış soru YASAK.
+• Soru kökü TEK OKUYUŞTA anlaşılsın: cevap için gereken TÜM bilgi ve
+  bağlam kökte verilsin. Belirsiz ifade, çift olumsuz, kapalı gönderme
+  kullanma.
+• "Aşağıdakilerden hangisi doğrudur?" gibi KÖKSÜZ genel kalıplar YASAK —
+  kök her zaman belirli bir kavramı, durumu veya işlemi sorsun.
+• TEK ve TARTIŞMASIZ doğru cevap olsun; şıklar birbirini dışlasın.
+• Çeldiriciler öğrencinin TİPİK HATALARINDAN türesin: makul, doğru
+  cevapla aynı kategoride ve benzer uzunlukta. Bariz saçma şık ve
+  "Hepsi" / "Hiçbiri" şıkkı YASAK.
+• Sayısal soruda veriler tutarlı olsun, işlem TEK sonuç versin; yanlış
+  şıklar yaygın hata sonuçları olsun (işaret hatası, ters oran, eksik
+  adım vb.).
+• Soru TİPLERİNİ çeşitlendir: hesaplama, günlük hayat bağlamı,
+  neden-sonuç, karşılaştırma, örnek→kavram eşleştirme… Aynı kalıbı
+  arka arkaya kullanma.
+• Doğru cevabın şık harfi sorular arasında dengeli ve rastgele dağılsın.
+• Dil sade ve yaşa uygun; soru kökü ideal 10–35 kelime — bağlam
+  gerekiyorsa daha uzun olabilir ama gereksiz tek kelime olmasın.
+''';
+
 /// Owner için standalone düello sorusu üretici. AI başarısız olursa boş liste.
 Future<List<_QuizQuestion>> _genDueloQuestions({
   required String subjectName,
@@ -17717,10 +17772,22 @@ ${eduCtx.isNotEmpty ? '$eduCtx\n' : ''}Ders: $subjectName
 Konu: $topicLabel
 
 GÖREVİN: TAM OLARAK $count soru üret. SADECE "$topicLabel" konusu ve "$subjectName" dersi kapsamında. Başka dersten soru üretme.
-SEVİYE: öğrencinin eğitim seviyesi + ülke müfredatına göre.
+SEVİYE: Soruları öğrencinin EĞİTİM SEVİYESİ ve ÜLKE MÜFREDATI'na göre
+hazırla; ülkenin resmi sistemine uygun terminoloji kullan.
 SADECE geçerli JSON array döndür — markdown fence / emoji başlık yok.
-Format: [{"q":"...","opts":{"A":"..","B":"..","C":"..","D":".."},"ans":"B","hint":"..","sol":"..","d":"medium"}]
-KURALLAR: TAM $count soru; opts 4 şık (A,B,C,D); ans A|B|C|D; kullanıcının dilinde; dolar işareti yok (LaTeX \\( \\)); markdown ** veya # yok.
+Format: [{"q":"soru kökü — net, kendi başına anlaşılır","opts":{"A":"..","B":"..","C":"..","D":".."},"ans":"B","hint":"tek cümle ipucu","sol":"Adım 1: …\\nAdım 2: …\\nDoğru cevap: B — kısa gerekçe","d":"easy|medium|hard"}]
+
+$_kDueloQualityRules
+KURALLAR:
+• TAM $count soru; "opts" 4 şık (A,B,C,D); "ans" A|B|C|D.
+• ZORLUK KARIŞIK: ~%40 kolay, ~%40 orta, ~%20 zor.
+• "sol" ADIM ADIM çözüm: her adım ayrı satırda "Adım 1: …" biçiminde,
+  son satır "Doğru cevap: <harf> — kısa gerekçe".
+• Soruları, şıkları ve çözümleri KULLANICININ DİLİNDE yaz.
+• MATEMATİK/KİMYA/FİZİK gösterimi DÜZ UNICODE: alt indis ₀-₉ (H₂O),
+  üst indis ²/³ (x², 10⁻³), → × ÷ ± ≤ ≥ ≠ Δ π √ . LaTeX KULLANMA:
+  \\text, \\(, \\), _2, ^2, \$ işareti YOK.
+• Markdown yıldız (**) veya başlık (#) YAZMA.
 ''';
   String raw;
   try {

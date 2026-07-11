@@ -140,6 +140,10 @@ flutter:
     - lib/assets/9ejrn (1).jpg
     - lib/assets/invite_hero.jpeg
     - assets/app_icon.png
+    # Onboarding hesap tipi kartı profil fotoğrafları
+    - assets/images/profile_teacher.jpg
+    - assets/images/profile_student.jpg
+    - assets/images/profile_parent.jpg
     # Uygulama SFX'leri — SystemSound Android'de güvenilir değil (alert hiç
     # desteklenmiyor, click cihazın "Dokunma sesleri" ayarına bağlı); kendi
     # ses dosyalarımız audioplayers ile çalınır.

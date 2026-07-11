@@ -27,6 +27,7 @@ import '../services/parent_link_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import '../widgets/parent_widgets.dart';
+import '../widgets/user_avatar.dart';
 import 'notifications_inbox_screen.dart';
 import 'onboarding_screen.dart';
 import 'parent_child_homeworks_screen.dart';
@@ -239,8 +240,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Text(c.avatar,
-                                    style: const TextStyle(fontSize: 28)),
+                                UserAvatar(
+                                    uid: c.uid,
+                                    avatar: c.avatar,
+                                    size: 34,
+                                    emojiSize: 28),
                                 const SizedBox(height: 2),
                                 Text(c.username,
                                     style: GoogleFonts.poppins(
@@ -773,7 +777,11 @@ class _AcademicSummaryCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text(child.avatar, style: const TextStyle(fontSize: 28)),
+              UserAvatar(
+                  uid: child.uid,
+                  avatar: child.avatar,
+                  size: 34,
+                  emojiSize: 28),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(

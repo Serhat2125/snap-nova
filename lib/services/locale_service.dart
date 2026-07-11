@@ -1036,8 +1036,10 @@ the same MANDATORY presence.''';
       // Auth (kayıt / giriş) sayfası
       'auth_title': 'Hesabını Oluştur',
       'auth_subtitle': 'İlerlemeni güvenle kaydet, hangi cihazdan girersen gir devam et.',
+      'auth_choose_method': 'Lütfen giriş yönteminizi seçin',
       'auth_with_google': 'Google ile devam et',
       'auth_with_apple': 'Apple ile devam et',
+      'auth_with_microsoft': 'Microsoft ile devam et',
       'auth_with_phone': 'Telefon numarası ile devam et',
       'auth_with_email': 'E-posta ile devam et',
       'auth_phone_title': 'Telefon Numaranı Gir',
@@ -1676,8 +1678,10 @@ the same MANDATORY presence.''';
       // Auth (sign up / sign in) page
       'auth_title': 'Create Your Account',
       'auth_subtitle': 'Save your progress and continue from any device.',
+      'auth_choose_method': 'Please choose your sign-in method',
       'auth_with_google': 'Continue with Google',
       'auth_with_apple': 'Continue with Apple',
+      'auth_with_microsoft': 'Continue with Microsoft',
       'auth_with_phone': 'Continue with phone number',
       'auth_with_email': 'Continue with email',
       'auth_phone_title': 'Enter your phone number',

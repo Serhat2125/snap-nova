@@ -31,6 +31,7 @@ import '../config/feature_flags.dart';
 import '../widgets/parent_actions_bar.dart';
 import '../widgets/parent_qr_scan_dialog.dart';
 import '../widgets/teacher_help_dialog.dart';
+import '../widgets/user_avatar.dart';
 import '../models/education_models.dart';
 import '../services/account_service.dart';
 import '../services/analytics.dart';
@@ -64,7 +65,8 @@ class _ParentShellScreenState extends State<ParentShellScreen> {
     super.initState();
     Analytics.logFeatureOpen('parent_panel');
     // WhatsApp veli linkinden geldiyse (cold start / login sonrası) bekleyen
-    // kodu tüket — bağlantı burada kurulur.
+    // kodu tüket — bağlantı burada kurulur. (Bağlanma daveti popup DEĞİL:
+    // çocuk kartındaki yanıp sönen "Çocuğunuza bağlanın" etiketiyle yapılır.)
     WidgetsBinding.instance.addPostFrameCallback(
         (_) => consumePendingParentLinkCode(context));
   }
@@ -348,8 +350,11 @@ class _ParentShellScreenState extends State<ParentShellScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text(c.avatar,
-                                  style: const TextStyle(fontSize: 22)),
+                              UserAvatar(
+                                  uid: c.uid,
+                                  avatar: c.avatar,
+                                  size: 28,
+                                  emojiSize: 22),
                               const SizedBox(width: 10),
                               Flexible(
                                 child: Text(
@@ -445,27 +450,43 @@ Future<void> consumePendingParentLinkCode(BuildContext context) async {
 
 /// Çocuğu bağlar — FAB menüsü ve ana sayfadaki pill ➕ ortak kullanır.
 /// Birincil yol: çocuğun ekranındaki QR'ı okut → ANINDA bağlanır (onay yok).
-/// İkincil yol: kodu elle yaz. Her ikisi de ParentLinkService.linkByCode.
-Future<void> showLinkChildSheet(BuildContext context) async {
+/// İkincil yol: çocuğun WhatsApp'tan gönderdiği linke dokunmak (bilgi satırı).
+/// Üçüncü yol: kodu elle yaz. QR ve kod ParentLinkService.linkByCode kullanır.
+///
+/// [intro] true iken panel açılışında kendiliğinden çıkan karşılama
+/// çerçevesi olur: "lütfen bağlanın" başlığı + "Daha Sonra" butonu.
+Future<void> showLinkChildSheet(BuildContext context,
+    {bool intro = false}) async {
     final ctrl = TextEditingController();
     final res = await showDialog<LinkRequestResult>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppPalette.card(ctx),
-        title: Text('Çocuğunu Bağla'.tr(),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w800,
-                color: AppPalette.textPrimary(ctx))),
+        title: Row(children: [
+          const Text('👨‍👩‍👧', style: TextStyle(fontSize: 24)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+                (intro ? 'Çocuğunuza Bağlanın' : 'Çocuğunu Bağla').tr(),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.poppins(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: AppPalette.textPrimary(ctx))),
+          ),
+        ]),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Çocuğunun telefonunda Profil → "Veliyi Bağla" ekranını '
-                'açtır, çıkan QR kodu okut — hepsi bu.'.tr(),
+                (intro
+                        ? 'Paneli kullanabilmek için lütfen bu yollardan '
+                            'biriyle çocuğunuza bağlanın:'
+                        : 'Bu yollardan biriyle çocuğuna bağlan:')
+                    .tr(),
                 style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: AppPalette.textSecondary(ctx),
@@ -497,6 +518,44 @@ Future<void> showLinkChildSheet(BuildContext context) async {
                         fontWeight: FontWeight.w800,
                         color: Colors.white)),
               ),
+              const SizedBox(height: 5),
+              // QR yönteminin hemen altında küçük nasıl-yapılır yazısı.
+              Text(
+                'Çocuğunun telefonunda Profil → "Veliyi Bağla" ekranını '
+                        'açtır, ekrandaki QR kodu okut — anında bağlanır.'
+                    .tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 10.5,
+                    color: AppPalette.textSecondary(ctx),
+                    height: 1.35),
+              ),
+              const SizedBox(height: 10),
+              // 2. yol — WhatsApp linki: veli tarafında buton yok, çocuğun
+              // gönderdiği linke dokunmak yeterli; burada sadece anlatılır.
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF25D366).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: const Color(0xFF25D366).withValues(alpha: 0.30)),
+                ),
+                child: Row(children: [
+                  const Text('💬', style: TextStyle(fontSize: 20)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Ya da çocuğun aynı ekrandan WhatsApp ile bağlantı '
+                              'linki göndersin — linke dokunman yeterli.'
+                          .tr(),
+                      style: GoogleFonts.poppins(
+                          fontSize: 11.5,
+                          height: 1.35,
+                          color: AppPalette.textSecondary(ctx)),
+                    ),
+                  ),
+                ]),
+              ),
               const SizedBox(height: 14),
               Row(children: [
                 Expanded(child: Divider(color: AppPalette.border(ctx))),
@@ -524,13 +583,24 @@ Future<void> showLinkChildSheet(BuildContext context) async {
                       borderRadius: BorderRadius.circular(12)),
                 ),
               ),
+              const SizedBox(height: 5),
+              // Kod yönteminin hemen altında küçük nasıl-yapılır yazısı.
+              Text(
+                'Aynı "Veliyi Bağla" ekranında görünen EBEV-XXXXXX kodunu '
+                        'buraya yaz, "Bağla"ya bas.'
+                    .tr(),
+                style: GoogleFonts.poppins(
+                    fontSize: 10.5,
+                    color: AppPalette.textSecondary(ctx),
+                    height: 1.35),
+              ),
             ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Vazgeç'.tr(),
+            child: Text((intro ? 'Daha Sonra' : 'Vazgeç').tr(),
                 maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
           FilledButton(
@@ -575,14 +645,21 @@ class _ParentHomeTab extends StatefulWidget {
   State<_ParentHomeTab> createState() => _ParentHomeTabState();
 }
 
-class _ParentHomeTabState extends State<_ParentHomeTab> {
+class _ParentHomeTabState extends State<_ParentHomeTab>
+    with SingleTickerProviderStateMixin {
   /// Seçili çocuk (chip sırası — aktif çocuklar listesinde index).
   int _selIdx = 0;
 
-  /// Odak modu: birden fazla çocuk varken bir çipe basılınca diğerleri
-  /// gizlenir, seçilen çip yatayda tam genişliğe büyür. Büyüyen çipe tekrar
-  /// basılınca liste geri gelir.
-  bool _focusMode = false;
+  /// Odak modu: bir çipe basılınca diğerleri gizlenir, seçilen çip yatayda
+  /// tam genişliğe büyür (büyük profil kartı). Varsayılan AÇIK: panel
+  /// açılınca çocuk kartı büyük görünür; sağ üstteki ok ile küçültülür.
+  bool _focusMode = true;
+
+  /// "Çocuğunuza bağlanın" etiketi için yanıp sönme animasyonu — çocuk
+  /// kartında, henüz kodla bağlı çocuk yokken dikkat çeker.
+  late final AnimationController _blinkCtrl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 750))
+    ..repeat(reverse: true);
   // Yeşil özet kart istatistikleri — "Bugüne hızlı bir bakış": bugünün
   // çalışma dakikası, çözülen soru sayısı, başarı yüzdesi + seri gün.
   String? _statsUid;
@@ -682,6 +759,7 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
 
   @override
   void dispose() {
+    _blinkCtrl.dispose();
     _studentBtnPos.dispose();
     super.dispose();
   }
@@ -1143,16 +1221,19 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
         // gösterilir. kShowDemoMode=false (prod) → sahte çocuk/istatistik
         // gizlenir; yerine "çocuğunu bağla" boş-durum ekranı gösterilir.
         final demoMode = kShowDemoMode && active.isEmpty && _localIds.isEmpty;
-        // Demo kapalı + hiç çocuk yok → sahte veri yerine boş-durum.
-        if (!demoMode && active.isEmpty && _localIds.isEmpty) {
-          return _noChildView(context);
-        }
+        // Hiç çocuk yok (demo da kapalı) → PLACEHOLDER modu: ana sayfa aynen
+        // kurulur; çocuk kartının yerinde "Lütfen çocuğunuzun bilgilerini
+        // girin" yazan hazır sekme durur (basınca çocuk ekleme açılır).
+        final placeholderMode =
+            !demoMode && active.isEmpty && _localIds.isEmpty;
         // Override anahtarı: bağlı çocukta uid, yerel çocukta 'local_N',
         // demo çocukta 'demo_N' — hepsi ad/foto/durum düzenlenebilir.
         // Sıra: önce kodla bağlı çocuklar, sonra yerel eklenenler.
         final uids = demoMode
             ? const <String>['demo_0', 'demo_1']
-            : [...active.map((c) => c.uid), ..._localIds];
+            : placeholderMode
+                ? const <String>['placeholder_0']
+                : [...active.map((c) => c.uid), ..._localIds];
         _ensureOverridesLoaded(uids);
         final chipNames = [
           for (var i = 0; i < uids.length; i++)
@@ -1235,7 +1316,9 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
                 duration: const Duration(milliseconds: 260),
                 curve: Curves.easeOutCubic,
                 alignment: Alignment.topCenter,
-                child: _focusMode
+                child: placeholderMode
+                    ? _placeholderChildCard(context)
+                    : _focusMode
                     ? _focusChildCard(context,
                         names: chipNames,
                         uids: uids,
@@ -1254,6 +1337,10 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
                                         !demoMode && active.isNotEmpty
                                             ? active[0].displayName
                                             : ''),
+                                    onLongPress: uids[0].startsWith('local_')
+                                        ? () => _confirmDeleteLocalChild(
+                                            uids[0])
+                                        : null,
                                     onTap: () => setState(
                                         () => _focusMode = true)),
                               )
@@ -1273,6 +1360,10 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
                                         !demoMode && i < active.length
                                             ? active[i].displayName
                                             : ''),
+                                    onLongPress: uids[i].startsWith('local_')
+                                        ? () => _confirmDeleteLocalChild(
+                                            uids[i])
+                                        : null,
                                     onTap: () => setState(() {
                                           _selIdx = i;
                                           _focusMode = true;
@@ -1449,8 +1540,12 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
               Material(
                 color: Colors.transparent,
                 child: InkWell(
+                  // Ana sayfada SEÇİLİ çocuğun verisiyle açılır — Gelişim
+                  // Paneli'nde o çocuğun sekmesi otomatik seçilir.
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => const MyProgressScreen())),
+                      builder: (_) => MyProgressScreen(
+                          initialChildUid: sel?.uid,
+                          initialChildName: selName))),
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -1899,84 +1994,90 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
     }
   }
 
-  /// Hiç bağlı/yerel çocuk yokken (demo kapalı) gösterilen boş-durum:
-  /// sahte veri YERİNE "çocuğunu bağla" yönlendirmesi. Başlık + ☰ menü
-  /// (Yeni Çocuk Ekle burada) korunur.
-  Widget _noChildView(BuildContext context) {
-    final bg = _bg ?? AppPalette.bg(context);
-    final ink = _ov['titleText'] ?? AppPalette.textPrimary(context);
-    return ColoredBox(
-      color: bg,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 96),
-        children: [
-          SizedBox(
-            height: 44,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Center(
-                  child: Text('Ebeveyn Paneli'.tr(),
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: ink,
-                      )),
-                ),
-                Positioned(
-                  right: 0,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _notifBell(context),
-                      const SizedBox(width: 8),
-                      _hamburgerMenu(context),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+  /// Hiç çocuk yokken çocuk kartının YERİNDE duran hazır sekme: soldaki
+  /// boş profil dairesi + sağında yeşil ➕ ve "Lütfen çocuğunuzun
+  /// bilgilerini girin" yazısı. Görünümü _focusChildCard ile birebir aynı
+  /// çerçevede; herhangi bir yerine basınca çocuk ekleme penceresi açılır.
+  Widget _placeholderChildCard(BuildContext context) {
+    return Material(
+      color: _ov['chips'] ?? AppPalette.card(context),
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: _showAddChildDialog,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _kGreen, width: 1.4),
           ),
-          const SizedBox(height: 64),
-          Icon(Icons.family_restroom_rounded,
-              size: 68, color: ink.withValues(alpha: 0.28)),
-          const SizedBox(height: 18),
-          Text('Henüz bağlı çocuk yok'.tr(),
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: ink,
-              )),
-          const SizedBox(height: 8),
-          Text(
-            'Çocuğunun eğitim yolculuğunu takip etmek için hesabını bağla.'.tr(),
-            textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
-              fontSize: 13,
-              color: AppPalette.textSecondary(context),
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Center(
-            child: TextButton.icon(
-              onPressed: _showAddChildDialog,
-              style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFF7C3AED),
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+          child: Row(
+            children: [
+              // Sol: büyük boş avatar — gerçek karttaki ile aynı boyut.
+              _avatarCircle(context, null, 76),
+              const SizedBox(width: 14),
+              // Sağ: yeşil ➕ üstte, altında yönlendirme yazısı.
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: _kGreen,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: const Icon(Icons.add_rounded,
+                          size: 20, color: Colors.white),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Lütfen çocuğunuzun bilgilerini girin'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          height: 1.3,
+                          color: AppPalette.textPrimary(context),
+                        )),
+                  ],
+                ),
               ),
-              icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
-              label: Text('Çocuk Ekle'.tr(),
-                  style: GoogleFonts.poppins(
-                      fontSize: 14, fontWeight: FontWeight.w800)),
-            ),
+            ],
           ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  /// Yanıp sönen "Çocuğunuza bağlanın" etiketi — çocuk kartının sağ
+  /// tarafında, HENÜZ KODLA BAĞLI ÇOCUK YOKKEN görünür; basınca bağlanma
+  /// penceresi (QR / WhatsApp linki / kod) açılır. Bağlantı kurulunca
+  /// koşul sağlanmaz ve etiket kaybolur.
+  Widget _connectChildLabel(BuildContext context) {
+    return GestureDetector(
+      onTap: () => showLinkChildSheet(context),
+      child: FadeTransition(
+        opacity: Tween<double>(begin: 0.35, end: 1.0).animate(
+            CurvedAnimation(parent: _blinkCtrl, curve: Curves.easeInOut)),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: _kGreen.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: _kGreen, width: 1.2),
+          ),
+          child: Text('Çocuğunuza bağlanın'.tr(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                color: _kGreen,
+              )),
+        ),
       ),
     );
   }
@@ -2326,6 +2427,16 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
                                   color: _kGreen.withValues(alpha: 0.9),
                                 )),
                           ),
+                    // Henüz kodla bağlı çocuk yoksa: kartın sağ ortasında
+                    // yanıp sönen "Çocuğunuza bağlanın" etiketi. Bağlantı
+                    // kurulunca (active dolunca) kendiliğinden kaybolur.
+                    if (!demoMode && active.isEmpty) ...[
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: _connectChildLabel(context),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -2385,11 +2496,76 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
   /// rozeti — ebeveyn foto/ad/durum mesajını değiştirebilir.
   /// [width] verilirse çip o genişliğe sabitlenir (ekrana tam 2 çip
   /// sığdırmak için) ve isim taşarsa üç nokta ile kısaltılır.
+  /// Yerel eklenen ('local_N') çocuk çipine uzun basınca: onay al, sil.
+  /// Kodla bağlı gerçek çocuklarda ÇAĞRILMAZ — onların bağlantısı ayrı
+  /// yönetilir. Silinince prefs listesi + ad/foto/durum anahtarları temizlenir.
+  Future<void> _confirmDeleteLocalChild(String id) async {
+    final name = _alias[id] ?? 'Çocuk'.tr();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppPalette.card(ctx),
+        icon: const Icon(Icons.delete_forever_rounded,
+            color: Color(0xFFEF4444), size: 40),
+        title: Text('Profili Sil'.tr(),
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: AppPalette.textPrimary(ctx))),
+        content: Text(
+            '"$name" ${'profilini silmek istediğine emin misin? Bu profil yalnızca bu cihazda kayıtlı; ad, foto ve durum bilgisi silinir.'.tr()}',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(
+                fontSize: 13,
+                height: 1.45,
+                color: AppPalette.textSecondary(ctx))),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Vazgeç'.tr(),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+          FilledButton(
+            style:
+                FilledButton.styleFrom(backgroundColor: const Color(0xFFEF4444)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Sil'.tr(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    final p = await SharedPreferences.getInstance();
+    final list = [..._localIds]..remove(id);
+    await p.setStringList('parent_local_children', list);
+    await p.remove('child_alias_$id');
+    await p.remove('child_status_$id');
+    await p.remove('child_photo_$id');
+    if (!mounted) return;
+    setState(() {
+      _localIds = list;
+      _alias.remove(id);
+      _statusMsg.remove(id);
+      _photoPath.remove(id);
+      _selIdx = 0;
+      _focusMode = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Profil silindi.'.tr()),
+        behavior: SnackBarBehavior.floating));
+  }
+
   Widget _childChip(BuildContext c, String name,
       {required bool selected,
       required VoidCallback onTap,
       String? photoPath,
       VoidCallback? onEdit,
+      VoidCallback? onLongPress,
       double? width}) {
     final chip = Material(
       color: _ov['chips'] ??
@@ -2399,6 +2575,8 @@ class _ParentHomeTabState extends State<_ParentHomeTab> {
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
+        // Yerel eklenen çocukta uzun basış → silme onayı.
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(20),
         child: Container(
           width: width,

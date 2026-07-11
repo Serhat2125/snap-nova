@@ -27,23 +27,25 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 //   • Apple Sign In: iOS 13+; entitlements; Apple Developer Console'da etkin.
 // ═══════════════════════════════════════════════════════════════════════════════
 
-enum AuthProvider { google, apple, phone, email, guest }
+enum AuthProvider { google, apple, microsoft, phone, email, guest }
 
 extension AuthProviderX on AuthProvider {
   String get id => switch (this) {
-        AuthProvider.google => 'google',
-        AuthProvider.apple  => 'apple',
-        AuthProvider.phone  => 'phone',
-        AuthProvider.email  => 'email',
-        AuthProvider.guest  => 'guest',
+        AuthProvider.google    => 'google',
+        AuthProvider.apple     => 'apple',
+        AuthProvider.microsoft => 'microsoft',
+        AuthProvider.phone     => 'phone',
+        AuthProvider.email     => 'email',
+        AuthProvider.guest     => 'guest',
       };
 
   static AuthProvider fromId(String id) => switch (id) {
-        'google' => AuthProvider.google,
-        'apple'  => AuthProvider.apple,
-        'phone'  => AuthProvider.phone,
-        'email'  => AuthProvider.email,
-        _        => AuthProvider.guest,
+        'google'    => AuthProvider.google,
+        'apple'     => AuthProvider.apple,
+        'microsoft' => AuthProvider.microsoft,
+        'phone'     => AuthProvider.phone,
+        'email'     => AuthProvider.email,
+        _           => AuthProvider.guest,
       };
 }
 
@@ -264,6 +266,30 @@ class AuthService {
           'Apple sign-in provider\'ı aktive et.');
     }
     try {
+      // Android ve web'de native Apple sheet yok — Firebase'in kendi OAuth
+      // akışı (tarayıcı/custom tab) üzerinden giriş yapılır. Firebase
+      // Console'da Apple provider'ın etkin olması gerekir.
+      if (kIsWeb || Platform.isAndroid) {
+        final provider = fb_auth.AppleAuthProvider()
+          ..addScope('email')
+          ..addScope('name');
+        final result = kIsWeb
+            ? await fb_auth.FirebaseAuth.instance.signInWithPopup(provider)
+            : await fb_auth.FirebaseAuth.instance.signInWithProvider(provider);
+        final fbUser = result.user;
+        if (fbUser == null) {
+          throw const AuthException('no-user', 'Kullanıcı oluşturulamadı.');
+        }
+        return _persist(AppUser(
+          id: fbUser.uid,
+          name: fbUser.displayName,
+          email: fbUser.email,
+          photoUrl: fbUser.photoURL,
+          provider: AuthProvider.apple,
+          createdAt: DateTime.now(),
+        ));
+      }
+
       final appleCredential = await SignInWithApple.getAppleIDCredential(
         scopes: [
           AppleIDAuthorizationScopes.email,
@@ -311,6 +337,53 @@ class AuthService {
       throw AuthException(e.code, e.message ?? 'Apple girişi başarısız.');
     } catch (e) {
       debugPrint('[Auth][apple] error: $e');
+      throw AuthException('unknown', e.toString());
+    }
+  }
+
+  // ── MICROSOFT ─────────────────────────────────────────────────────────────
+  // Firebase'in kendi OAuth akışı (tarayıcı/custom tab) üzerinden giriş.
+  // Firebase Console'da Microsoft provider etkinleştirilmeli (Azure AD app
+  // kaydı + client id/secret). Kişisel + kurumsal Microsoft hesapları çalışır.
+  static Future<AppUser> signInWithMicrosoft() async {
+    if (!firebaseReady) {
+      throw const AuthException(
+          'firebase-not-configured',
+          'Microsoft girişi için Firebase yapılandırılmamış. '
+          'Terminalde "flutterfire configure" çalıştır + Firebase Console\'da '
+          'Microsoft sign-in provider\'ı aktive et.');
+    }
+    try {
+      final provider = fb_auth.MicrosoftAuthProvider()
+        ..setCustomParameters({'prompt': 'select_account'});
+      final result = kIsWeb
+          ? await fb_auth.FirebaseAuth.instance.signInWithPopup(provider)
+          : await fb_auth.FirebaseAuth.instance.signInWithProvider(provider);
+      final fbUser = result.user;
+      if (fbUser == null) {
+        throw const AuthException('no-user', 'Kullanıcı oluşturulamadı.');
+      }
+      return _persist(AppUser(
+        id: fbUser.uid,
+        name: fbUser.displayName,
+        email: fbUser.email,
+        photoUrl: fbUser.photoURL,
+        provider: AuthProvider.microsoft,
+        createdAt: DateTime.now(),
+      ));
+    } on AuthException {
+      rethrow;
+    } on fb_auth.FirebaseAuthException catch (e) {
+      debugPrint('[Auth][microsoft] firebase: ${e.code} ${e.message}');
+      if (e.code == 'web-context-canceled' ||
+          e.code == 'web-context-cancelled' ||
+          e.code == 'canceled' ||
+          e.code == 'user-cancelled') {
+        throw const AuthException('cancelled', 'Microsoft girişi iptal edildi.');
+      }
+      throw AuthException(e.code, e.message ?? 'Microsoft girişi başarısız.');
+    } catch (e) {
+      debugPrint('[Auth][microsoft] error: $e');
       throw AuthException('unknown', e.toString());
     }
   }

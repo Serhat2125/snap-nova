@@ -272,12 +272,31 @@ PARAMETRELER:
 - Bloom seviyesi: ${p.bloomLevel}
 - Soru tipi: ${p.questionType}
 
+SORU KALİTESİ (EN ÖNEMLİ BÖLÜM — her maddeye uy; uygulamadaki düello
+prompt'u ile aynı sözleşme, bkz. lib/screens/qualsar_arena_screen.dart):
+- Her soru GERÇEK bir kazanımı ölçsün (kavrama, uygulama veya analiz).
+  Dolgu / ezber / "soru sormuş olmak için" yazılmış soru YASAK.
+- Soru kökü TEK OKUYUŞTA anlaşılsın: cevap için gereken TÜM bilgi ve
+  bağlam kökte verilsin. Belirsiz ifade, çift olumsuz, kapalı gönderme yok.
+- "Aşağıdakilerden hangisi doğrudur?" gibi KÖKSÜZ genel kalıplar YASAK —
+  kök her zaman belirli bir kavramı, durumu veya işlemi sorsun.
+- TEK ve TARTIŞMASIZ doğru cevap olsun; şıklar birbirini dışlasın.
+- Çeldiriciler öğrencinin TİPİK HATALARINDAN türesin: makul, doğru cevapla
+  aynı kategoride ve benzer uzunlukta. Bariz saçma şık ve "Hepsi"/"Hiçbiri"
+  şıkkı YASAK.
+- Sayısal soruda veriler tutarlı olsun, işlem TEK sonuç versin; yanlış
+  şıklar yaygın hata sonuçları olsun (işaret hatası, ters oran vb.).
+- Soru tiplerini çeşitlendir: hesaplama, günlük hayat bağlamı, neden-sonuç,
+  karşılaştırma, örnek→kavram eşleştirme. Aynı kalıbı arka arkaya kullanma.
+- Doğru cevap index'i sorular arasında dengeli/rastgele dağılsın.
+- Dil sade ve sınıf seviyesine uygun; soru kökü ideal 10-35 kelime.
+
 KURALLAR:
 - Her soru özgün olsun (önceki sorulara benzemesin)
 - Konu sınırları içinde kal (genişleme yok)
 - Her soruda 4 şık (A, B, C, D)
 - Doğru cevap index'i 0-3 arası
-- Açıklama 1-2 cümle
+- Açıklama 2-4 cümle: doğrunun kısa gerekçesi + kullanılan kural/adım
 - LaTeX KULLANMA — Unicode kullan (x², √, π, →, H₂O vb.)
 
 YANIT FORMATI (sadece JSON array, başka hiçbir şey):

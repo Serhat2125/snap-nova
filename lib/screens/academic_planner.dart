@@ -47,6 +47,7 @@ import 'bilgi_ligi_screen.dart';
 import '../widgets/exam_mode_widgets.dart';
 import '../widgets/rotating_globe.dart';
 import '../widgets/study_toolbar.dart';
+import '../widgets/user_avatar.dart';
 import 'qualsar_mars_screen.dart';
 import 'edu_3d_screen.dart';
 import '../services/pomodoro_stats.dart';
@@ -3284,45 +3285,57 @@ class _LibraryLandingState extends State<LibraryLanding> {
             // ── ÜRET: Konu Özeti + Sınav Soruları — hero kartlar ─────
             // (Üret/Kitaplığım/Yarış/Çalış/Sınıfım küçük bölüm başlıkları
             //  kaldırıldı, bölüm araları daraltıldı — kullanıcı isteği.)
-            _HeroCard(
-              icon: Icons.summarize_rounded,
-              // Yeni ikon: tasarım sayfasındaki 2. alternatif
-              // ("Integrated Knowledge" — ışıyan kitap).
-              imageAsset: 'assets/library_icons/summary_v2.jpg',
-              title: localeService.tr('create_topic_summary'),
-              subtitle: 'Dersini ve konunu seç — AI anlaşılır bir konu özeti hazırlasın'.tr(),
-              // Gümüş/metalik zemin (kullanıcının gönderdiği görsel).
-              gradient: const [Color(0xFFC3C7D0), Color(0xFF9DA3AF)],
-              customBg: _cardBgs['summary'],
-              customTextColor: _cardInks['summary'],
-              onColorAccept: (c) => _applyLibraryColor('summary', c),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => AcademicPlanner(
-                      mode: LibraryMode.summary),
+            // Diğer bölümler gibi yan yana (kullanıcı isteği) — solda Konu
+            // Özeti, sağda Sınav Soruları.
+            Row(
+              children: [
+                Expanded(
+                  child: _HeroCard(
+                    icon: Icons.summarize_rounded,
+                    // Yeni ikon: tasarım sayfasındaki 2. alternatif
+                    // ("Integrated Knowledge" — ışıyan kitap).
+                    imageAsset: 'assets/library_icons/summary_v2.jpg',
+                    title: localeService.tr('create_topic_summary'),
+                    subtitle:
+                        'Dersini ve konunu seç — AI anlaşılır bir konu özeti hazırlasın'
+                            .tr(),
+                    // Gümüş/metalik zemin (kullanıcının gönderdiği görsel).
+                    gradient: const [Color(0xFFC3C7D0), Color(0xFF9DA3AF)],
+                    customBg: _cardBgs['summary'],
+                    customTextColor: _cardInks['summary'],
+                    onColorAccept: (c) => _applyLibraryColor('summary', c),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => AcademicPlanner(
+                            mode: LibraryMode.summary),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            SizedBox(height: 10),
-            _HeroCard(
-              icon: Icons.fact_check_rounded,
-              // Yeni ikon: tasarım sayfasındaki 7. alternatif
-              // ("Kitap & Soru" — soru işaretli açık kitap).
-              imageAsset: 'assets/library_icons/questions_v2.jpg',
-              title: localeService.tr('create_exam_questions'),
-              subtitle: 'Konundan test oluştur, çöz — eksiklerini gör'.tr(),
-              // Gümüş/metalik zemin (kullanıcının gönderdiği görsel) —
-              // üstteki karttan bir tık açık.
-              gradient: const [Color(0xFFCBCED6), Color(0xFFA6ACB8)],
-              customBg: _cardBgs['questions'],
-              customTextColor: _cardInks['questions'],
-              onColorAccept: (c) => _applyLibraryColor('questions', c),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => AcademicPlanner(
-                      mode: LibraryMode.questions),
+                SizedBox(width: 10),
+                Expanded(
+                  child: _HeroCard(
+                    icon: Icons.fact_check_rounded,
+                    // Yeni ikon: tasarım sayfasındaki 7. alternatif
+                    // ("Kitap & Soru" — soru işaretli açık kitap).
+                    imageAsset: 'assets/library_icons/questions_v2.jpg',
+                    title: localeService.tr('create_exam_questions'),
+                    subtitle: 'Konundan test oluştur, çöz — eksiklerini gör'.tr(),
+                    // Gümüş/metalik zemin (kullanıcının gönderdiği görsel) —
+                    // soldaki karttan bir tık açık.
+                    gradient: const [Color(0xFFCBCED6), Color(0xFFA6ACB8)],
+                    customBg: _cardBgs['questions'],
+                    customTextColor: _cardInks['questions'],
+                    onColorAccept: (c) => _applyLibraryColor('questions', c),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => AcademicPlanner(
+                            mode: LibraryMode.questions),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
             SizedBox(height: 10),
             // ── KİTAPLIĞIM: Çözümlerim | 3D Eğitim Modelleri ─────────
@@ -3357,9 +3370,14 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.view_in_ar_rounded,
-                    // Yeni 3D görsel (Gemini): anatomik kalp — kartın
-                    // TAMAMINI kaplar ve GERÇEK KALP RİTMİYLE atar.
-                    backgroundWidget: const _BeatingHeartBg(),
+                    // Güneş sistemi hologramı (kullanıcının gönderdiği
+                    // görsel) — kartın tamamını kaplar; dikey görselde
+                    // gezegenler görünür kalsın diye hafif yukarı hizalı.
+                    backgroundWidget: Image.asset(
+                      'assets/library_icons/edu3d_solar.jpg',
+                      fit: BoxFit.cover,
+                      alignment: const Alignment(0, -0.3),
+                    ),
                     title: '3D Eğitim Modelleri'.tr(),
                     subtitle: 'Konuları 3D sahnede keşfet'.tr(),
                     textNudgeY: 8,
@@ -4114,101 +4132,8 @@ class _LandingCardState extends State<_LandingCard> {
   }
 }
 
-// ── 3D Eğitim Modelleri kartı: ÇARPAN KALP arka planı ───────────────────────
-// edu3d_v2.png (anatomik kalp) sabit durmasın diye gerçek kalp ritmi verir:
-// hızlı çift vuruş (lub-dub) + dinlenme, ~1.6 sn döngü. Zemin düz pastel
-// olduğundan tüm görseli %4-5 ölçeklemek yalnızca kalbi atıyormuş gibi
-// gösterir — katman/maske gerekmez. Route önde değilken Flutter TickerMode
-// animasyonu otomatik susturur; ek maliyet ihmal edilebilir.
-class _BeatingHeartBg extends StatefulWidget {
-  const _BeatingHeartBg();
-
-  @override
-  State<_BeatingHeartBg> createState() => _BeatingHeartBgState();
-}
-
-class _BeatingHeartBgState extends State<_BeatingHeartBg>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1600),
-  )..repeat();
-
-  late final Animation<double> _scale = TweenSequence<double>([
-    // lub
-    TweenSequenceItem(
-        tween: Tween(begin: 1.0, end: 1.05)
-            .chain(CurveTween(curve: Curves.easeOut)),
-        weight: 7),
-    TweenSequenceItem(
-        tween: Tween(begin: 1.05, end: 1.0)
-            .chain(CurveTween(curve: Curves.easeIn)),
-        weight: 8),
-    // dub
-    TweenSequenceItem(
-        tween: Tween(begin: 1.0, end: 1.045)
-            .chain(CurveTween(curve: Curves.easeOut)),
-        weight: 7),
-    TweenSequenceItem(
-        tween: Tween(begin: 1.045, end: 1.0)
-            .chain(CurveTween(curve: Curves.easeIn)),
-        weight: 9),
-    // dinlenme
-    TweenSequenceItem(tween: ConstantTween(1.0), weight: 69),
-  ]).animate(_c);
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  // edu3d_v2.png içindeki KALP GÖVDESİNİN piksel koordinatları — yalnız bu
-  // bölge atar; taban diski ve dönüş okları SABİT kalır. Yama
-  // (edu3d_heart_pulse.png) aynı bölgenin kenarları şeffaf yumuşatılmış
-  // kopyasıdır; ölçeklenince dikiş görünmez.
-  static const double _imgW = 318, _imgH = 222;
-  static const Rect _heartRect = Rect.fromLTWH(88, 0, 145, 138);
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (_, c) {
-        // BoxFit.cover'ın uyguladığı dönüşümün aynısı — yamayı statik
-        // görselin üstünde piksel piksel hizalamak için.
-        final s = math.max(c.maxWidth / _imgW, c.maxHeight / _imgH);
-        final dx = (c.maxWidth - _imgW * s) / 2;
-        final dy = (c.maxHeight - _imgH * s) / 2;
-        return Stack(
-          clipBehavior: Clip.hardEdge,
-          children: [
-            Positioned.fill(
-              child: Image.asset(
-                'assets/library_icons/edu3d_v2.png',
-                fit: BoxFit.cover,
-              ),
-            ),
-            Positioned(
-              left: dx + _heartRect.left * s,
-              top: dy + _heartRect.top * s,
-              width: _heartRect.width * s,
-              height: _heartRect.height * s,
-              child: AnimatedBuilder(
-                animation: _scale,
-                builder: (_, child) =>
-                    Transform.scale(scale: _scale.value, child: child),
-                child: Image.asset(
-                  'assets/library_icons/edu3d_heart_pulse.png',
-                  fit: BoxFit.fill,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
+// (Eski "çarpan kalp" arka planı kaldırıldı — 3D Eğitim Modelleri kartı artık
+//  güneş sistemi görselini kullanıyor: assets/library_icons/edu3d_solar.jpg)
 
 // ── Hero kart kitap ikonu: YAVAŞ SAYFA ÇEVİRME efekti ───────────────────────
 // Görselin kendisi DEĞİŞMEZ; üstüne yarı saydam beyaz bir "yaprak" katmanı
@@ -4627,7 +4552,7 @@ class _DueloVsSceneState extends State<_DueloVsScene> {
   /// [name] null → avatar altına isim yazılmaz (soldaki "sen" çipi: yalnız
   /// SEN rozeti yeter — kullanıcı isteği).
   Widget _chip(String avatar, String? name,
-      {String? flag, bool me = false, Key? key}) {
+      {String? flag, bool me = false, String avatarData = '', Key? key}) {
     return Column(
       key: key,
       mainAxisSize: MainAxisSize.min,
@@ -4635,21 +4560,18 @@ class _DueloVsSceneState extends State<_DueloVsScene> {
         Stack(
           clipBehavior: Clip.none,
           children: [
-            Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.black.withValues(alpha: 0.05),
-                border: Border.all(
-                  color: me
-                      ? const Color(0xFFFFB800)
-                      : Colors.black.withValues(alpha: 0.14),
-                  width: me ? 1.4 : 1.0,
-                ),
+            UserAvatar(
+              avatar: avatar,
+              avatarData: avatarData,
+              size: 30,
+              emojiSize: 14,
+              background: Colors.black.withValues(alpha: 0.05),
+              border: Border.all(
+                color: me
+                    ? const Color(0xFFFFB800)
+                    : Colors.black.withValues(alpha: 0.14),
+                width: me ? 1.4 : 1.0,
               ),
-              alignment: Alignment.center,
-              child: Text(avatar, style: const TextStyle(fontSize: 14)),
             ),
             if (flag != null)
               Positioned(
@@ -4746,7 +4668,10 @@ class _DueloVsSceneState extends State<_DueloVsScene> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Solda sen: yalnız avatar + SEN rozeti (isim yazılmaz).
-              Expanded(child: _chip(myAvatar, null, me: true)),
+              // Profil fotoğrafı (avatarData) varsa o gösterilir.
+              Expanded(
+                  child: _chip(myAvatar, null,
+                      me: true, avatarData: me.avatarData)),
               Padding(
                 padding: const EdgeInsets.only(top: 5, left: 2, right: 2),
                 child: AnimatedScale(

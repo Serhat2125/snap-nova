@@ -27,6 +27,7 @@ import '../services/locale_service.dart';
 import '../services/runtime_translator.dart';
 import '../theme/app_theme.dart';
 import '../widgets/teacher_help_dialog.dart';
+import '../widgets/user_avatar.dart';
 import 'teacher_homework_view_screen.dart';
 
 const _kBrand = Color(0xFF7C3AED);
@@ -40,6 +41,10 @@ class TeacherHomeworkDetailScreen extends StatefulWidget {
   final HomeworkSubmissionModel? submission;
   final String studentName;
   final String studentAvatar;
+  /// Base64 profil fotoğrafı — varsa avatar yerine gösterilir.
+  final String studentAvatarData;
+  /// Foto alanı yoksa users/{uid}'den canlı çekmek için.
+  final String studentUid;
   final int orderNo; // kaçıncı ödev (1, 2, 3…)
   /// EBEVEYN görünümü: true → "not gönder" gizlenir (kural izin vermez) ve
   /// sınıf ortalaması sorgusu atlanır (diğer öğrencilerin teslimlerini okumak
@@ -52,6 +57,8 @@ class TeacherHomeworkDetailScreen extends StatefulWidget {
     required this.studentName,
     required this.orderNo,
     this.studentAvatar = '👤',
+    this.studentAvatarData = '',
+    this.studentUid = '',
     this.readOnly = false,
   });
 
@@ -614,15 +621,13 @@ class _TeacherHomeworkDetailScreenState
     final ink = AppPalette.textPrimary(context);
     return Row(
       children: [
-        Container(
-          width: 48, height: 48,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: _kBrand.withValues(alpha: 0.12),
-          ),
-          alignment: Alignment.center,
-          child: Text(widget.studentAvatar,
-              style: const TextStyle(fontSize: 24)),
+        UserAvatar(
+          avatar: widget.studentAvatar,
+          avatarData: widget.studentAvatarData,
+          uid: widget.studentUid,
+          size: 48,
+          emojiSize: 24,
+          background: _kBrand.withValues(alpha: 0.12),
         ),
         const SizedBox(width: 12),
         Expanded(

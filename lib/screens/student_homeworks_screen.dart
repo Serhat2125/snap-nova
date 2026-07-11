@@ -446,6 +446,7 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
                 submission: sub,
                 studentName: me.displayNameOrUsername,
                 studentAvatar: me.avatar,
+                studentAvatarData: me.avatarData,
                 orderNo: orderNo,
                 readOnly: true,
               ),

@@ -84,7 +84,14 @@ const _cats = <_ProgressCat>[
 const _weekdayLabels = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 
 class MyProgressScreen extends StatefulWidget {
-  const MyProgressScreen({super.key});
+  const MyProgressScreen(
+      {super.key, this.initialChildUid, this.initialChildName});
+
+  /// Ebeveyn panelinden gelindiğinde ana sayfada SEÇİLİ olan çocuğun uid'i.
+  /// Panel açılır açılmaz o çocuğun sekmesi seçilir; slotlarda yoksa boş
+  /// bir slota bağlanır — veli hangi çocuğa bastıysa ONUN verisini görür.
+  final String? initialChildUid;
+  final String? initialChildName;
 
   @override
   State<MyProgressScreen> createState() => _MyProgressScreenState();
@@ -291,10 +298,49 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
     _saveOv();
   }
 
+  /// Ebeveyn panelinden gelen seçili çocuğu slotlara eşler: uid'i taşıyan
+  /// slot varsa onu seçer; yoksa boş bir slota (gerekirse yeni slot açarak)
+  /// bağlar ve adını yazar.
+  Future<void> _applyInitialChild() async {
+    final target = (widget.initialChildUid ?? '').trim();
+    if (target.isEmpty) return;
+    // 1) Zaten bir slota bağlıysa onu seç.
+    for (int n = 1; n <= _childCount; n++) {
+      if (_childUids[n] == target) {
+        _childSlot = n;
+        return;
+      }
+    }
+    // 2) Boş slot (uid'siz ve isimsiz) bul; yoksa yeni slot aç (en çok 6).
+    final p = await SharedPreferences.getInstance();
+    int slot = -1;
+    for (int n = 1; n <= _childCount; n++) {
+      if ((_childUids[n] ?? '').isEmpty && (_names[n] ?? '').isEmpty) {
+        slot = n;
+        break;
+      }
+    }
+    if (slot == -1) {
+      if (_childCount >= 6) return; // yer yok — mevcut seçim korunur
+      _childCount += 1;
+      await p.setInt('progress_child_count', _childCount);
+      slot = _childCount;
+    }
+    _childUids[slot] = target;
+    await p.setString('progress_child_${slot}_uid', target);
+    final nm = (widget.initialChildName ?? '').trim();
+    if (nm.isNotEmpty) {
+      _names[slot] = nm;
+      await p.setString('progress_child_${slot}_name', nm);
+    }
+    _childSlot = slot;
+  }
+
   Future<void> _load() async {
     // Hiçbir hata _loading'i sonsuz true bırakmasın — panel her durumda açılır.
     try {
       await _loadProfiles();
+      await _applyInitialChild();
       await _loadForSlot(_childSlot);
     } catch (e) {
       debugPrint('[Progress] load fail: $e');

@@ -14,7 +14,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import 'dart:async';
-import 'dart:convert' show base64Decode;
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -30,6 +29,7 @@ import '../services/runtime_translator.dart';
 import '../utils/safe_dismiss.dart';
 import '../theme/app_theme.dart';
 import '../widgets/teacher_help_dialog.dart';
+import '../widgets/user_avatar.dart';
 import 'teacher_homework_detail_screen.dart';
 
 const _kBrand = Color(0xFF7C3AED);
@@ -63,26 +63,16 @@ class _TeacherStudentReportScreenState
     extends State<TeacherStudentReportScreen> {
   late Future<List<StudentReportEntry>> _future;
 
-  /// Profil fotoğrafı (base64) varsa yuvarlak resim, yoksa emoji avatar.
+  /// Profil fotoğrafı (base64/canlı users doc) varsa yuvarlak resim,
+  /// yoksa emoji avatar — URL metni asla basılmaz.
   Widget _avatarChild(double emojiSize, double box) {
-    final data = widget.studentAvatarData.trim();
-    if (data.isNotEmpty) {
-      try {
-        final raw = data.contains(',') ? data.split(',').last : data;
-        return ClipOval(
-          child: Image.memory(
-            base64Decode(raw),
-            width: box,
-            height: box,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Text(widget.studentAvatar,
-                style: TextStyle(fontSize: emojiSize)),
-          ),
-        );
-      } catch (_) {/* bozuk base64 → emojiye düş */}
-    }
-    return Text(widget.studentAvatar,
-        style: TextStyle(fontSize: emojiSize));
+    return UserAvatar(
+      avatar: widget.studentAvatar,
+      avatarData: widget.studentAvatarData,
+      uid: widget.studentUid,
+      size: box,
+      emojiSize: emojiSize,
+    );
   }
   int _tab = 0; // 0 = Ödevler, 1 = Notlar, 2 = Yazılılar
 
@@ -2371,6 +2361,7 @@ class _TeacherStudentReportScreenState
           submission: e.submission,
           studentName: widget.studentName,
           studentAvatar: widget.studentAvatar,
+          studentAvatarData: widget.studentAvatarData,
           orderNo: orderNo,
           readOnly: widget.readOnly,
         ),

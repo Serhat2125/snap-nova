@@ -15,7 +15,6 @@ import '../data/teacher_branches.dart';
 import '../services/account_service.dart';
 import '../services/auth_service.dart';
 import '../services/friend_service.dart';
-import '../services/country_resolver.dart';
 import '../services/education_profile.dart';
 import '../services/gemini_service.dart';
 import '../services/locale_service.dart';
@@ -548,9 +547,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                 child: _CtaButton(
                   label: _ctaLabel(),
-                  // Son sayfa ("Ülkende ve Dünyada Yarış") → yeşil "Öğrenmeye
-                  // Başla". Diğer sayfalarda sayfaya özel accent kalır.
-                  accent: isLast ? Color(0xFF22C55E) : accent,
+                  // Tüm sayfalarda yeşil zemin — Devam Et / Kaydet ve Devam
+                  // Et / Öğrenmeye Başla hepsi aynı yeşil temada.
+                  accent: const Color(0xFF22C55E),
                   enabled: canContinue,
                   onTap: () async {
                     if (!canContinue) return;
@@ -951,9 +950,9 @@ class _HeroPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Logo boyutu — ekran genişliğinin %58'i, 180-260 px arası sınırlı.
-        final logo = constraints.maxWidth * 0.58;
-        final logoSize = logo.clamp(180.0, 260.0);
+        // Logo boyutu — ekran genişliğinin %52'si, 162-234 px arası sınırlı.
+        final logo = constraints.maxWidth * 0.522;
+        final logoSize = logo.clamp(162.0, 234.0);
         const quAlsarHeight = 56.0;
         const welcomeHeight = 22.0;
         // Hoşgeldin yazısı QuAlsar'a yakın (hemen altında); logoya nispeten
@@ -2611,6 +2610,9 @@ class _GradePageState extends State<_GradePage> {
   /// Ders sıralaması üst→alt geçişi engeller — örn. üniversite öğrencisi
   /// LGS / YKS seçemez, lise 12 öğrencisi LGS seçemez.
   bool _isLevelKeySelectable(String candidateLevel) {
+    // Öğretmen: ders verdiği tüm seviyeleri özgürce ekleyebilir —
+    // öğrenciye özel üst/alt seviye kısıtları uygulanmaz.
+    if (widget.forTeacher) return true;
     if (_picked.isEmpty) return true;
     bool isExam(String l) =>
         l == 'uni_prep' || l == 'post_uni_exam' || l == 'lgs_prep';
@@ -2657,6 +2659,7 @@ class _GradePageState extends State<_GradePage> {
 
   /// Bu sınıf/sınav opsiyonu seçilebilir mi? (Alt sınıflar engellenir.)
   bool _isClassSelectable(String level, String classOption) {
+    if (widget.forTeacher) return true;
     if (_picked.isEmpty) return true;
     final base = _dept == null
         ? '$level:$classOption'
@@ -2691,7 +2694,9 @@ class _GradePageState extends State<_GradePage> {
         : '${_level!}:${_dept!}:$c';
     final alreadyPicked = _picked.contains(base);
     // Limit kontrolü: yeni eklenecekse ve liste doluysa engelle.
-    if (!alreadyPicked && _picked.length >= _maxProfiles) {
+    // Öğretmen için limit yok — istediği kadar seviye/sınav ekleyebilir.
+    if (!widget.forTeacher &&
+        !alreadyPicked && _picked.length >= _maxProfiles) {
       _showIncompatibilityError(
         'En fazla $_maxProfiles seviye seçebilirsin. Birini kaldırıp yeniden dene.'.tr(),
       );
@@ -2702,7 +2707,8 @@ class _GradePageState extends State<_GradePage> {
       return;
     }
     // Uyumluluk kontrolü — diğer profilllerle birlikte seçilebilir mi?
-    if (!alreadyPicked && _picked.isNotEmpty) {
+    // (Öğretmen muaf: farklı seviyeler/sınavlar serbestçe birleşebilir.)
+    if (!widget.forTeacher && !alreadyPicked && _picked.isNotEmpty) {
       for (final ex in _picked) {
         final reason = _incompatibilityReason(ex, base);
         if (reason != null) {
@@ -2744,7 +2750,9 @@ class _GradePageState extends State<_GradePage> {
   /// sınavsa tersine Sınıflar sekmesi açılır.
   void _resetForAnother() {
     bool toExams = _examsTab;
-    if (_picked.isNotEmpty) {
+    // Öğretmen: akıllı sekme yönlendirmesi yok — istediği sekmeden
+    // istediği kadar seviye/sınav eklemeye devam eder.
+    if (!widget.forTeacher && _picked.isNotEmpty) {
       final first = _parseProfile(_picked.first);
       toExams = !_isExamLevelKey(first.level);
     }
@@ -2901,33 +2909,38 @@ class _GradePageState extends State<_GradePage> {
                       ],
                     ),
                     SizedBox(height: 14),
-                    // Yeni seviye eklemek için picker'ı sıfırla.
+                    // Yeni seviye eklemek için picker'ı sıfırla — yeşil dolu
+                    // zemin, belirgin buton (öğretmen çoklu seviye ekler).
                     Center(
                       child: GestureDetector(
                         onTap: _resetForAnother,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 8),
+                              horizontal: 22, vertical: 13),
                           decoration: BoxDecoration(
-                            color: widget.accent.withValues(alpha: 0.10),
+                            color: const Color(0xFF22C55E),
                             borderRadius: BorderRadius.circular(50),
-                            border: Border.all(
-                              color: widget.accent.withValues(alpha: 0.45),
-                              width: 1.2,
-                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF22C55E)
+                                    .withValues(alpha: 0.35),
+                                blurRadius: 14,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.add_rounded,
-                                  size: 16, color: widget.accent),
-                              SizedBox(width: 4),
+                              const Icon(Icons.add_rounded,
+                                  size: 21, color: Colors.white),
+                              const SizedBox(width: 6),
                               Text(
                                 localeService.tr('onb_add_more_level'),
-                                style: TextStyle(
-                                  fontSize: 12,
+                                style: const TextStyle(
+                                  fontSize: 16,
                                   fontWeight: FontWeight.w800,
-                                  color: widget.accent,
+                                  color: Colors.white,
                                 ),
                               ),
                             ],
@@ -2940,10 +2953,13 @@ class _GradePageState extends State<_GradePage> {
                   // ── Ortalanmış bölüm başlığı + Sınıflar/Sınavlar sekmeleri ─
                   Center(
                     child: Text(
-                      localeService.tr('onb_level_section'),
+                      widget.forTeacher
+                          ? 'Lütfen ders vereceğiniz eğitim seviyelerini seçin'
+                              .tr()
+                          : localeService.tr('onb_level_section'),
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: widget.forTeacher ? 17 : 15,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.2,
                         color: AppPalette.textPrimary(context),
@@ -4277,7 +4293,7 @@ class _CtaButton extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.w800,
               color: Colors.white,
               letterSpacing: 0.2,
@@ -4840,23 +4856,6 @@ class _AuthPageState extends State<_AuthPage> {
     if (ok == true && mounted) await _completeAuth();
   }
 
-  Future<void> _openPhoneSheet() async {
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) => AnimatedPadding(
-        duration: Duration(milliseconds: 180),
-        curve: Curves.easeOut,
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
-        ),
-        child: _PhoneAuthSheet(accent: widget.accent),
-      ),
-    );
-    if (ok == true && mounted) await _completeAuth();
-  }
-
   @override
   Widget build(BuildContext context) {
     final user = AuthService.current;
@@ -4973,77 +4972,84 @@ class _AuthPageState extends State<_AuthPage> {
             ),
             const SizedBox(height: 14),
           ],
-          _AuthBigButton(
-            label: localeService.tr('auth_with_google'),
-            background: Colors.white,
-            foreground: Colors.black,
-            border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
-            iconBuilder: (_) => const _GoogleGlyph(size: 22),
-            busy: _busy && _activeProvider == 'google',
-            onTap: () => _run('google', () => AuthService.signInWithGoogle()),
+          // Çerçeve üstü başlık — giriş yöntemi seçimi.
+          Text(
+            localeService.tr('auth_choose_method'),
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w800,
+              color: Colors.black.withValues(alpha: 0.55),
+              letterSpacing: 0.2,
+            ),
           ),
-          // ── Apple ile giriş — iOS yapılandırması (Service ID, plist,
-          //    capability) tamamlanınca geri açılacak. Şimdilik gizli.
-          // const SizedBox(height: 10),
-          // _AuthBigButton(
-          //   label: localeService.tr('auth_with_apple'),
-          //   background: Colors.white,
-          //   foreground: Colors.black,
-          //   border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
-          //   iconBuilder: (_) => Icon(
-          //     Icons.apple,
-          //     color: AppPalette.textPrimary(context),
-          //     size: 24,
-          //   ),
-          //   busy: _busy && _activeProvider == 'apple',
-          //   onTap: () => _run('apple', () => AuthService.signInWithApple()),
-          // ),
           const SizedBox(height: 10),
-          _AuthBigButton(
-            label: localeService.tr('auth_with_phone'),
-            background: Colors.white,
-            foreground: Colors.black,
-            border: Border.all(color: Colors.black.withValues(alpha: 0.18)),
-            iconBuilder: (_) => const Icon(
-              Icons.phone_iphone_rounded,
-              color: Color(0xFF22C55E),
-              size: 24,
+          // Tek çerçeve — 4 giriş seçeneği alt alta, ince ayraçlarla.
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.black.withValues(alpha: 0.14)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
             ),
-            busy: false,
-            onTap: _openPhoneSheet,
-          ),
-          const SizedBox(height: 14),
-          _OrDivider(label: localeService.tr('auth_or')),
-          const SizedBox(height: 14),
-          _AuthBigButton(
-            label: localeService.tr('auth_with_email'),
-            background: const Color(0xFFF6F7F9),
-            foreground: Colors.black,
-            border: Border.all(color: Colors.black.withValues(alpha: 0.10)),
-            iconBuilder: (_) => Icon(
-              Icons.alternate_email_rounded,
-              color: widget.accent,
-              size: 24,
-            ),
-            busy: false,
-            onTap: _openEmailSheet,
-          ),
-          const SizedBox(height: 14),
-          TextButton(
-            onPressed: _busy
-                ? null
-                : () => _run('guest', () => AuthService.continueAsGuest()),
-            child: Text(
-              localeService.tr('auth_continue_guest'),
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: Colors.black.withValues(alpha: 0.62),
-                decoration: TextDecoration.underline,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Material(
+                color: Colors.transparent,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _AuthOptionTile(
+                      label: localeService.tr('auth_with_google'),
+                      icon: const _GoogleGlyph(size: 22),
+                      busy: _busy && _activeProvider == 'google',
+                      enabled: !_busy,
+                      onTap: () =>
+                          _run('google', () => AuthService.signInWithGoogle()),
+                    ),
+                    const _AuthTileDivider(),
+                    _AuthOptionTile(
+                      label: localeService.tr('auth_with_apple'),
+                      icon: const Icon(Icons.apple,
+                          color: Colors.black, size: 24),
+                      busy: _busy && _activeProvider == 'apple',
+                      enabled: !_busy,
+                      onTap: () =>
+                          _run('apple', () => AuthService.signInWithApple()),
+                    ),
+                    const _AuthTileDivider(),
+                    _AuthOptionTile(
+                      label: localeService.tr('auth_with_microsoft'),
+                      icon: const _MicrosoftGlyph(size: 19),
+                      busy: _busy && _activeProvider == 'microsoft',
+                      enabled: !_busy,
+                      onTap: () => _run(
+                          'microsoft', () => AuthService.signInWithMicrosoft()),
+                    ),
+                    const _AuthTileDivider(),
+                    _AuthOptionTile(
+                      label: localeService.tr('auth_with_email'),
+                      icon: Icon(
+                        Icons.alternate_email_rounded,
+                        color: widget.accent,
+                        size: 22,
+                      ),
+                      busy: false,
+                      enabled: !_busy,
+                      onTap: _openEmailSheet,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 14),
           Text(
             localeService.tr('auth_terms_hint'),
             textAlign: TextAlign.center,
@@ -5343,11 +5349,22 @@ class _UserSetupPageState extends State<_UserSetupPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 8),
-          Center(child: Text('Kullanıcı Seçimi'.tr(),
-              style: TextStyle(
-                fontSize: 22, fontWeight: FontWeight.w900,
-                color: ink, letterSpacing: -0.3,
-              ))),
+          Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                _selectedType == AccountType.teacher
+                    ? 'Hoş geldiniz, Öğretmenim! 👋'.tr()
+                    : 'Hesap tipini seç'.tr(),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                style: TextStyle(
+                  fontSize: 25, fontWeight: FontWeight.w900,
+                  color: ink, letterSpacing: -0.3,
+                ),
+              ),
+            ),
+          ),
           // ── ÖĞRETMEN MODU — başlık altında sadece Öğretmen kartı + branş +
           //    kullanıcı adı + eğitim seviyesi. Diğer her şey gizlenir.
           if (_selectedType == AccountType.teacher) ...[
@@ -5357,7 +5374,8 @@ class _UserSetupPageState extends State<_UserSetupPage> {
               title: 'Öğretmen',
               desc: 'Sınıfını yönet, AI ile ödev üret, ilerlemeyi izle.',
               emoji: '👨‍🏫',
-              color: const Color(0xFF7C3AED),
+              color: const Color(0xFF22C55E),
+              image: 'assets/images/profile_teacher.jpg',
             ),
             Align(
               alignment: Alignment.centerRight,
@@ -5366,14 +5384,14 @@ class _UserSetupPageState extends State<_UserSetupPage> {
                 child: Text('Değiştir'.tr(),
                     style: const TextStyle(
                       fontSize: 12.5, fontWeight: FontWeight.w700,
-                      color: Color(0xFF7C3AED),
+                      color: Color(0xFF22C55E),
                     )),
               ),
             ),
             const SizedBox(height: 4),
-            Text('Branşını seç'.tr(),
+            Text('Lütfen ders verdiğiniz branşı seçin'.tr(),
                 style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w800, color: ink,
+                  fontSize: 17, fontWeight: FontWeight.w800, color: ink,
                   letterSpacing: 0.2,
                 )),
             const SizedBox(height: 8),
@@ -5388,9 +5406,10 @@ class _UserSetupPageState extends State<_UserSetupPage> {
             _stackedTypeCard(
               type: AccountType.student,
               title: 'Öğrenci',
-              desc: 'Sorularını çöz, sınıfında yarış, AI Koç ile çalış.',
+              desc: 'Fotoğrafla soru çöz, 3D derslerle öğren, arkadaşlarınla yarış.',
               emoji: '🎓',
-              color: const Color(0xFF2563EB),
+              color: const Color(0xFF22C55E),
+              image: 'assets/images/profile_student.jpg',
             ),
             Align(
               alignment: Alignment.centerRight,
@@ -5399,7 +5418,7 @@ class _UserSetupPageState extends State<_UserSetupPage> {
                 child: Text('Değiştir'.tr(),
                     style: const TextStyle(
                       fontSize: 12.5, fontWeight: FontWeight.w700,
-                      color: Color(0xFF2563EB),
+                      color: Color(0xFF22C55E),
                     )),
               ),
             ),
@@ -5407,12 +5426,21 @@ class _UserSetupPageState extends State<_UserSetupPage> {
             _usernameBlock(ink, muted, placeholder),
             const SizedBox(height: 22),
             // Davet kodunu kullan
+            Text('Arkadaşın seni davet etmişse:'.tr(),
+                style: TextStyle(
+                  fontSize: 17, fontWeight: FontWeight.w800, color: ink,
+                  letterSpacing: 0.2,
+                )),
+            const SizedBox(height: 8),
             _giftCard(),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
             Center(child: Text(
                 'Davet kodun yoksa Devam Et\'e basabilirsin.'.tr(),
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: muted, height: 1.4))),
+                style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w700,
+                  color: ink, height: 1.4,
+                ))),
             const SizedBox(height: 22),
           ] else if (_selectedType == AccountType.parent) ...[
             // ── EBEVEYN MODU — başlık altında sadece Ebeveyn kartı +
@@ -5424,6 +5452,7 @@ class _UserSetupPageState extends State<_UserSetupPage> {
               desc: 'Çocuğunun çalışma süresini ve başarısını izle.',
               emoji: '👨‍👩‍👧',
               color: const Color(0xFF10B981),
+              image: 'assets/images/profile_parent.jpg',
             ),
             Align(
               alignment: Alignment.centerRight,
@@ -5446,19 +5475,14 @@ class _UserSetupPageState extends State<_UserSetupPage> {
                 style: TextStyle(fontSize: 12, color: muted, height: 1.4))),
             const SizedBox(height: 22),
 
-            // Hesap Tipini Seç
-            Text('Hesap tipini seç'.tr(),
-                style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w800, color: ink,
-                  letterSpacing: 0.2,
-                )),
-            const SizedBox(height: 10),
+            // Başlık zaten sayfanın üstünde — burada tekrar edilmez.
             _stackedTypeCard(
               type: AccountType.student,
               title: 'Öğrenci',
-              desc: 'Sorularını çöz, sınıfında yarış, AI Koç ile çalış.',
+              desc: 'Fotoğrafla soru çöz, 3D derslerle öğren, arkadaşlarınla yarış.',
               emoji: '🎓',
-              color: const Color(0xFF2563EB),
+              color: const Color(0xFF22C55E),
+              image: 'assets/images/profile_student.jpg',
             ),
             const SizedBox(height: 8),
             _stackedTypeCard(
@@ -5466,7 +5490,8 @@ class _UserSetupPageState extends State<_UserSetupPage> {
               title: 'Öğretmen',
               desc: 'Sınıfını yönet, AI ile ödev üret, ilerlemeyi izle.',
               emoji: '👨‍🏫',
-              color: const Color(0xFF7C3AED),
+              color: const Color(0xFF22C55E),
+              image: 'assets/images/profile_teacher.jpg',
             ),
             const SizedBox(height: 8),
             _stackedTypeCard(
@@ -5475,18 +5500,20 @@ class _UserSetupPageState extends State<_UserSetupPage> {
               desc: 'Çocuğunun çalışma süresini ve başarısını izle.',
               emoji: '👨‍👩‍👧',
               color: const Color(0xFF10B981),
+              image: 'assets/images/profile_parent.jpg',
             ),
-            const SizedBox(height: 22),
-            _usernameBlock(ink, muted, placeholder),
+            // Kullanıcı adı bloğu burada gösterilmez — tip seçilince açılan
+            // görünümde zaten var; seçim öncesi ekranı sade tutuyoruz.
             const SizedBox(height: 22),
           ],
 
           // Devam Et — tip+kullanıcı adı seçilmeden disabled
+          const SizedBox(height: 18),
           SizedBox(
             width: double.infinity,
             child: FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: widget.accent,
+                backgroundColor: const Color(0xFF22C55E),
                 disabledBackgroundColor:
                     AppPalette.textSecondary(context).withValues(alpha: 0.25),
                 disabledForegroundColor: Colors.white.withValues(alpha: 0.85),
@@ -5505,7 +5532,7 @@ class _UserSetupPageState extends State<_UserSetupPage> {
                     )
                   : Text('Devam Et'.tr(),
                       style: const TextStyle(
-                        fontSize: 14.5,
+                        fontSize: 21,
                         fontWeight: FontWeight.w800,
                         color: Colors.white,
                       )),
@@ -5676,9 +5703,9 @@ class _UserSetupPageState extends State<_UserSetupPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Kullanıcı adını oluştur'.tr(),
+        Text('Lütfen kullanıcı adınızı oluşturun'.tr(),
             style: TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w800, color: ink,
+              fontSize: 17, fontWeight: FontWeight.w800, color: ink,
               letterSpacing: 0.2,
             )),
         const SizedBox(height: 8),
@@ -5695,12 +5722,12 @@ class _UserSetupPageState extends State<_UserSetupPage> {
             textCapitalization: TextCapitalization.none,
             autocorrect: false,
             style: TextStyle(
-              fontSize: 15, fontWeight: FontWeight.w600, color: ink,
+              fontSize: 17, fontWeight: FontWeight.w600, color: ink,
             ),
             decoration: InputDecoration(
               hintText: placeholder,
               hintStyle: TextStyle(
-                fontSize: 15, fontWeight: FontWeight.w500,
+                fontSize: 17, fontWeight: FontWeight.w500,
                 color: muted.withValues(alpha: 0.55),
               ),
               counterText: '',
@@ -5768,6 +5795,7 @@ class _UserSetupPageState extends State<_UserSetupPage> {
     required String desc,
     required String emoji,
     required Color color,
+    String? image,
   }) {
     final sel = _selectedType == type;
     return Material(
@@ -5799,6 +5827,7 @@ class _UserSetupPageState extends State<_UserSetupPage> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   // Profil avatarı — kartın ~%30'u, dairesel gradient.
+                  // Görsel verildiyse fotoğraf, yoksa emoji gösterilir.
                   Container(
                     width: 96, height: 96,
                     decoration: BoxDecoration(
@@ -5815,7 +5844,16 @@ class _UserSetupPageState extends State<_UserSetupPage> {
                         color: color.withValues(alpha: 0.30), width: 1.5),
                     ),
                     alignment: Alignment.center,
-                    child: Text(emoji, style: const TextStyle(fontSize: 46)),
+                    child: image != null
+                        ? ClipOval(
+                            child: Image.asset(
+                              image,
+                              width: 93, height: 93,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Text(emoji,
+                            style: const TextStyle(fontSize: 46)),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -5872,104 +5910,107 @@ class _UserSetupPageState extends State<_UserSetupPage> {
   }
 }
 
-class _AuthBigButton extends StatelessWidget {
+// Tek çerçeve içindeki giriş seçeneği satırı — ikon + etiket + ok/spinner.
+class _AuthOptionTile extends StatelessWidget {
   final String label;
-  final Color background;
-  final Color foreground;
-  final Widget Function(BuildContext) iconBuilder;
+  final Widget icon;
   final bool busy;
-  final BoxBorder? border;
-  final VoidCallback? onTap;
+  final bool enabled;
+  final VoidCallback onTap;
 
-  const _AuthBigButton({
+  const _AuthOptionTile({
     required this.label,
-    required this.background,
-    required this.foreground,
-    required this.iconBuilder,
+    required this.icon,
     required this.busy,
+    required this.enabled,
     required this.onTap,
-    this.border,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: background,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-          decoration: BoxDecoration(
-            border: border,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 28,
-                height: 28,
-                child: Center(
-                  child: busy
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.4,
-                            color: foreground,
-                          ),
-                        )
-                      : iconBuilder(context),
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 18),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 30,
+              height: 30,
+              child: Center(child: icon),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black,
+                  letterSpacing: 0.1,
                 ),
               ),
-              SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w800,
-                    color: foreground,
-                    letterSpacing: 0.1,
-                  ),
+            ),
+            if (busy)
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.4,
+                  color: Colors.black,
                 ),
+              )
+            else
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 22,
+                color: Colors.black.withValues(alpha: 0.30),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _OrDivider extends StatelessWidget {
-  final String label;
-  const _OrDivider({required this.label});
+// Çerçeve içi ince ayraç — ikon hizasından başlar.
+class _AuthTileDivider extends StatelessWidget {
+  const _AuthTileDivider();
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(height: 1, color: Colors.black.withValues(alpha: 0.10)),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-              color: Colors.black.withValues(alpha: 0.45),
-              letterSpacing: 0.5,
-            ),
+    return Container(
+      height: 1,
+      margin: const EdgeInsets.only(left: 56),
+      color: Colors.black.withValues(alpha: 0.08),
+    );
+  }
+}
+
+// Microsoft logosu — 2x2 renkli kare.
+class _MicrosoftGlyph extends StatelessWidget {
+  final double size;
+  const _MicrosoftGlyph({required this.size});
+  @override
+  Widget build(BuildContext context) {
+    final square = (size - 2) / 2;
+    Widget box(Color c) =>
+        Container(width: square, height: square, color: c);
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [box(const Color(0xFFF25022)), box(const Color(0xFF7FBA00))],
           ),
-        ),
-        Expanded(
-          child: Container(height: 1, color: Colors.black.withValues(alpha: 0.10)),
-        ),
-      ],
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [box(const Color(0xFF00A4EF)), box(const Color(0xFFFFB900))],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -6239,456 +6280,6 @@ class _EmailSignUpSheetState extends State<_EmailSignUpSheet> {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  _PhoneAuthSheet — telefon + OTP doğrulama (iki adım)
-//  Adım 1: numara gir → Kod Gönder
-//  Adım 2: 6 haneli OTP kodu gir → Doğrula (otomatik tetiklenir)
-// ═══════════════════════════════════════════════════════════════════════════════
-class _PhoneAuthSheet extends StatefulWidget {
-  final Color accent;
-  const _PhoneAuthSheet({required this.accent});
-
-  @override
-  State<_PhoneAuthSheet> createState() => _PhoneAuthSheetState();
-}
-
-class _PhoneAuthSheetState extends State<_PhoneAuthSheet> {
-  // Cihaz/lokasyon ülkesinden ülke kodu tablosu — yaygın ülkeler.
-  static const Map<String, String> _dialCodes = {
-    'tr': '+90', 'us': '+1', 'ca': '+1',
-    'gb': '+44', 'uk': '+44', 'ie': '+353',
-    'de': '+49', 'fr': '+33', 'it': '+39', 'es': '+34',
-    'pt': '+351', 'nl': '+31', 'be': '+32', 'lu': '+352',
-    'at': '+43', 'ch': '+41', 'pl': '+48', 'cz': '+420',
-    'sk': '+421', 'hu': '+36', 'ro': '+40', 'bg': '+359',
-    'gr': '+30', 'hr': '+385', 'rs': '+381', 'ba': '+387',
-    'al': '+355', 'mk': '+389', 'si': '+386', 'me': '+382',
-    'se': '+46', 'no': '+47', 'dk': '+45', 'fi': '+358',
-    'is': '+354', 'ee': '+372', 'lv': '+371', 'lt': '+370',
-    'ru': '+7', 'ua': '+380', 'by': '+375', 'md': '+373',
-    'kz': '+7', 'uz': '+998', 'az': '+994', 'ge': '+995',
-    'am': '+374', 'tj': '+992', 'kg': '+996', 'tm': '+993',
-    'jp': '+81', 'kr': '+82', 'cn': '+86', 'tw': '+886',
-    'hk': '+852', 'mo': '+853', 'sg': '+65', 'my': '+60',
-    'th': '+66', 'vn': '+84', 'id': '+62', 'ph': '+63',
-    'la': '+856', 'kh': '+855', 'mm': '+95', 'mn': '+976',
-    'in': '+91', 'pk': '+92', 'bd': '+880', 'lk': '+94',
-    'np': '+977', 'bt': '+975', 'mv': '+960', 'af': '+93',
-    'au': '+61', 'nz': '+64', 'fj': '+679',
-    'br': '+55', 'mx': '+52', 'ar': '+54', 'cl': '+56',
-    'co': '+57', 'pe': '+51', 'uy': '+598', 'py': '+595',
-    've': '+58', 'bo': '+591', 'ec': '+593', 'cu': '+53',
-    'do': '+1', 'pr': '+1', 'cr': '+506', 'pa': '+507',
-    'gt': '+502', 'sv': '+503', 'hn': '+504', 'ni': '+505',
-    'sa': '+966', 'ae': '+971', 'qa': '+974', 'kw': '+965',
-    'bh': '+973', 'om': '+968', 'jo': '+962', 'lb': '+961',
-    'sy': '+963', 'iq': '+964', 'ye': '+967', 'ps': '+970',
-    'il': '+972', 'ir': '+98',
-    'eg': '+20', 'ma': '+212', 'dz': '+213', 'tn': '+216',
-    'ly': '+218', 'sd': '+249', 'so': '+252', 'et': '+251',
-    'ke': '+254', 'tz': '+255', 'ug': '+256', 'rw': '+250',
-    'ng': '+234', 'gh': '+233', 'sn': '+221', 'ci': '+225',
-    'cm': '+237', 'za': '+27', 'zm': '+260', 'zw': '+263',
-    'mg': '+261', 'mu': '+230',
-  };
-
-  String _dialFor(String? cc) {
-    final code = cc?.toLowerCase().trim();
-    if (code == null || code.isEmpty) return '+90';
-    return _dialCodes[code] ?? '+90';
-  }
-
-  final _phone = TextEditingController();
-  final _code = TextEditingController();
-  final _phoneFocus = FocusNode();
-  final _codeFocus = FocusNode();
-  String? _sessionId;
-  bool _busy = false;
-  String? _error;
-  int _resendIn = 0;
-  Timer? _resendTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    // 1) Cihaz/lokasyon ülkesine göre uluslararası kodu otomatik koy.
-    //    CountryResolver: önce manuel seçim → IP geo → cihaz locale → null.
-    final detected = CountryResolver.instance.current;
-    final dial = _dialFor(detected);
-    _phone.text = '$dial ';
-    // İmleç ülke kodunun SONUNDA — kullanıcı doğrudan kalan rakamı yazsın.
-    _phone.selection = TextSelection.collapsed(offset: _phone.text.length);
-
-    // 2) Sheet animasyonu bitince odakla → klavye açılsın, imleç yanıp sönsün.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _phoneFocus.requestFocus();
-      // Bazı platformlar focus alındığında metni "select-all" yapabilir;
-      // 50 ms sonra imleci yine sona koyuyoruz ki ülke kodu silinmesin.
-      Future<void>.delayed(Duration(milliseconds: 60), () {
-        if (!mounted) return;
-        _phone.selection =
-            TextSelection.collapsed(offset: _phone.text.length);
-      });
-    });
-  }
-
-  @override
-  void dispose() {
-    _phone.dispose();
-    _code.dispose();
-    _phoneFocus.dispose();
-    _codeFocus.dispose();
-    _resendTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startResendTimer() {
-    setState(() => _resendIn = 30);
-    _resendTimer?.cancel();
-    _resendTimer = Timer.periodic(Duration(seconds: 1), (t) {
-      if (!mounted) return;
-      if (_resendIn <= 0) {
-        t.cancel();
-        return;
-      }
-      setState(() => _resendIn--);
-    });
-  }
-
-  Future<void> _requestCode() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final id = await AuthService.requestPhoneCode(_phone.text);
-      if (!mounted) return;
-      setState(() => _sessionId = id);
-      _startResendTimer();
-      // Kod alanı görünür hale gelir gelmez ona odaklan.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _codeFocus.requestFocus();
-      });
-    } on AuthException catch (e) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      // Yapılandırma hatası → ham kod yerine kullanıcıya net dialog.
-      if (e.code == 'firebase-not-configured' || e.code == 'no-app') {
-        await _showFriendlyError(
-          title: 'Telefon doğrulama hazır değil'.tr(),
-          body:
-              'Firebase yapılandırması tamamlanmadığı için şu an SMS '
-              'gönderilemiyor. Geliştirici terminalde '
-              '"flutterfire configure" komutunu çalıştırıp uygulamayı '
-              'yeniden başlatmalı.\n\nDilersen e-posta veya misafir '
-              'olarak devam edebilirsin.'.tr(),
-        );
-        return;
-      }
-      setState(() => _error = e.message);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _busy = false);
-      final raw = e.toString();
-      // Firebase'in [core/no-app] hatası — yapılandırma yapılmadığında çıkar.
-      if (raw.contains('[core/no-app]') ||
-          raw.contains('No Firebase App')) {
-        await _showFriendlyError(
-          title: 'Telefon doğrulama hazır değil'.tr(),
-          body:
-              'Firebase başlatılamadığı için SMS gönderilemiyor. '
-              'Geliştirici "flutterfire configure" komutunu çalıştırıp '
-              'uygulamayı yeniden başlatmalı.'.tr(),
-        );
-        return;
-      }
-      setState(() => _error = localeService.tr('auth_error_generic'));
-    } finally {
-      if (mounted && _busy) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _showFriendlyError({
-    required String title,
-    required String body,
-  }) async {
-    if (!mounted) return;
-    // Sheet üzerinden görünür olsun diye SnackBar yerine Dialog kullanıyoruz.
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppPalette.card(context),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Row(
-          children: [
-            Icon(Icons.error_outline_rounded,
-                color: Color(0xFFEF4444), size: 22),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: AppPalette.textPrimary(context),
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          body,
-          style: TextStyle(
-            fontSize: 13,
-            color: AppPalette.textPrimary(context),
-            height: 1.5,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'Tamam'.tr(),
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: AppPalette.textPrimary(context),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _verify() async {
-    if (_sessionId == null) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await AuthService.verifyPhoneCode(
-        sessionId: _sessionId!,
-        code: _code.text,
-      );
-      if (mounted) Navigator.of(context).pop(true);
-    } on AuthException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } catch (_) {
-      if (mounted) {
-        setState(() => _error = localeService.tr('auth_error_generic'));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  InputDecoration _dec(String hint, IconData icon) => InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(
-          color: AppPalette.textSecondary(context),
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-        ),
-        prefixIcon: Icon(icon, size: 18, color: Colors.black54),
-        isDense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        filled: true,
-        fillColor: Color(0xFFF6F7F9),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-      );
-
-  @override
-  Widget build(BuildContext context) {
-    final hasSession = _sessionId != null;
-    return Container(
-      decoration: BoxDecoration(
-            color: AppPalette.card(context),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 38,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          SizedBox(height: 14),
-          Text(
-            hasSession
-                ? localeService.tr('auth_phone_code_title')
-                : localeService.tr('auth_phone_title'),
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              color: AppPalette.textPrimary(context),
-            ),
-          ),
-          SizedBox(height: 4),
-          Text(
-            hasSession
-                ? localeService
-                    .tr('auth_phone_code_hint')
-                    .replaceFirst('%s', _phone.text.trim())
-                : localeService.tr('auth_phone_hint_desc'),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.black.withValues(alpha: 0.62),
-              height: 1.4,
-            ),
-          ),
-          SizedBox(height: 14),
-          if (!hasSession)
-            TextField(
-              controller: _phone,
-              focusNode: _phoneFocus,
-              keyboardType: TextInputType.phone,
-              cursorColor: widget.accent,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: AppPalette.textPrimary(context),
-              ),
-              decoration: _dec(
-                localeService.tr('auth_phone_field_hint'),
-                Icons.phone_iphone_rounded,
-              ),
-              onSubmitted: (_) => _busy ? null : _requestCode(),
-            )
-          else
-            TextField(
-              controller: _code,
-              focusNode: _codeFocus,
-              keyboardType: TextInputType.number,
-              cursorColor: widget.accent,
-              maxLength: 6,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 8,
-                color: AppPalette.textPrimary(context),
-              ),
-              decoration: _dec(
-                '••••••',
-                Icons.lock_clock_rounded,
-              ).copyWith(counterText: ''),
-              onChanged: (v) {
-                if (v.length == 6 && !_busy) _verify();
-              },
-            ),
-          if (_error != null) ...[
-            SizedBox(height: 8),
-            Text(
-              _error!,
-              style: TextStyle(
-                color: Color(0xFFEF4444),
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-          SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: Material(
-              color: widget.accent,
-              borderRadius: BorderRadius.circular(14),
-              child: InkWell(
-                onTap: _busy
-                    ? null
-                    : (hasSession ? _verify : _requestCode),
-                borderRadius: BorderRadius.circular(14),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  child: Center(
-                    child: _busy
-                        ? SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.4,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(
-                            hasSession
-                                ? localeService.tr('auth_phone_verify')
-                                : localeService.tr('auth_phone_send_code'),
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          if (hasSession) ...[
-            SizedBox(height: 6),
-            TextButton(
-              onPressed: (_busy || _resendIn > 0) ? null : _requestCode,
-              child: Text(
-                _resendIn > 0
-                    ? localeService
-                        .tr('auth_phone_resend_in')
-                        .replaceFirst('%d', '$_resendIn')
-                    : localeService.tr('auth_phone_resend'),
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: _resendIn > 0
-                      ? Colors.black38
-                      : Colors.black87,
-                ),
-              ),
-            ),
-            SizedBox(height: 2),
-            TextButton(
-              onPressed: _busy
-                  ? null
-                  : () {
-                      setState(() {
-                        _sessionId = null;
-                        _code.clear();
-                        _error = null;
-                        _resendIn = 0;
-                      });
-                      _resendTimer?.cancel();
-                    },
-              child: Text(
-                localeService.tr('auth_phone_change_number'),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppPalette.textSecondary(context),
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );

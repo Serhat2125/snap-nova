@@ -37,6 +37,7 @@ import '../services/curriculum_catalog.dart';
 import '../services/education_profile.dart';
 import '../services/exam_catalog.dart';
 import '../widgets/exam_mode_widgets.dart';
+import '../widgets/user_avatar.dart';
 import '../services/error_logger.dart';
 import '../services/runtime_translator.dart';
 import '../services/user_profile_service.dart';
@@ -4197,16 +4198,13 @@ class _LeaderboardRow extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 8),
             color: AppPalette.border(context),
           ),
-          // Avatar
-          Container(
-            width: 32,
-            height: 32,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppPalette.cardMuted(context),
-              shape: BoxShape.circle,
-            ),
-            child: Text(entry.avatar, style: const TextStyle(fontSize: 16)),
+          // Avatar — profil fotoğrafı varsa o, yoksa emoji (URL metni asla).
+          UserAvatar(
+            uid: entry.uid,
+            avatar: entry.avatar,
+            size: 32,
+            emojiSize: 16,
+            background: AppPalette.cardMuted(context),
           ),
           const SizedBox(width: 10),
           // Ad + konum
