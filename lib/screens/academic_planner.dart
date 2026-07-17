@@ -1,4 +1,4 @@
-﻿// ignore_for_file: unused_element, unused_element_parameter
+// ignore_for_file: unused_element, unused_element_parameter
 
 import '../services/app_settings_service.dart';
 import '../services/push_service.dart';
@@ -16,11 +16,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../main.dart' show localeService;
 import '../services/analytics.dart';
 import '../services/parent_preview.dart';
+import '../services/parent_link_service.dart';
+import '../services/deep_link_service.dart';
 import '../services/error_logger.dart';
 import '../services/summary_cache_service.dart';
 import '../services/question_pool_service.dart';
@@ -42,6 +45,7 @@ import 'ai_coach_screen.dart';
 import 'student_homeworks_screen.dart';
 import 'student_materials_screen.dart';
 import 'history_screen.dart';
+import 'bilgi_labirenti_screen.dart';
 import 'qualsar_arena_screen.dart';
 import 'bilgi_ligi_screen.dart';
 import '../widgets/exam_mode_widgets.dart';
@@ -3047,6 +3051,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
     'edu3d': '3D Eğitim Modelleri',
     'league': 'Dünya Sıralaması',
     'contest': 'Düello Arenası',
+    'labirent': 'Bilgi Labirenti',
     'calendar': 'Çalışma Takvimi',
     'ai_coach': 'AI Koç',
     'pomodoro': 'Pomodoro Tekniği',
@@ -3290,17 +3295,17 @@ class _LibraryLandingState extends State<LibraryLanding> {
             Row(
               children: [
                 Expanded(
-                  child: _HeroCard(
+                  child: _LandingCard(
                     icon: Icons.summarize_rounded,
                     // Yeni ikon: tasarım sayfasındaki 2. alternatif
                     // ("Integrated Knowledge" — ışıyan kitap).
                     imageAsset: 'assets/library_icons/summary_v2.jpg',
+                    centerLeading: true,
                     title: localeService.tr('create_topic_summary'),
                     subtitle:
                         'Dersini ve konunu seç — AI anlaşılır bir konu özeti hazırlasın'
                             .tr(),
-                    // Gümüş/metalik zemin (kullanıcının gönderdiği görsel).
-                    gradient: const [Color(0xFFC3C7D0), Color(0xFF9DA3AF)],
+                    color: Color(0xFF9DA3AF),
                     customBg: _cardBgs['summary'],
                     customTextColor: _cardInks['summary'],
                     onColorAccept: (c) => _applyLibraryColor('summary', c),
@@ -3314,16 +3319,15 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 ),
                 SizedBox(width: 10),
                 Expanded(
-                  child: _HeroCard(
+                  child: _LandingCard(
                     icon: Icons.fact_check_rounded,
                     // Yeni ikon: tasarım sayfasındaki 7. alternatif
                     // ("Kitap & Soru" — soru işaretli açık kitap).
                     imageAsset: 'assets/library_icons/questions_v2.jpg',
+                    centerLeading: true,
                     title: localeService.tr('create_exam_questions'),
                     subtitle: 'Konundan test oluştur, çöz — eksiklerini gör'.tr(),
-                    // Gümüş/metalik zemin (kullanıcının gönderdiği görsel) —
-                    // soldaki karttan bir tık açık.
-                    gradient: const [Color(0xFFCBCED6), Color(0xFFA6ACB8)],
+                    color: Color(0xFFA6ACB8),
                     customBg: _cardBgs['questions'],
                     customTextColor: _cardInks['questions'],
                     onColorAccept: (c) => _applyLibraryColor('questions', c),
@@ -3331,6 +3335,29 @@ class _LibraryLandingState extends State<LibraryLanding> {
                       MaterialPageRoute(
                         builder: (_) => AcademicPlanner(
                             mode: LibraryMode.questions),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 10),
+            // ── OYUN: Bilgi Labirenti'nden Kaçış — Yedi Mühür ────────
+            // Tam genişlik kart; dokununca hazır HTML oyunu (WebView) açılır.
+            Row(
+              children: [
+                Expanded(
+                  child: _LandingCard(
+                    icon: Icons.castle_rounded,
+                    title: 'Bilgi Labirenti'.tr(),
+                    subtitle: 'Yedi Mühür\'ü çöz, labirentten kaç'.tr(),
+                    color: Color(0xFF6D28D9),
+                    customBg: _cardBgs['labirent'],
+                    customTextColor: _cardInks['labirent'],
+                    onColorAccept: (c) => _applyLibraryColor('labirent', c),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const BilgiLabirentiScreen(),
                       ),
                     ),
                   ),
@@ -3346,9 +3373,14 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     icon: Icons.history_rounded,
                     // Yeni 3D görsel (Gemini): grafik + onay tiki — kartın
                     // TAMAMINI kaplayan arka plan (mockup ile birebir).
-                    backgroundWidget: Image.asset(
-                      'assets/library_icons/history_v2.png',
-                      fit: BoxFit.cover,
+                    // Kullanıcı isteği: %10 küçültme + %12 büyütme → net
+                    // 1.008 ölçek (orijinalin %0.8 üstü, cover hafif zoom).
+                    backgroundWidget: Transform.scale(
+                      scale: 1.008,
+                      child: Image.asset(
+                        'assets/library_icons/history_v2.png',
+                        fit: BoxFit.cover,
+                      ),
                     ),
                     title: 'Çözümlerim'.tr(),
                     subtitle: 'Geçmiş çözümlerini incele'.tr(),
@@ -3370,13 +3402,30 @@ class _LibraryLandingState extends State<LibraryLanding> {
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.view_in_ar_rounded,
-                    // Güneş sistemi hologramı (kullanıcının gönderdiği
-                    // görsel) — kartın tamamını kaplar; dikey görselde
-                    // gezegenler görünür kalsın diye hafif yukarı hizalı.
-                    backgroundWidget: Image.asset(
-                      'assets/library_icons/edu3d_solar.jpg',
-                      fit: BoxFit.cover,
-                      alignment: const Alignment(0, -0.3),
+                    // Güneş sistemi — görselin bej zemini tool/whiten_edu3d
+                    // ile BEYAZA çevrildi: kartın içi diğer kartlarla aynı
+                    // tek renk (beyaz). Alt kısımdaki projeksiyon tablası +
+                    // sis kırpılır (heightFactor 0.60), cisimler yukarıda
+                    // durur (kullanıcı isteği: "cisimleri biraz daha yukarı").
+                    // Kullanıcı isteği: -6 hâlâ yüksekti → +6'ya indirildi.
+                    // Sonra tekrar kart boyunun (122) ~%10'u (12px) daha
+                    // aşağı alındı: +6 + 12 = +18.
+                    backgroundWidget: Transform.translate(
+                      offset: const Offset(0, 18),
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ClipRect(
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            heightFactor: 0.60, // alt %40 (tabla + sis) yok
+                            child: Image.asset(
+                              'assets/library_icons/edu3d_solar.jpg',
+                              width: double.infinity,
+                              fit: BoxFit.fitWidth,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                     title: '3D Eğitim Modelleri'.tr(),
                     subtitle: 'Konuları 3D sahnede keşfet'.tr(),
@@ -3407,18 +3456,28 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     // neredeyse değen DÖNEN 3D küre (ülke öne gelince bayrağı
                     // belirir).
                     backgroundWidget: Container(
-                      // Beyaz zemin — hero kartlar hariç tüm kartlarla
-                      // uyumlu (koyu küre beyaz üstünde net durur).
-                      decoration: const BoxDecoration(
+                      // Zemin: palet rengi atandıysa o, yoksa beyaz —
+                      // dönen küre boyanmaz, zemin rengi değişir.
+                      decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [Colors.white, Color(0xFFF4F6FA)],
+                          colors: _cardBgs['league'] == null
+                              ? const [Colors.white, Color(0xFFF4F6FA)]
+                              : [
+                                  _cardBgs['league']!,
+                                  Color.lerp(_cardBgs['league']!,
+                                      Colors.black, 0.06)!,
+                                ],
                         ),
                       ),
                       child: Center(
-                        child: RotatingGlobe(
-                          height: 114,
+                        // Küre azıcık yukarı (kullanıcı isteği).
+                        child: Transform.translate(
+                          offset: const Offset(0, -5),
+                          child: RotatingGlobe(
+                          // 114 → 103: %10 küçük (kullanıcı isteği).
+                          height: 103,
                           // Düello Arenası'ndaki gibi: ülke ön yüze gelince
                           // bayrağı belirir (kullanıcı isteği).
                           showFlags: true,
@@ -3426,9 +3485,11 @@ class _LibraryLandingState extends State<LibraryLanding> {
                             'assets/library_icons/earth.png',
                             fit: BoxFit.contain,
                           ),
+                          ),
                         ),
                       ),
                     ),
+                    tintBg: false,
                     title: 'Dünya Sıralaması'.tr(),
                     subtitle: 'Dünyadaki yerini gör'.tr(),
                     textNudgeY: 8,
@@ -3452,8 +3513,11 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     icon: Icons.sports_esports_rounded,
                     // Sabit görsel yerine CANLI eşleşme sahnesi: solda
                     // kullanıcının kendi profili, ortada büyük VS, sağda
-                    // dünyadan dönüşümlü rakipler.
-                    backgroundWidget: const _DueloVsScene(),
+                    // dünyadan dönüşümlü rakipler. Palet rengi sahnenin
+                    // zeminine widget içinde uygulanır.
+                    backgroundWidget:
+                        _DueloVsScene(bgColor: _cardBgs['contest']),
+                    tintBg: false,
                     title: 'Düello Arenası'.tr(),
                     subtitle: 'Arkadaşlarınla düello yap'.tr(),
                     color: Color(0xFFFFB800),
@@ -3479,8 +3543,11 @@ class _LibraryLandingState extends State<LibraryLanding> {
                   child: _LandingCard(
                     icon: Icons.timer_rounded,
                     // CANLI kum saati: bej kum sürekli alta akar, cam mavi
-                    // tonlu; dolunca 180° dönüp baştan başlar.
-                    backgroundWidget: const _SandHourglassBg(),
+                    // tonlu; dolunca 180° dönüp baştan başlar. Palet rengi
+                    // kum saatinin dışındaki zemine widget içinde uygulanır.
+                    backgroundWidget:
+                        _SandHourglassBg(bgColor: _cardBgs['pomodoro']),
+                    tintBg: false,
                     title: 'Pomodoro Tekniği'.tr(),
                     subtitle: 'Odaklan, mola ver, tekrarla'.tr(),
                     textNudgeY: 8,
@@ -3502,9 +3569,13 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     icon: Icons.rocket_launch_rounded,
                     // Yeni 3D görsel (Gemini): mor zeminde açık kitap +
                     // mezuniyet kepi + kalem — kartın TAMAMINI kaplar.
-                    backgroundWidget: Image.asset(
-                      'assets/library_icons/homework_v2.png',
-                      fit: BoxFit.cover,
+                    // %10 küçük (kullanıcı isteği).
+                    backgroundWidget: Transform.scale(
+                      scale: 0.9,
+                      child: Image.asset(
+                        'assets/library_icons/homework_v2.png',
+                        fit: BoxFit.cover,
+                      ),
                     ),
                     title: 'Sınıf Ödevlerim'.tr(),
                     subtitle: 'Öğretmeninin verdiği ödevler'.tr(),
@@ -3532,9 +3603,13 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     icon: Icons.smart_toy_rounded,
                     // Yeni 3D görsel (Gemini): mavi zeminde beyin + tokalaşma
                     // — kartın TAMAMINI kaplar.
-                    backgroundWidget: Image.asset(
-                      'assets/library_icons/ai_coach_v2.png',
-                      fit: BoxFit.cover,
+                    // %10 küçük (kullanıcı isteği).
+                    backgroundWidget: Transform.scale(
+                      scale: 0.9,
+                      child: Image.asset(
+                        'assets/library_icons/ai_coach_v2.png',
+                        fit: BoxFit.cover,
+                      ),
                     ),
                     title: 'AI Koç'.tr(),
                     subtitle: 'Kişisel çalışma tavsiyeleri'.tr(),
@@ -3557,9 +3632,13 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     icon: Icons.edit_calendar_rounded,
                     // Yeni 3D görsel (Gemini): takvim + kum saati + telefon
                     // listesi — kartın TAMAMINI kaplar.
-                    backgroundWidget: Image.asset(
-                      'assets/library_icons/calendar_v2.png',
-                      fit: BoxFit.cover,
+                    // %10 küçük (kullanıcı isteği).
+                    backgroundWidget: Transform.scale(
+                      scale: 0.9,
+                      child: Image.asset(
+                        'assets/library_icons/calendar_v2.png',
+                        fit: BoxFit.cover,
+                      ),
                     ),
                     title: localeService.tr('my_study_calendar'),
                     subtitle: 'Programını planla, takip et'.tr(),
@@ -3588,9 +3667,13 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     icon: Icons.hub_rounded,
                     // Yeni 3D görsel (Gemini): kitap yığını + klasör + bulut
                     // indirme — kartın TAMAMINI kaplar.
-                    backgroundWidget: Image.asset(
-                      'assets/library_icons/materials_v2.png',
-                      fit: BoxFit.cover,
+                    // %10 küçük (kullanıcı isteği).
+                    backgroundWidget: Transform.scale(
+                      scale: 0.9,
+                      child: Image.asset(
+                        'assets/library_icons/materials_v2.png',
+                        fit: BoxFit.cover,
+                      ),
                     ),
                     title: 'Sınıf Kaynaklarım'.tr(),
                     subtitle: 'Öğretmenin paylaştığı dosyalar'.tr(),
@@ -3893,6 +3976,12 @@ class _LandingCard extends StatefulWidget {
   /// Kartın TAMAMINI kaplayan arka plan (ör. koyu gradyan + dönen dünya).
   /// Verilirse sol üst rozet çizilmez; başlık/ok bunun üstünde durur.
   final Widget? backgroundWidget;
+  /// true (varsayılan) → kullanıcı paletten renk attıysa (customBg)
+  /// backgroundWidget multiply ile boyanır: görselin beyaz/açık alanları
+  /// seçilen rengi alır, koyu ikon detayları korunur. Zeminini kendisi
+  /// çizen arka planlar (kum saati, küre, VS sahnesi) false verip rengi
+  /// doğrudan kendi zeminlerine uygular.
+  final bool tintBg;
   /// Başlık + alt yazıyı görsel olarak bu kadar piksel AŞAĞI kaydırır
   /// (yerleşimi bozmaz — Transform.translate). Tam-kart görselli kartlarda
   /// metni alt zemin şeridine oturtmak için kullanılır.
@@ -3911,6 +4000,7 @@ class _LandingCard extends StatefulWidget {
     this.leadingWidget,
     this.centerLeading = false,
     this.backgroundWidget,
+    this.tintBg = true,
     this.textNudgeY = 0,
   });
 
@@ -4003,7 +4093,17 @@ class _LandingCardState extends State<_LandingCard> {
               fit: StackFit.expand,
               children: [
                 if (widget.backgroundWidget != null)
-                  Positioned.fill(child: widget.backgroundWidget!),
+                  Positioned.fill(
+                    // Paletten renk atandıysa görselin beyaz/açık alanları
+                    // multiply ile o renge boyanır — ikonun kendisi korunur.
+                    child: widget.tintBg && customBg != null
+                        ? ColorFiltered(
+                            colorFilter: ColorFilter.mode(
+                                customBg!, BlendMode.multiply),
+                            child: widget.backgroundWidget!,
+                          )
+                        : widget.backgroundWidget!,
+                  ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 12, 10, 11),
                   child: Column(
@@ -4032,6 +4132,46 @@ class _LandingCardState extends State<_LandingCard> {
                             width: iconBox + 38,
                             height: iconBox + 38,
                             child: widget.leadingWidget!,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Icon(
+                          Icons.chevron_right_rounded,
+                          color: titleColor.withValues(alpha: 0.30),
+                          size: 20,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              // Ortalanmış GÖRSEL ikon modu: imageAsset kartın yatay
+              // ortasında, ok sağ üstte (Konu Özeti / Sınav Soruları).
+              else if (widget.imageAsset != null && widget.centerLeading)
+                SizedBox(
+                  height: iconBox + 16,
+                  width: double.infinity,
+                  child: Stack(
+                    // Transform.scale taşması kırpılmasın (aşağıdaki %10).
+                    clipBehavior: Clip.none,
+                    children: [
+                      Center(
+                        // Kullanıcı isteği: ikon %10 büyük — Transform.scale
+                        // yerleşimi bozmaz, SizedBox tavanını da takılmaz.
+                        child: Transform.scale(
+                          scale: 1.1,
+                          child: ClipRRect(
+                          borderRadius: BorderRadius.circular(14),
+                          child: Image.asset(
+                            widget.imageAsset!,
+                            width: iconBox + 16,
+                            height: iconBox + 16,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _HexBadge(
+                                icon: icon, color: color, size: iconBox + 2),
+                          ),
                           ),
                         ),
                       ),
@@ -4135,102 +4275,6 @@ class _LandingCardState extends State<_LandingCard> {
 // (Eski "çarpan kalp" arka planı kaldırıldı — 3D Eğitim Modelleri kartı artık
 //  güneş sistemi görselini kullanıyor: assets/library_icons/edu3d_solar.jpg)
 
-// ── Hero kart kitap ikonu: YAVAŞ SAYFA ÇEVİRME efekti ───────────────────────
-// Görselin kendisi DEĞİŞMEZ; üstüne yarı saydam beyaz bir "yaprak" katmanı
-// biner ve kitabın sırtı (orta dikey eksen) etrafında 3D dönerek sağdan sola
-// çevrilir. ~1.2 sn çevirme + ~3.6 sn bekleme döngüsü. Yaprak, sin eğrisiyle
-// belirip kaybolduğu için başlangıç/bitişte "pat" diye görünmez.
-class _PageFlipImage extends StatefulWidget {
-  final String asset;
-  final double size;
-  final Widget Function() fallback; // asset yoksa (errorBuilder) rozet
-  const _PageFlipImage({
-    required this.asset,
-    required this.size,
-    required this.fallback,
-  });
-
-  @override
-  State<_PageFlipImage> createState() => _PageFlipImageState();
-}
-
-class _PageFlipImageState extends State<_PageFlipImage>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 4800),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final s = widget.size;
-    final base = Image.asset(
-      widget.asset,
-      width: s,
-      height: s,
-      fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => widget.fallback(),
-    );
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, __) {
-        final v = _c.value;
-        final ft = (v / 0.25).clamp(0.0, 1.0); // ilk %25 = çevirme fazı
-        if (ft <= 0.001 || ft >= 0.999) return base;
-        final angle = ft * math.pi;
-        final opacity = math.sin(ft * math.pi) * 0.85;
-        return Stack(
-          children: [
-            base,
-            // Yaprak: sağ yarımda başlar, sırt ekseninde sola döner.
-            Positioned(
-              left: s / 2,
-              top: 1,
-              width: s / 2 - 1,
-              height: s - 2,
-              child: Transform(
-                alignment: Alignment.centerLeft,
-                transform: Matrix4.identity()
-                  ..setEntry(3, 2, 0.0028) // perspektif
-                  ..rotateY(-angle),
-                child: Opacity(
-                  opacity: opacity,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: const BorderRadius.horizontal(
-                          right: Radius.circular(8)),
-                      gradient: LinearGradient(
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.95),
-                          Colors.white.withValues(alpha: 0.55),
-                        ],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.18),
-                          blurRadius: 4,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
 // ── Pomodoro kartı: AKAN KUM SAATİ arka planı ───────────────────────────────
 // Statik görsel yerine CustomPainter ile çizilen canlı kum saati:
 //   • kum GERÇEK kum renginde (bej), cam hafif MAVİ, kapaklar ahşap
@@ -4239,7 +4283,10 @@ class _PageFlipImageState extends State<_PageFlipImage>
 // Zemin, eski görselin pembe pastel tonlarıyla aynı. Route önde değilken
 // TickerMode animasyonu otomatik durdurur.
 class _SandHourglassBg extends StatefulWidget {
-  const _SandHourglassBg();
+  /// Paletten seçilen kart rengi — kum saatinin DIŞINDA kalan zemine
+  /// uygulanır; kum saatinin kendisi hiç boyanmaz. null → beyaz zemin.
+  final Color? bgColor;
+  const _SandHourglassBg({this.bgColor});
 
   @override
   State<_SandHourglassBg> createState() => _SandHourglassBgState();
@@ -4261,13 +4308,16 @@ class _SandHourglassBgState extends State<_SandHourglassBg>
 
   @override
   Widget build(BuildContext context) {
+    final base = widget.bgColor;
     return Container(
-      // Beyaz zemin — hero kartlar hariç tüm kartlarla uyumlu.
-      decoration: const BoxDecoration(
+      // Zemin: palet rengi atandıysa o, yoksa beyaz — kum saati boyanmaz.
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.white, Color(0xFFF4F6FA)],
+          colors: base == null
+              ? const [Colors.white, Color(0xFFF4F6FA)]
+              : [base, Color.lerp(base, Colors.black, 0.06)!],
         ),
       ),
       child: AnimatedBuilder(
@@ -4278,9 +4328,13 @@ class _SandHourglassBgState extends State<_SandHourglassBg>
           // "yeni üst" olur, p=0 karesiyle dikişsiz birleşir.
           final flow = (v / 0.92).clamp(0.0, 1.0);
           final angle = v <= 0.92 ? 0.0 : ((v - 0.92) / 0.08) * math.pi;
-          return CustomPaint(
-            painter: _HourglassPainter(flow, angle),
-            size: Size.infinite,
+          // %10 küçük kum saati (kullanıcı isteği) — zemin tam boy kalır.
+          return Transform.scale(
+            scale: 0.9,
+            child: CustomPaint(
+              painter: _HourglassPainter(flow, angle),
+              size: Size.infinite,
+            ),
           );
         },
       ),
@@ -4477,7 +4531,10 @@ class _HourglassPainter extends CustomPainter {
 // kullanıcı adı vitrine konmaz (KVKK/GDPR), ağ isteği yapılmaz. Sekme/route
 // önde değilken tik atlanır.
 class _DueloVsScene extends StatefulWidget {
-  const _DueloVsScene();
+  /// Paletten seçilen kart rengi — sahnenin zeminine uygulanır; avatar/VS
+  /// gibi sahne öğeleri boyanmaz. null → beyaz zemin.
+  final Color? bgColor;
+  const _DueloVsScene({this.bgColor});
 
   @override
   State<_DueloVsScene> createState() => _DueloVsSceneState();
@@ -4625,17 +4682,23 @@ class _DueloVsSceneState extends State<_DueloVsScene> {
     final opp = _pool[_idx];
     final subject = _subjects[_idx % _subjects.length];
 
+    final base = widget.bgColor;
     return Container(
-      // Beyaz zemin — hero kartlar hariç tüm kartlarla uyumlu.
-      decoration: const BoxDecoration(
+      // Zemin: palet rengi atandıysa o, yoksa beyaz — sahne öğeleri boyanmaz.
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Colors.white, Color(0xFFF4F6FA)],
+          colors: base == null
+              ? const [Colors.white, Color(0xFFF4F6FA)]
+              : [base, Color.lerp(base, Colors.black, 0.06)!],
         ),
       ),
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
-      child: Column(
+      // %10 küçük sahne içeriği (kullanıcı isteği) — zemin tam boy kalır.
+      child: Transform.scale(
+        scale: 0.9,
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Eşleşmenin dersi — rakiple birlikte döner, uygulama dilinde.
@@ -4714,6 +4777,7 @@ class _DueloVsSceneState extends State<_DueloVsScene> {
             ],
           ),
         ],
+        ),
       ),
     );
   }
@@ -4840,198 +4904,6 @@ class _HexBadgePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _HexBadgePainter old) =>
       old.accent != accent || old.onGradient != onGradient;
-}
-
-// ── Hero kart — en çok kullanılan özellikler için boydan boya degrade kart ──
-// Kütüphanem "Üret" bölümünde kullanılır: soldan sağa marka degradesi,
-// beyaz başlık + alt metin, sağda yarı saydam büyük ikon rozeti + ok.
-// Renk sürükle-bırak (DragTarget) ve basma animasyonu _LandingCard ile aynı.
-class _HeroCard extends StatefulWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final List<Color> gradient;
-  final VoidCallback onTap;
-  final Color? customBg;
-  final Color? customTextColor;
-  final ValueChanged<Color>? onColorAccept;
-  /// 3D görsel ikon (assets/library_icons/*). Verilirse altıgen rozet yerine
-  /// bu görsel gösterilir.
-  final String? imageAsset;
-  const _HeroCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.gradient,
-    required this.onTap,
-    this.customBg,
-    this.customTextColor,
-    this.onColorAccept,
-    this.imageAsset,
-  });
-
-  @override
-  State<_HeroCard> createState() => _HeroCardState();
-}
-
-class _HeroCardState extends State<_HeroCard> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    // Kullanıcı Renk Seç ile kart rengi atadıysa düz renk; yoksa degrade.
-    // Yazı rengi zeminin açıklığından hesaplanır (açık gümüş zemin → siyah).
-    final custom = widget.customBg;
-    final inkRef = custom ?? widget.gradient.first;
-    final lum = 0.299 * inkRef.r + 0.587 * inkRef.g + 0.114 * inkRef.b;
-    final Color inkBase = lum < 0.55 ? Colors.white : Colors.black;
-    final ink = widget.customTextColor ?? inkBase;
-    final glow = widget.gradient.first;
-
-    // Dikey ton merdiveni: ALTTA en koyu, yukarı çıktıkça açılır (kullanıcı
-    // isteği). Marka çiftinin iki rengi ortada tam tonuyla korunur; alt uç
-    // karartılır, üst uç beyaza doğru açılır. Kullanıcı özel renk seçtiyse
-    // aynı merdiven o renkten türetilir.
-    Color shade(Color c, double t) => t < 0
-        ? Color.lerp(c, Colors.black, -t)!
-        : Color.lerp(c, Colors.white, t)!;
-    final List<Color> tones;
-    if (custom != null) {
-      tones = [
-        shade(custom, -0.35),
-        custom,
-        shade(custom, 0.28),
-        shade(custom, 0.52),
-      ];
-    } else {
-      final c1 = widget.gradient.first;
-      final c2 = widget.gradient.last;
-      tones = [
-        shade(Color.lerp(c1, c2, 0.5)!, -0.38), // alt: en koyu
-        c2,                                     // tam renk
-        c1,                                     // tam renk
-        shade(c1, 0.48),                        // üst: en açık
-      ];
-    }
-
-    return DragTarget<Color>(
-      onAcceptWithDetails: (d) => widget.onColorAccept?.call(d.data),
-      builder: (ctx, cand, _) => GestureDetector(
-        onTap: widget.onTap,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
-        child: AnimatedScale(
-          scale: _pressed ? 0.97 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.easeOut,
-          child: AnimatedContainer(
-            duration: Duration(milliseconds: 160),
-            height: 88,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: tones,
-                stops: const [0.0, 0.34, 0.66, 1.0],
-              ),
-              borderRadius: BorderRadius.circular(18),
-              border: cand.isNotEmpty
-                  ? Border.all(color: Color(0xFFFF6A00), width: 2)
-                  : Border.all(
-                      color: Colors.black.withValues(alpha: 0.08),
-                      width: 1.0,
-                    ),
-              boxShadow: [
-                // Kenarda sıkı gölge + markanın renkli derinlik gölgesi.
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.09),
-                  blurRadius: 3,
-                  spreadRadius: 0.6,
-                  offset: Offset(0, 1),
-                ),
-                BoxShadow(
-                  color: glow.withValues(alpha: 0.30),
-                  blurRadius: 14,
-                  offset: Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-              child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        widget.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: ink,
-                          height: 1.15,
-                        ),
-                      ),
-                      SizedBox(height: 3),
-                      Text(
-                        widget.subtitle,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.poppins(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: ink.withValues(alpha: 0.75),
-                          height: 1.25,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(width: 10),
-                // 3D görsel ikon varsa onu göster; yoksa altıgen HUD rozeti
-                // (hero degradesi üstünde yarı saydam koyu zemin).
-                if (widget.imageAsset != null)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    // Kitap görseli sabit; üstünde yavaş sayfa çevirme
-                    // animasyonu döner (_PageFlipImage).
-                    child: _PageFlipImage(
-                      asset: widget.imageAsset!,
-                      size: 60,
-                      fallback: () => _HexBadge(
-                        icon: widget.icon,
-                        color: widget.gradient.first,
-                        size: 50,
-                        onGradient: true,
-                      ),
-                    ),
-                  )
-                else
-                  _HexBadge(
-                    icon: widget.icon,
-                    color: widget.gradient.first,
-                    size: 50,
-                    onGradient: true,
-                  ),
-                SizedBox(width: 2),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: ink.withValues(alpha: 0.55),
-                  size: 22,
-                ),
-              ],
-            ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ── Model ──────────────────────────────────────────────────────────────────
@@ -10869,17 +10741,17 @@ Bu listeyi çıktıya YAZMA — sadece uygula.
         ),
         // "Sınav modu açmak ister misin?" — Bilgi Ligi/Bilgi Yarışı'ndaki
         // AYNI bölüm (lib/widgets/exam_mode_widgets.dart, kaydedilmiş sınav
-        // kısayolu dahil). Sadece "Sınav Soruları Oluştur" (questions)
-        // modunda; özet modunda gösterilmez.
-        if (widget.mode == LibraryMode.questions) ...[
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: ExamModeSection(
-              countryCode: EduProfile.current?.country,
-              onSelected: _startExamModeQuiz,
-            ),
+        // kısayolu dahil). HER İKİ modda da görünür (kullanıcı isteği):
+        // "Sınav Soruları Oluştur"da sınav testine, "Konu Özeti Oluştur"da
+        // seçilen sınav×ders×konunun ÖZETİNE devam eder
+        // (_runGenerateWithSetup mode'a göre doğru akışa yönlenir).
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: ExamModeSection(
+            countryCode: EduProfile.current?.country,
+            onSelected: _startExamModeQuiz,
           ),
-        ],
+        ),
         // ═══ Çerçeve — yalnız ders kareleri (iç başlık kaldırıldı) ═══
         DragTarget<Color>(
           onWillAcceptWithDetails: (_) =>
@@ -20919,67 +20791,17 @@ Future<bool> askParentGate(BuildContext context) async {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  _ParentLink — öğrenci tarafında ebeveyn bağlantısı için yerel state.
-//  Şu an sadece local persist; cloud senkronizasyonu sonraki fazda eklenir.
-//   • studentId: öğrencinin benzersiz ID'si ("stu_xxxxxxxx")
-//   • pairCode: ebeveyne paylaşılacak 6 haneli kod
-//   • linked: ebeveyn bu cihaza bağlanmış mı (manuel toggle ile simüle)
+//  _ParentLink — öğrenci tarafında ebeveyn bağlantısı için yerel bayrak.
+//  Bağlanma kodu artık GERÇEK sistemden gelir (ParentLinkService /
+//  EBEV-XXXXXX): eski yerel 6 haneli kod Firestore'a hiç yazılmadığı için
+//  veli tarafında hiçbir zaman çalışmıyordu.
 // ═══════════════════════════════════════════════════════════════════════════
 class _ParentLink {
-  static const _kStudentId = 'parent_link_student_id_v1';
-  static const _kPairCode = 'parent_link_pair_code_v1';
   static const _kLinked = 'parent_link_active_v1';
-
-  static String _genStudentId() {
-    final r = math.Random.secure();
-    const alpha = 'abcdefghijklmnopqrstuvwxyz0123456789';
-    final buf = StringBuffer('stu_');
-    for (int i = 0; i < 8; i++) {
-      buf.write(alpha[r.nextInt(alpha.length)]);
-    }
-    return buf.toString();
-  }
-
-  static String _genPairCode() {
-    final r = math.Random.secure();
-    return List.generate(6, (_) => r.nextInt(10)).join();
-  }
-
-  static Future<String> getOrCreateStudentId() async {
-    final prefs = await SharedPreferences.getInstance();
-    var id = prefs.getString(_kStudentId);
-    if (id == null || id.isEmpty) {
-      id = _genStudentId();
-      await prefs.setString(_kStudentId, id);
-    }
-    return id;
-  }
-
-  static Future<String> getOrCreatePairCode() async {
-    final prefs = await SharedPreferences.getInstance();
-    var code = prefs.getString(_kPairCode);
-    if (code == null || code.length != 6) {
-      code = _genPairCode();
-      await prefs.setString(_kPairCode, code);
-    }
-    return code;
-  }
-
-  static Future<String> refreshPairCode() async {
-    final prefs = await SharedPreferences.getInstance();
-    final code = _genPairCode();
-    await prefs.setString(_kPairCode, code);
-    return code;
-  }
 
   static Future<bool> isLinked() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_kLinked) ?? false;
-  }
-
-  static Future<void> setLinked(bool v) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kLinked, v);
   }
 }
 
@@ -21007,8 +20829,10 @@ class ParentReportPageState extends State<ParentReportPage> {
   bool _loading = true;
   // Ebeveyn bu cihaza bağlanmış mı; bağlı değilse rapor yerine davet ekranı.
   bool _linked = false;
-  String _studentId = '';
+  // Gerçek veli bağlanma kodu (EBEV-XXXXXX) — üretilemezse boş kalır.
   String _pairCode = '';
+  // Kod arka planda hazırlanıyor mu — sayfa kodu BEKLEMEDEN açılır.
+  bool _codeLoading = false;
   // Son 7 günde derslere göre toplam aktif ve pasif saniyeler.
   // Anahtar: ders adı (orijinal). Toplam değerler kart + chart için.
   Map<String, int> _activeBySubject = const {};
@@ -21025,8 +20849,10 @@ class ParentReportPageState extends State<ParentReportPage> {
 
   Future<void> _load() async {
     final linked = await _ParentLink.isLinked();
-    final id = await _ParentLink.getOrCreateStudentId();
-    final code = await _ParentLink.getOrCreatePairCode();
+    // Profil "Veliyi Bağla" ile AYNI kod sistemi (ParentLinkService).
+    // ÖNEMLİ: kod üretimi ARKA PLANDA yürür — eskiden burada await edilip
+    // sayfa 10 sn'e kadar tam-ekran spinner'da bekliyordu ("donuk kalıyor").
+    unawaited(_loadPairCode());
     final all = await _ActivityStore.readAll();
     final now = DateTime.now();
     final cutoff = now.subtract(Duration(days: 7));
@@ -21044,8 +20870,6 @@ class ParentReportPageState extends State<ParentReportPage> {
     if (!mounted) return;
     setState(() {
       _linked = linked;
-      _studentId = id;
-      _pairCode = code;
       _activeBySubject = active;
       _passiveBySubject = passive;
       _totalActive = totA;
@@ -21060,18 +20884,47 @@ class ParentReportPageState extends State<ParentReportPage> {
     });
   }
 
+  /// Veli bağlanma kodunu ARKA PLANDA üretir/yeniler — sayfa bunu beklemez.
+  Future<void> _loadPairCode() async {
+    if (mounted) setState(() => _codeLoading = true);
+    String code = '';
+    try {
+      final linkCode = await ParentLinkService.generateChildLinkCode()
+          .timeout(const Duration(seconds: 12));
+      code = linkCode?.code ?? '';
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() {
+      _pairCode = code;
+      _codeLoading = false;
+    });
+  }
+
   /// Daveti paylaşma — fire-and-forget pattern (`unawaited`) ile her basışta
   /// bağımsız bir paylaşım request'i yapılır. Buton onPressed'i Share.share
   /// future'ını beklemez, böylece ikinci/üçüncü tıklamalar Activity context
   /// kilidi nedeniyle takılmaz. Pre-share snack YOK (Scaffold rebuild
   /// paylaşım sheet'ini dismiss ediyordu).
   Future<void> _shareInvite() async {
-    final msg = '${'QuAlsar Ebeveyn Paneli daveti'.tr()}\n\n'
-        '${'Çocuğunun çalışma istatistiklerini izlemek için QuAlsar '
-            'uygulamasını yükle ve aşağıdaki kodla bağlan:'.tr()}\n\n'
-        '${'Eşleşme kodu:'.tr()} $_pairCode\n'
-        '${'Öğrenci ID:'.tr()} $_studentId\n\n'
-        '${'Uygulamayı indir:'.tr()} https://qualsar.app';
+    if (_pairCode.isEmpty) {
+      // Kod henüz yoksa buton sessizce "ölü" kalmasın: hazırlamayı tetikle
+      // + kullanıcıyı bilgilendir.
+      if (!_codeLoading) unawaited(_loadPairCode());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Bağlanma kodu hazırlanıyor…'.tr()),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+      return;
+    }
+    // Profildeki "Veliyi Bağla" paylaşımıyla aynı mesaj + deep link —
+    // veli linke dokununca uygulama kodu otomatik işler (/veli/{kod}).
+    final link = DeepLinkService.parentLinkFor(_pairCode);
+    final msg = '${'QuAlsar veli daveti 👨‍👩‍👧'.tr()}\n\n'
+        '${'Çocuğunuzun ders gelişimini takip etmek için bu bağlantıya dokunun:'.tr()}\n'
+        '$link\n\n'
+        '${'Uygulama yüklü değilse önce QuAlsar\'ı indirip veli hesabı oluşturun, sonra bağlantıya tekrar dokunun.'.tr()}';
 
     unawaited(_doShareInvite(msg));
   }
@@ -21092,20 +20945,6 @@ class ParentReportPageState extends State<ParentReportPage> {
         ),
       );
     }
-  }
-
-  Future<void> _refreshCode() async {
-    final c = await _ParentLink.refreshPairCode();
-    if (!mounted) return;
-    setState(() => _pairCode = c);
-  }
-
-  /// Sadece test akışı için — gerçek çoklu cihaz pairing yokken simülasyon.
-  /// Kullanıcı "Bağlandı say" derse rapor görünür hale gelir.
-  Future<void> _simulateLink() async {
-    await _ParentLink.setLinked(true);
-    if (!mounted) return;
-    setState(() => _linked = true);
   }
 
   /// Toplanan istatistiklere göre 1-2 cümlelik kural tabanlı yorum.
@@ -21253,9 +21092,10 @@ class ParentReportPageState extends State<ParentReportPage> {
     );
   }
 
-  // ── Davet bölümü — ebeveyn bağlanma kodu, ID ve paylaş butonu ─────────
-  // Büyük "Ebeveynine Davet Gönder" butonu + 6 haneli pairing kodu +
-  // öğrenci ID'si + kısa açıklama. Yapım aşamasında her açılışta gösterilir.
+  // ── Davet bölümü — GERÇEK veli bağlanma kodu (EBEV-XXXXXX) ────────────
+  // QR (veli "QR Kodu Okut" ile okutur) + kod kutuları + Kopyala +
+  // "Ebeveynine Davet Gönder" (WhatsApp deep link). Profildeki "Veliyi
+  // Bağla" ile aynı ParentLinkService akışını kullanır.
   Widget _buildInviteSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -21316,8 +21156,10 @@ class ParentReportPageState extends State<ParentReportPage> {
           ),
           SizedBox(height: 8),
           Text(
-            'Ebeveynine bir davet gönder; o da QuAlsar uygulamasını yüklediğinde aşağıdaki kodla seni takip etmeye başlayabilir.'
-                .tr(),
+            'Velin yanındaysa: kendi telefonundaki QuAlsar\'da '
+            '"QR Kodu Okut" deyip bu kodu okutsun — bağlantı anında '
+            'kurulur. Uzaktaysa: WhatsApp\'tan gönder, linke dokunması '
+            'yeterli.'.tr(),
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
               fontSize: 12.5,
@@ -21327,6 +21169,25 @@ class ParentReportPageState extends State<ParentReportPage> {
             ),
           ),
           SizedBox(height: 20),
+          // QR — veli kendi uygulamasındaki "QR Kodu Okut" ile okutur;
+          // beyaz zemin koyu temada da okunmayı garantiler.
+          if (_pairCode.isNotEmpty) ...[
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: QrImageView(
+                  data: DeepLinkService.parentLinkFor(_pairCode),
+                  version: QrVersions.auto,
+                  size: 160,
+                ),
+              ),
+            ),
+            SizedBox(height: 14),
+          ],
           // Eşleşme kodu kartı
           Container(
             padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
@@ -21347,113 +21208,140 @@ class ParentReportPageState extends State<ParentReportPage> {
                   ),
                 ),
                 SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (int i = 0; i < _pairCode.length; i++) ...[
-                      Container(
-                        width: 36,
-                        height: 44,
-                        margin: const EdgeInsets.symmetric(horizontal: 3),
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-            color: AppPalette.card(context),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: _navy.withValues(alpha: 0.30)),
+                if (_codeLoading) ...[
+                  // Kod arka planda hazırlanıyor — sayfa donmaz, küçük
+                  // yerel gösterge yeter.
+                  const SizedBox(height: 6),
+                  const Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2.2),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Bağlanma kodu hazırlanıyor…'.tr(),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                        fontSize: 11.5,
+                        color: AppPalette.textSecondary(context)),
+                  ),
+                ] else if (_pairCode.isEmpty) ...[
+                  // Kod üretilemedi (internet / oturum yok) — tekrar dene.
+                  Text(
+                    'Kod üretilemedi. İnternet bağlantını ve giriş yaptığını kontrol et.'
+                        .tr(),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFB45309),
+                      height: 1.4,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Center(
+                    child: OutlinedButton.icon(
+                      // Yalnız KODU yeniler — eskiden tüm sayfayı spinner'a
+                      // alıyordu (_loading=true + _load()).
+                      onPressed: _loadPairCode,
+                      icon: Icon(Icons.refresh_rounded,
+                          size: 14, color: _navy),
+                      label: Text(
+                        'Yenile'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: _navy,
                         ),
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Sabit önek — veli elle girerken önek olmadan da kabul
+                      // edilir (normalizeCode); QR/link zaten tam kodu taşır.
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
                         child: Text(
-                          _pairCode[i],
+                          'EBEV-',
                           style: GoogleFonts.poppins(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: _navy.withValues(alpha: 0.65),
+                          ),
+                        ),
+                      ),
+                      for (final ch in (_pairCode.startsWith('EBEV-')
+                              ? _pairCode.substring(5)
+                              : _pairCode)
+                          .split('')) ...[
+                        Container(
+                          width: 32,
+                          height: 42,
+                          margin:
+                              const EdgeInsets.symmetric(horizontal: 2.5),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: AppPalette.card(context),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: _navy.withValues(alpha: 0.30)),
+                          ),
+                          child: Text(
+                            ch,
+                            style: GoogleFonts.poppins(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              color: _navy,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    '24 saat geçerli.'.tr(),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 10.5,
+                      color: AppPalette.textSecondary(context),
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () async {
+                          await Clipboard.setData(
+                              ClipboardData(text: _pairCode));
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Kod kopyalandı'.tr()),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        icon: Icon(Icons.copy_rounded,
+                            size: 14, color: _navy),
+                        label: Text(
+                          'Kopyala'.tr(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
                             color: _navy,
                           ),
                         ),
                       ),
                     ],
-                  ],
-                ),
-                SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    TextButton.icon(
-                      onPressed: () async {
-                        await Clipboard.setData(
-                            ClipboardData(text: _pairCode));
-                        if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Kod kopyalandı'.tr()),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      },
-                      icon: Icon(Icons.copy_rounded,
-                          size: 14, color: _navy),
-                      label: Text(
-                        'Kopyala'.tr(),
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: _navy,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 10),
-                    TextButton.icon(
-                      onPressed: _refreshCode,
-                      icon: Icon(Icons.refresh_rounded,
-                          size: 14, color: _navy),
-                      label: Text(
-                        'Yeni Kod'.tr(),
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: _navy,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 12),
-          // Öğrenci ID
-          Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-            color: AppPalette.card(context),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.black.withValues(alpha: 0.10)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.badge_rounded,
-                    size: 16, color: _navy),
-                SizedBox(width: 8),
-                Text(
-                  'Öğrenci ID:'.tr(),
-                  style: GoogleFonts.poppins(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    color: AppPalette.textSecondary(context),
                   ),
-                ),
-                SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    _studentId,
-                    style: GoogleFonts.firaCode(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: _navy,
-                    ),
-                  ),
-                ),
+                ],
               ],
             ),
           ),
@@ -21479,73 +21367,6 @@ class ParentReportPageState extends State<ParentReportPage> {
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.2,
               ),
-            ),
-          ),
-          SizedBox(height: 14),
-          // Bilgi kutusu — bağlantı simülasyonu (cloud sync gelene kadar)
-          Container(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            decoration: BoxDecoration(
-              color: Color(0xFFFFF7ED),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Color(0xFFFB923C).withValues(alpha: 0.40),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.info_outline_rounded,
-                    size: 16, color: Color(0xFFB45309)),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Geliştirme aşamasında'.tr(),
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFFB45309),
-                        ),
-                      ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Çoklu cihaz bağlantısı (Firebase) sonraki güncellemeyle gelecek. Şimdilik raporu görmek için aşağıdaki düğmeyi kullanabilirsin.'
-                            .tr(),
-                        style: GoogleFonts.poppins(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF7C2D12),
-                          height: 1.4,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      OutlinedButton(
-                        onPressed: _simulateLink,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Color(0xFFB45309),
-                          side: BorderSide(
-                              color: Color(0xFFFB923C)),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 4),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(100),
-                          ),
-                        ),
-                        child: Text(
-                          'Bu cihazda raporu göster (test)'.tr(),
-                          style: GoogleFonts.poppins(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ),
           ),
         ],

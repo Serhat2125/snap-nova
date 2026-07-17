@@ -137,7 +137,10 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     // eşzamanlı ~19 sembol olur (eski ~26): her frame'de %25 daha az text
     // layout + gölge çizimi. Görsel yoğunluk farkı algılanmaz, düşük donanım
     // ve startup sırasındaki kasma belirgin azalır.
-    _spawnTimer = Timer.periodic(Duration(milliseconds: 110), (_) {
+    // diskOnly (SPLASH) modunda 160 ms: açılış init'iyle yarışırken frame
+    // başına ~13 sembol yeter — dönen logo düşük cihazda da akıcı kalır.
+    _spawnTimer = Timer.periodic(
+        Duration(milliseconds: widget.diskOnly ? 160 : 110), (_) {
       if (!mounted) return;
       _spawnSymbol();
     });
@@ -149,8 +152,9 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     });
 
     // 3 sn sonra ikincil metne geç — sadece staticLabel false ve stages
-    // verilmediğinde (stages varken bu mod yok sayılır).
-    if (!widget.staticLabel && widget.stages == null) {
+    // verilmediğinde (stages varken bu mod yok sayılır). diskOnly'de metin
+    // yok → timer da yok (gereksiz setState/full-rebuild üretmesin).
+    if (!widget.staticLabel && widget.stages == null && !widget.diskOnly) {
       _stageTimer = Timer(Duration(seconds: 3), () {
         if (!mounted) return;
         setState(() => _solving = true);
@@ -169,23 +173,28 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
       });
     }
 
-    // Nokta animasyonu (300 ms aralık) — notifier ile hedef rebuild.
-    _dotTimer = Timer.periodic(Duration(milliseconds: 300), (_) {
-      if (!mounted) return;
-      _dots.value = (_dots.value + 1) % 4;
-    });
+    // diskOnly (SPLASH) modunda nokta/tip/uzun-süre UI'ları hiç render
+    // edilmiyor — timer'larını da kurma: boş yere tick + notify üretip
+    // açılış animasyonundan CPU çalmasınlar.
+    if (!widget.diskOnly) {
+      // Nokta animasyonu (300 ms aralık) — notifier ile hedef rebuild.
+      _dotTimer = Timer.periodic(Duration(milliseconds: 300), (_) {
+        if (!mounted) return;
+        _dots.value = (_dots.value + 1) % 4;
+      });
 
-    // Tip kartları — 5 saniyede bir, notifier ile.
-    _tipTimer = Timer.periodic(Duration(seconds: 5), (_) {
-      if (!mounted) return;
-      _tipIdx.value = (_tipIdx.value + 1) % _tips.length;
-    });
+      // Tip kartları — 5 saniyede bir, notifier ile.
+      _tipTimer = Timer.periodic(Duration(seconds: 5), (_) {
+        if (!mounted) return;
+        _tipIdx.value = (_tipIdx.value + 1) % _tips.length;
+      });
 
-    // 20 saniye sonra "lütfen ayrılmayın" mesajı.
-    _longRunningTimer = Timer(Duration(seconds: 20), () {
-      if (!mounted) return;
-      setState(() => _longRunning = true);
-    });
+      // 20 saniye sonra "lütfen ayrılmayın" mesajı.
+      _longRunningTimer = Timer(Duration(seconds: 20), () {
+        if (!mounted) return;
+        setState(() => _longRunning = true);
+      });
+    }
   }
 
   @override
@@ -381,12 +390,12 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
     // ClipOval ile DAİRESEL clip — orbit ring'i ve uçuşan semboller diskin
     // dışına asla taşmaz. Şekil BoxShape.circle olsa da içerideki Stack
     // rectangular bound'a göre clip yapıyordu; ClipOval gerçek daire clip.
-    // RepaintBoundary: 60fps dönen disk her frame'de SADECE kendi katmanını
-    // boyasın; splash/loader'ın dışındaki ağaç raster cache'te kalır
-    // (startup init ile yarışırken kasma azalır).
-    return RepaintBoundary(
-        child: ClipOval(
-      child: Container(
+    // Katman düzeni: gölgeli zemin Container DIŞTA (statik — bir kez
+    // rasterize edilir), RepaintBoundary İÇTE yalnız animasyonlu içeriği
+    // sarar. Eskiden blurRadius 28'lik gölge RepaintBoundary'nin içindeydi
+    // ve 60fps'te HER KAREDE yeniden çiziliyordu — düşük cihazda splash
+    // kasmasının görünür parçasıydı.
+    return Container(
       width: disc,
       height: disc,
       decoration: BoxDecoration(
@@ -399,6 +408,8 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
               offset: Offset(0, 8)),
         ],
       ),
+      child: RepaintBoundary(
+        child: ClipOval(
       child: Stack(
         alignment: Alignment.center,
         clipBehavior: Clip.hardEdge,

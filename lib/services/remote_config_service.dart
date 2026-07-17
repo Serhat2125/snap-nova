@@ -13,7 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// - Default'lar kodda tanımlı; doküman yoksa / Firestore kapalıysa default'a düşer.
 /// - **Feature flag**, A/B testi, kampanya bayrağı, deneme süresi,
 ///   model sıcaklığı gibi çalışma zamanı ayarları için tek kaynak.
-class RemoteConfigService {
+class RemoteConfigService extends ChangeNotifier {
   RemoteConfigService._();
   static final RemoteConfigService instance = RemoteConfigService._();
 
@@ -29,7 +29,14 @@ class RemoteConfigService {
     // Genel
     'trial_entry_count': 10,
     'maintenance_mode': false,
+    // Zorunlu güncelleme: cihazın build numarası (pubspec version'daki
+    // +N) bundan KÜÇÜKSE ForceUpdateGate tüm uygulamayı kapatıp mağazaya
+    // yönlendirir. Firestore config/runtime dokümanından yükseltilir.
     'min_supported_build': 1,
+    // Mağaza linkleri — ForceUpdateGate "Şimdi Güncelle" butonu.
+    'store_url_android':
+        'https://play.google.com/store/apps/details?id=com.qualsar.app',
+    'store_url_ios': '',
     // AI
     'gemini_primary_model': 'gemini-2.5-flash',
     'gemini_fallback_enabled': true,
@@ -105,6 +112,9 @@ class RemoteConfigService {
           if (kDebugMode) {
             debugPrint('$_tag uzaktan ${data.length} anahtar çekildi');
           }
+          // Dinleyiciler (ör. ForceUpdateGate) taze değerlerle yeniden
+          // değerlendirsin.
+          notifyListeners();
         }
       }
     } catch (e) {

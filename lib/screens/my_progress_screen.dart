@@ -34,6 +34,7 @@ import '../config/feature_flags.dart';
 import '../models/education_models.dart';
 import '../services/analytics.dart';
 import '../services/parent_link_service.dart';
+import '../widgets/parent_link_sheet.dart';
 import '../widgets/parent_qr_scan_dialog.dart';
 import 'parent_child_homeworks_screen.dart';
 import '../services/runtime_translator.dart';
@@ -1021,52 +1022,13 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
   }
 
   // Çocuk: kendi bağlanma kodunu üretir (ebeveynine verir).
-  Future<void> _generateMyCode() async {
-    final code = await ParentLinkService.generateChildLinkCode();
-    if (!mounted) return;
-    if (code == null) {
-      _snack('Kod üretilemedi. Giriş yaptığından emin ol.'.tr());
-      return;
-    }
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppPalette.card(ctx),
-        title: Text('Veli Bağlanma Kodu'.tr(),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w800,
-                color: AppPalette.textPrimary(ctx))),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Bu kodu veline ver; kendi uygulamasında Gelişim Paneli '
-                    'sekmesine girip "Çocuğu Bağla" ile yazsın — bağlantı '
-                    'anında kurulur.'.tr(),
-                style: GoogleFonts.poppins(
-                    fontSize: 12, height: 1.4,
-                    color: AppPalette.textSecondary(ctx))),
-            const SizedBox(height: 14),
-            SelectableText(code.code,
-                style: GoogleFonts.poppins(
-                  fontSize: 26, fontWeight: FontWeight.w900,
-                  letterSpacing: 2, color: const Color(0xFF10B981),
-                )),
-            const SizedBox(height: 8),
-            Text('24 saat geçerli.'.tr(),
-                style: GoogleFonts.poppins(
-                    fontSize: 11, color: AppPalette.textSecondary(ctx))),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Kapat'.tr()),
-          ),
-        ],
-      ),
-    );
+  //
+  // YENİDEN TASARIM: eski akış kodu ÖNCE await ediyordu — yavaş ağda buton
+  // "ölü" görünüyor, dialog hiç açılmıyordu. Artık ortak ParentLinkSheet
+  // anında açılır; kod sheet'in içinde hazırlanır (hata → Tekrar Dene),
+  // her an kapatılabilir. Profildeki "Veliyi Bağla" ile AYNI bileşen.
+  Future<void> _generateMyCode() {
+    return showParentLinkSheet(context);
   }
 
   // Ebeveyn: bir slot'a kod ile çocuk bağlar.

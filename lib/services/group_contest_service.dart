@@ -25,8 +25,11 @@
 //        joinedAt
 // ═══════════════════════════════════════════════════════════════════════════════
 
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 import 'friend_service.dart';
@@ -130,10 +133,21 @@ class GroupParticipant {
 class GroupContestService {
   GroupContestService._();
 
-  static final _fs = FirebaseFirestore.instance;
+  // ÖNEMLİ: `static final` alan İLK erişimde Firebase hazır değilse fırlatır
+  // ve build içinden çağrıldığında kırmızı hata ekranı üretir (web'de
+  // "FirebaseException is not a subtype of JavaScriptObject" olarak görünür).
+  // ContestGroupService'teki düzeltmenin aynısı: getter + Firebase.apps koruması.
+  static FirebaseFirestore get _fs => FirebaseFirestore.instance;
   static const _collection = 'group_contests';
 
-  static String? get _uid => FirebaseAuth.instance.currentUser?.uid;
+  static String? get _uid {
+    try {
+      if (Firebase.apps.isEmpty) return null;
+      return FirebaseAuth.instance.currentUser?.uid;
+    } catch (_) {
+      return null;
+    }
+  }
 
   static String inviteLinkFor(String contestId) =>
       'https://qualsar.app/grup/$contestId';
@@ -340,6 +354,10 @@ class GroupContestService {
     required int correct,
     required int total,
     required int durationMs,
+    // Soru-bazlı cevaplar (null = boş → -1 olarak saklanır). Sonuç ekranında
+    // kişi yarışı sonradan tekrar açtığında "Sorular ve Cevaplar" dökümü
+    // bellekte olmasa da kalıcı kayıttan geri yüklenebilsin diye tutulur.
+    List<int?>? answers,
   }) async {
     final uid = _uid;
     if (uid == null) return;
@@ -355,11 +373,38 @@ class GroupContestService {
         'correct': correct,
         'total': total,
         'durationMs': durationMs,
+        if (answers != null)
+          'answers': answers.map((e) => e ?? -1).toList(),
         'finishedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } catch (e) {
       debugPrint('[GroupContest] submitResult fail: $e');
     }
+  }
+
+  /// Mevcut kullanıcının bu yarışta verdiği soru-bazlı cevapları döner
+  /// (-1 → boş bırakılmış = null). Kayıt yoksa null. Sonuç ekranı, yarış
+  /// başka bir oturumda çözülmüş olsa bile döküm gösterebilsin diye kullanır.
+  static Future<List<int?>?> getMyAnswers(String contestId) async {
+    final uid = _uid;
+    if (uid == null) return null;
+    try {
+      final doc = await _fs
+          .collection(_collection)
+          .doc(contestId)
+          .collection('participants')
+          .doc(uid)
+          .get();
+      final raw = doc.data()?['answers'];
+      if (raw is List) {
+        return raw
+            .map((e) => (e is int && e >= 0) ? e : null)
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[GroupContest] getMyAnswers fail: $e');
+    }
+    return null;
   }
 
   // ─── Okuma ─────────────────────────────────────────────────────────────────
@@ -412,25 +457,42 @@ class GroupContestService {
   }
 
   /// Katılımcı/sıralama akışı — skor desc, süre asc.
+  ///
+  /// async* + try/catch: sorgu kurulumu veya listen SIRASINDA fırlayan hata
+  /// (web interop bunu senkron fırlatabiliyor) build'i çökertmek yerine
+  /// boş liste + debug log'a düşer.
   static Stream<List<GroupParticipant>> participantsStream(
-      String contestId) {
-    return _fs
-        .collection(_collection)
-        .doc(contestId)
-        .collection('participants')
-        .snapshots()
-        .map((snap) {
-      final list = snap.docs
-          .map((d) => GroupParticipant.fromDoc(d.id, d.data()))
-          .toList();
-      // Bitirenler önce (skor desc, süre asc); bekleyenler sona.
-      list.sort((a, b) {
-        if (a.isDone != b.isDone) return a.isDone ? -1 : 1;
-        if (a.score != b.score) return b.score.compareTo(a.score);
-        return a.durationMs.compareTo(b.durationMs);
-      });
-      return list;
-    });
+      String contestId) async* {
+    try {
+      yield* _fs
+          .collection(_collection)
+          .doc(contestId)
+          .collection('participants')
+          .snapshots()
+          .map((snap) {
+        final list = snap.docs
+            .map((d) => GroupParticipant.fromDoc(d.id, d.data()))
+            .toList();
+        // Bitirenler önce (skor desc, süre asc); bekleyenler sona.
+        list.sort((a, b) {
+          if (a.isDone != b.isDone) return a.isDone ? -1 : 1;
+          if (a.score != b.score) return b.score.compareTo(a.score);
+          return a.durationMs.compareTo(b.durationMs);
+        });
+        return list;
+      }).transform(StreamTransformer<List<GroupParticipant>,
+          List<GroupParticipant>>.fromHandlers(
+        // handleError'da `return` değer yaymaz — sink'e boş liste bas
+        // (friend_service'teki düzeltmeyle aynı).
+        handleError: (e, st, sink) {
+          debugPrint('[GroupContest] participantsStream error: $e');
+          sink.add(const <GroupParticipant>[]);
+        },
+      ));
+    } catch (e) {
+      debugPrint('[GroupContest] participantsStream fail: $e');
+      yield const <GroupParticipant>[];
+    }
   }
 
   /// Mevcut kullanıcının katıldığı, süresi geçmemiş GRUP yarışmaları.
@@ -439,43 +501,59 @@ class GroupContestService {
   ///   N yarışta N tur ağ beklemesi yapıyordu; sekme uzun süre boş kalıyordu.
   /// • Yalnız groupId'si DOLU yarışmalar döner: 1v1 / grupsuz yarışlar
   ///   "Arkadaşımla Yarışlarım" tarafında kalır, bu sekmeye karışmaz.
-  static Stream<List<GroupContest>> myContestsStream() {
-    final uid = _uid;
-    if (uid == null) {
-      return const Stream<List<GroupContest>>.empty();
-    }
-    Future<DocumentSnapshot<Map<String, dynamic>>?> safeGet(
-        DocumentReference<Map<String, dynamic>> ref) async {
-      try {
-        return await ref.get();
-      } catch (_) {
-        return null;
+  static Stream<List<GroupContest>> myContestsStream() async* {
+    // async* + try/catch: build içinden çağrıldığı için sorgu kurulumu /
+    // listen sırasındaki senkron hata (web'de "FirebaseException is not a
+    // subtype of JavaScriptObject" kırmızı ekranı) UI'ı çökertmesin.
+    try {
+      final uid = _uid;
+      if (uid == null) {
+        yield const <GroupContest>[];
+        return;
       }
-    }
+      Future<DocumentSnapshot<Map<String, dynamic>>?> safeGet(
+          DocumentReference<Map<String, dynamic>> ref) async {
+        try {
+          return await ref.get();
+        } catch (_) {
+          return null;
+        }
+      }
 
-    // collectionGroup ile katıldıklarımı bul → parent contest'leri çek.
-    return _fs
-        .collectionGroup('participants')
-        .where('uid', isEqualTo: uid)
-        .snapshots()
-        .asyncMap((snap) async {
-      final parents = <DocumentReference<Map<String, dynamic>>>{};
-      for (final d in snap.docs) {
-        final p = d.reference.parent.parent;
-        if (p != null) parents.add(p);
-      }
-      final docs = await Future.wait(parents.map(safeGet));
-      final out = <GroupContest>[];
-      for (final c in docs) {
-        if (c == null || !c.exists) continue;
-        final contest = GroupContest.fromDoc(c.id, c.data() ?? const {});
-        if (contest.groupId.isEmpty) continue; // 1v1/grupsuz → bu sekmede yok
-        if (contest.isExpired) continue;
-        out.add(contest);
-      }
-      out.sort((a, b) => (b.createdAt ?? DateTime(0))
-          .compareTo(a.createdAt ?? DateTime(0)));
-      return out;
-    });
+      // collectionGroup ile katıldıklarımı bul → parent contest'leri çek.
+      yield* _fs
+          .collectionGroup('participants')
+          .where('uid', isEqualTo: uid)
+          .snapshots()
+          .asyncMap((snap) async {
+        final parents = <DocumentReference<Map<String, dynamic>>>{};
+        for (final d in snap.docs) {
+          final p = d.reference.parent.parent;
+          if (p != null) parents.add(p);
+        }
+        final docs = await Future.wait(parents.map(safeGet));
+        final out = <GroupContest>[];
+        for (final c in docs) {
+          if (c == null || !c.exists) continue;
+          final contest = GroupContest.fromDoc(c.id, c.data() ?? const {});
+          if (contest.groupId.isEmpty) continue; // 1v1/grupsuz → bu sekmede yok
+          if (contest.isExpired) continue;
+          out.add(contest);
+        }
+        out.sort((a, b) => (b.createdAt ?? DateTime(0))
+            .compareTo(a.createdAt ?? DateTime(0)));
+        return out;
+      }).transform(
+              StreamTransformer<List<GroupContest>, List<GroupContest>>.fromHandlers(
+        // handleError'da `return` değer yaymaz — sink'e boş liste bas.
+        handleError: (e, st, sink) {
+          debugPrint('[GroupContest] myContestsStream error: $e');
+          sink.add(const <GroupContest>[]);
+        },
+      ));
+    } catch (e) {
+      debugPrint('[GroupContest] myContestsStream fail: $e');
+      yield const <GroupContest>[];
+    }
   }
 }

@@ -21,6 +21,8 @@
 //      createdAt, updatedAt
 // ═══════════════════════════════════════════════════════════════════════════════
 
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -142,22 +144,40 @@ class ContestGroupService {
   }
 
   /// Gelen grup yarışı davetleri — en yeni en başta.
-  static Stream<List<GroupInvite>> watchGroupInvites() {
-    final uid = _uid;
-    if (uid == null) return Stream.value(const <GroupInvite>[]);
-    return _fs
-        .collection('notifications')
-        .doc(uid)
-        .collection('items')
-        .where('type', isEqualTo: 'group_contest_invite')
-        .snapshots()
-        .map((s) {
-      final list = s.docs
-          .map((d) => GroupInvite.fromDoc(d.id, d.data()))
-          .toList();
-      list.sort((a, b) => b.when.compareTo(a.when));
-      return list;
-    });
+  ///
+  /// async* + try/catch: build içinden çağrılır; sorgu kurulumu/listen
+  /// sırasındaki senkron hata (web interop) kırmızı ekran üretmesin.
+  static Stream<List<GroupInvite>> watchGroupInvites() async* {
+    try {
+      final uid = _uid;
+      if (uid == null) {
+        yield const <GroupInvite>[];
+        return;
+      }
+      yield* _fs
+          .collection('notifications')
+          .doc(uid)
+          .collection('items')
+          .where('type', isEqualTo: 'group_contest_invite')
+          .snapshots()
+          .map((s) {
+        final list = s.docs
+            .map((d) => GroupInvite.fromDoc(d.id, d.data()))
+            .toList();
+        list.sort((a, b) => b.when.compareTo(a.when));
+        return list;
+      }).transform(
+              StreamTransformer<List<GroupInvite>, List<GroupInvite>>.fromHandlers(
+        // handleError'da `return` değer yaymaz — sink'e boş liste bas.
+        handleError: (e, st, sink) {
+          debugPrint('[ContestGroup] watchGroupInvites error: $e');
+          sink.add(const <GroupInvite>[]);
+        },
+      ));
+    } catch (e) {
+      debugPrint('[ContestGroup] watchGroupInvites fail: $e');
+      yield const <GroupInvite>[];
+    }
   }
 
   /// Bir grup davetini (bildirimi) sil.
@@ -244,23 +264,38 @@ class ContestGroupService {
 
   /// Mevcut kullanıcının üye olduğu gruplar — en son kullanılan en başta,
   /// en fazla 4 grup.
-  static Stream<List<ContestGroup>> myGroupsStream() {
-    final uid = _uid;
-    if (uid == null) {
-      return const Stream<List<ContestGroup>>.empty();
+  static Stream<List<ContestGroup>> myGroupsStream() async* {
+    // async* + try/catch: build içinden çağrılır; senkron kurulum/listen
+    // hatası kırmızı ekran yerine boş liste + debug log'a düşsün.
+    try {
+      final uid = _uid;
+      if (uid == null) {
+        yield const <ContestGroup>[];
+        return;
+      }
+      yield* _fs
+          .collection(_collection)
+          .where('memberUids', arrayContains: uid)
+          .snapshots()
+          .map((snap) {
+        final list = snap.docs
+            .map((d) => ContestGroup.fromDoc(d.id, d.data()))
+            .toList();
+        list.sort((a, b) => (b.updatedAt ?? DateTime(0))
+            .compareTo(a.updatedAt ?? DateTime(0)));
+        return list.take(4).toList();
+      }).transform(
+              StreamTransformer<List<ContestGroup>, List<ContestGroup>>.fromHandlers(
+        // handleError'da `return` değer yaymaz — sink'e boş liste bas.
+        handleError: (e, st, sink) {
+          debugPrint('[ContestGroup] myGroupsStream error: $e');
+          sink.add(const <ContestGroup>[]);
+        },
+      ));
+    } catch (e) {
+      debugPrint('[ContestGroup] myGroupsStream fail: $e');
+      yield const <ContestGroup>[];
     }
-    return _fs
-        .collection(_collection)
-        .where('memberUids', arrayContains: uid)
-        .snapshots()
-        .map((snap) {
-      final list = snap.docs
-          .map((d) => ContestGroup.fromDoc(d.id, d.data()))
-          .toList();
-      list.sort((a, b) => (b.updatedAt ?? DateTime(0))
-          .compareTo(a.updatedAt ?? DateTime(0)));
-      return list.take(4).toList();
-    });
   }
 
   static Future<ContestGroup?> getGroup(String groupId) async {

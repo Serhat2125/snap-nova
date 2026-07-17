@@ -162,6 +162,15 @@ flutter:
     - assets/dunya-cografyasi.html
     - assets/three.module.min.js
     - assets/three.global.js
+    # Kütüphanem oyunu — Bilgi Labirenti / Yedi Mühür (offline: yerel gömülü
+    # React + ReactDOM + Three.js r128 + Tailwind; internetsiz çalışır)
+    - assets/bilgi-labirenti-yedi-muhur.html
+    - assets/react.production.min.js
+    - assets/react-dom.production.min.js
+    - assets/three.r128.min.js
+    - assets/tailwind.play.js
+    # Sınıf-bazlı statik içerik (offline: her sınıf ≥100 soru + ≥100 bilgi)
+    - assets/labirent_content/
     # CC0 hazır 3D modeller (base64 gömülü) + GLB yükleyici
     - assets/gltf-loader.global.js
     - assets/models/pil.glb.js

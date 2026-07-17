@@ -22,6 +22,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 
+import '../services/contest_group_service.dart';
 import '../services/group_contest_service.dart';
 import '../services/parent_preview.dart';
 import '../services/runtime_translator.dart';
@@ -65,6 +66,12 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
 
   _Phase _phase = _Phase.loading;
   GroupContest? _contest;
+  // Kayıtlı gruba bağlıysa: üye kadrosu + simge + durum mesajı. Sonuç
+  // tablosunda TÜM grup üyeleri (henüz çözmeyenler dahil) listelenir ve
+  // başlıkta grubun simgesi/mesajı gösterilir.
+  ContestGroup? _group;
+  // Sonuç ekranında "Sorular ve Cevaplar" dökümü aç/kapa (varsayılan gizli).
+  bool _answersExpanded = false;
   bool _alreadyFinished = false;
   // Sonuç tablosunu PNG olarak yakalamak için (görsel paylaş).
   final GlobalKey _tableShareKey = GlobalKey();
@@ -96,10 +103,30 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
       return;
     }
     final finished = await GroupContestService.hasFinished(widget.contestId);
+    // Kayıtlı gruba bağlıysa üye kadrosunu çek — sonuç tablosunda herkes
+    // (henüz çözmeyenler dahil) görünsün, "Herkes bitirdi" ancak gerçekten
+    // herkes bitince yazılsın; başlıkta grubun simgesi + mesajı çıksın.
+    ContestGroup? group;
+    if (c.groupId.isNotEmpty) {
+      group = await ContestGroupService.getGroup(c.groupId);
+    }
+    // Daha önce (belki başka oturumda) bitirdiysen cevapların kalıcı kayıtlı;
+    // "Sorular ve Cevaplar" dökümü için geri yükle.
+    List<int?>? savedAnswers;
+    if (finished) {
+      savedAnswers = await GroupContestService.getMyAnswers(widget.contestId);
+    }
     if (!mounted) return;
     setState(() {
       _contest = c;
+      _group = group;
       _alreadyFinished = finished;
+      if (savedAnswers != null &&
+          savedAnswers.length == c.questions.length) {
+        _answers
+          ..clear()
+          ..addAll(savedAnswers);
+      }
       _phase = finished ? _Phase.result : _Phase.lobby;
     });
     // Başlatan kişi (autoStart) → lobiyi atla, doğrudan sorulara geç.
@@ -185,6 +212,7 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
       correct: correct,
       total: qs.length,
       durationMs: durationMs,
+      answers: List<int?>.from(_answers),
     );
     if (!mounted) return;
     setState(() {
@@ -247,13 +275,21 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
     return subj.isEmpty ? 'Grup Sıralaması'.tr() : subj;
   }
 
-  /// "Ders: Kimya · Konu: Atom" satırı (tablonun üstünde gösterilir).
-  String _dersKonuLine() {
-    final c = _contest;
-    if (c == null) return '';
-    final konu = c.topic.trim().isNotEmpty ? ' · Konu: ${c.topic}' : '';
-    return 'Ders: ${c.subjectName}$konu';
+  /// Grup simgesi (emoji) — kayıtlı grup varsa onun avatarı, yoksa 👥.
+  String _groupEmoji() {
+    final a = _group?.avatar.trim() ?? '';
+    return a.isNotEmpty ? a : '👥';
   }
+
+  /// Grup adı — kayıtlı grup > ekrana verilen groupName > boş.
+  String _groupTitle() {
+    final g = _group?.name.trim() ?? '';
+    if (g.isNotEmpty) return g;
+    return widget.groupName?.trim() ?? '';
+  }
+
+  /// Grubun durum mesajı (varsa).
+  String _groupMessage() => _group?.status.trim() ?? '';
 
   /// Sonuç tablosunu (grup ismi + Excel tablo) PNG olarak yakalayıp paylaşır.
   Future<void> _shareResultImage() async {
@@ -726,12 +762,34 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
     return StreamBuilder<List<GroupParticipant>>(
       stream: GroupContestService.participantsStream(widget.contestId),
       builder: (context, snap) {
-        // Gerçek katılımcılar (Firestore) + yerel demo botları birleştir,
-        // başarıya göre yeniden sırala (bitiren önce, skor↓, süre↑).
-        final list = <GroupParticipant>[
+        // Gerçek katılımcılar (Firestore) + yerel demo botları uid'e göre
+        // birleştir; ardından kayıtlı GRUBUN henüz çözmemiş üyelerini de
+        // "bekliyor" satırı olarak ekle — sıralama SADECE ben değil, grubun
+        // TAMAMIdır ve "Herkes bitirdi" ancak herkes bitince yazılır.
+        final byUid = <String, GroupParticipant>{};
+        for (final p in [
           ...(snap.data ?? const <GroupParticipant>[]),
           ...widget.demoParticipants,
-        ]..sort((a, b) {
+        ]) {
+          byUid[p.uid] = p;
+        }
+        for (final m in (_group?.members ?? const <Map<String, dynamic>>[])) {
+          final mu = (m['uid'] ?? '').toString();
+          if (mu.isEmpty || byUid.containsKey(mu)) continue;
+          byUid[mu] = GroupParticipant(
+            uid: mu,
+            username: (m['username'] ?? 'Oyuncu').toString(),
+            avatar: (m['avatar'] ?? '👤').toString(),
+            status: 'joined',
+            score: 0,
+            correct: 0,
+            total: 0,
+            durationMs: 0,
+          );
+        }
+        // Başarıya göre sırala (bitiren önce, skor↓, süre↑).
+        final list = byUid.values.toList()
+          ..sort((a, b) {
             if (a.isDone != b.isDone) return a.isDone ? -1 : 1;
             if (a.score != b.score) return b.score.compareTo(a.score);
             return a.durationMs.compareTo(b.durationMs);
@@ -769,24 +827,41 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Solda grup ismi, altında "Ders: X · Konu: Y".
+                    // Grup simgesi + adı + durum mesajı; altında Ders ve
+                    // Konu AYRI satırlarda.
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        if ((widget.groupName ?? '').trim().isNotEmpty) ...[
-                          Text('👥 ${widget.groupName!.trim()}',
+                        if (_groupTitle().isNotEmpty) ...[
+                          Text('${_groupEmoji()}  ${_groupTitle()}',
                               style: GoogleFonts.fraunces(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w900,
                                   color: const Color(0xFF111111))),
-                          const SizedBox(height: 3),
+                          if (_groupMessage().isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(_groupMessage(),
+                                style: GoogleFonts.inter(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF6B7280))),
+                          ],
+                          const SizedBox(height: 5),
                         ],
-                        Text(_dersKonuLine(),
+                        Text('${"Ders:".tr()} ${_contest?.subjectName ?? ''}',
                             style: GoogleFonts.inter(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
                                 color: const Color(0xFF374151))),
+                        if ((_contest?.topic.trim() ?? '').isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text('${"Konu:".tr()} ${_contest!.topic.trim()}',
+                              style: GoogleFonts.inter(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF374151))),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -835,23 +910,32 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
     );
   }
 
-  // ── Soru bazlı doğru/yanlış dökümü (yalnızca testi bu oturumda bitirene) ─────
+  /// Bu oturumda / kayıttan bilinen cevap (yoksa null = boş kabul edilir).
+  int? _answerAt(int i) =>
+      (i >= 0 && i < _answers.length) ? _answers[i] : null;
+
+  // ── Soru bazlı döküm — bu yarışın TÜM soruları kalıcı kayıtlıdır; altta
+  // "Sorular ve Cevaplar" başlığından AÇ/KAPA edilir (varsayılan gizli).
+  // Cevaplar bellekte olmasa bile (yarış başka oturumda çözülmüş) sorular +
+  // doğru şıklar gösterilir; kayıtlı cevap varsa senin şıkkın işaretlenir.
   Widget _myAnswersBreakdown() {
     final c = _contest;
     if (c == null) return const SizedBox.shrink();
     final qs = c.questions;
-    // Cevaplar sadece testi bu oturumda çözende bellekte olur.
-    if (_answers.length != qs.length) return const SizedBox.shrink();
+    if (qs.isEmpty) return const SizedBox.shrink();
 
+    final hasAnswers = _answers.length == qs.length;
     int correct = 0, wrong = 0, blank = 0;
-    for (int i = 0; i < qs.length; i++) {
-      final a = _answers[i];
-      if (a == null) {
-        blank++;
-      } else if (a == ((qs[i]['correctIndex'] as int?) ?? 0)) {
-        correct++;
-      } else {
-        wrong++;
+    if (hasAnswers) {
+      for (int i = 0; i < qs.length; i++) {
+        final a = _answers[i];
+        if (a == null) {
+          blank++;
+        } else if (a == ((qs[i]['correctIndex'] as int?) ?? 0)) {
+          correct++;
+        } else {
+          wrong++;
+        }
       }
     }
 
@@ -859,23 +943,59 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 22),
-        Text('Senin Cevapların'.tr(),
-            style: GoogleFonts.fraunces(
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-                color: AppPalette.textPrimary(context))),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            _summaryChip('$correct ${"doğru".tr()}', const Color(0xFF16A34A)),
-            const SizedBox(width: 8),
-            _summaryChip('$wrong ${"yanlış".tr()}', const Color(0xFFDC2626)),
-            const SizedBox(width: 8),
-            _summaryChip('$blank ${"boş".tr()}', AppPalette.textSecondary(context)),
-          ],
+        // Aç/kapa başlığı.
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () =>
+              setState(() => _answersExpanded = !_answersExpanded),
+          child: Row(
+            children: [
+              Icon(
+                  _answersExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: _orange),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text('Sorular ve Cevaplar'.tr(),
+                    style: GoogleFonts.fraunces(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: AppPalette.textPrimary(context))),
+              ),
+              Text('${qs.length} ${"soru".tr()}',
+                  style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppPalette.textSecondary(context))),
+              const SizedBox(width: 10),
+              Text(_answersExpanded ? 'Gizle'.tr() : 'Göster'.tr(),
+                  style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: _orange)),
+            ],
+          ),
         ),
-        const SizedBox(height: 12),
-        for (int i = 0; i < qs.length; i++) _answerCard(qs[i], i),
+        if (_answersExpanded) ...[
+          const SizedBox(height: 10),
+          if (hasAnswers) ...[
+            Row(
+              children: [
+                _summaryChip(
+                    '$correct ${"doğru".tr()}', const Color(0xFF16A34A)),
+                const SizedBox(width: 8),
+                _summaryChip(
+                    '$wrong ${"yanlış".tr()}', const Color(0xFFDC2626)),
+                const SizedBox(width: 8),
+                _summaryChip('$blank ${"boş".tr()}',
+                    AppPalette.textSecondary(context)),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+          for (int i = 0; i < qs.length; i++) _answerCard(qs[i], i),
+        ],
       ],
     );
   }
@@ -897,7 +1017,7 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
   Widget _answerCard(Map<String, dynamic> q, int i) {
     final opts = _optsOf(q);
     final correctIdx = (q['correctIndex'] as int?) ?? 0;
-    final mine = _answers[i];
+    final mine = _answerAt(i);
     final isBlank = mine == null;
     final isCorrect = !isBlank && mine == correctIdx;
     final Color statusColor = isBlank

@@ -663,6 +663,13 @@ MÜFREDAT DIŞI içerik = HATA → ASLA üretme.''';
         } else {
           rethrow;
         }
+      } catch (e) {
+        // Beklenmeyen her şey (Firebase [core/no-app], web'de
+        // http.ClientException/CORS vb.) → local key fallback.
+        // Eskiden bu tipler yakalanmayıp direkt hata olarak yükseliyordu;
+        // kullanıcı "internet yok" mesajı görüyordu, oysa direct API çalışıyor.
+        _log('Proxy beklenmeyen hata (${e.runtimeType}: $e) → local key fallback');
+        proxyFallback = true;
       }
       // Fallback aktif değilse — proxy başarılı olmuştur (kod yukarıda
       // return etmiştir) veya zaten _handleError throw etmiştir.

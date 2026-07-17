@@ -593,11 +593,6 @@ class _AICoachChatScreenState extends State<AICoachChatScreen> {
   }
 
   // ── Send ───────────────────────────────────────────────────────────────
-  /// Kullanıcı mesajı eklendiğinde max scroll extent — AI cevabı geldikten
-  /// sonra bu pozisyon kullanılarak kullanıcı mesajı ekranın ÜSTÜNE
-  /// kaydırılır (uzun cevaplarda kullanıcı sorunun başını da görsün).
-  double? _userMessageBottomAnchor;
-
   Future<void> _send() async {
     final text = _ctrl.text.trim();
     if (text.isEmpty || _sending) return;
@@ -615,8 +610,8 @@ class _AICoachChatScreenState extends State<AICoachChatScreen> {
       _ctrl.clear();
       _sending = true;
     });
-    // Kullanıcı mesajı görünür olsun + max extent kaydı
-    _scrollToBottom(captureAnchor: true);
+    // Kullanıcı mesajı görünür olsun — sohbet en alta kayar.
+    _scrollToBottom();
     unawaited(_persistCurrent());
 
     try {
@@ -648,8 +643,10 @@ class _AICoachChatScreenState extends State<AICoachChatScreen> {
         ));
         _sending = false;
       });
-      // AI cevabı geldi — kullanıcı mesajını ekranın üstüne taşı.
-      _scrollUserMessageToTop();
+      // AI cevabı geldi — WhatsApp gibi: sohbet EN ALTA kayar, cevap tam
+      // görünür (eski "soruyu üste hizala" davranışı uzun cevabı ekran
+      // dışında bırakıyordu).
+      _scrollToBottom();
       unawaited(_persistCurrent());
     } catch (_) {
       if (!mounted) return;
@@ -663,54 +660,29 @@ class _AICoachChatScreenState extends State<AICoachChatScreen> {
         ));
         _sending = false;
       });
-      _scrollUserMessageToTop();
+      _scrollToBottom();
     }
   }
 
-  void _scrollToBottom({bool captureAnchor = false}) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+  /// WhatsApp davranışı: her yeni mesajda (kullanıcı + AI) sohbet EN ALTA
+  /// kayar. Uzun AI cevaplarında layout bir sonraki frame'de büyüyebildiği
+  /// için hedef İKİ frame üst üste doğrulanır — tek animateTo maxExtent'i
+  /// eski (küçük) değerle yakalayıp cevabı yarıda bırakabiliyordu.
+  void _scrollToBottom() {
+    void go() {
       if (!_scroll.hasClients) return;
-      final maxE = _scroll.position.maxScrollExtent;
-      if (captureAnchor) _userMessageBottomAnchor = maxE;
       _scroll.animateTo(
-        maxE,
+        _scroll.position.maxScrollExtent,
         duration: const Duration(milliseconds: 280),
         curve: Curves.easeOutCubic,
       );
-    });
-  }
+    }
 
-  /// AI cevabı geldikten sonra kullanıcı mesajını ekranın üstüne hizala:
-  /// scroll pozisyonu = (kullanıcı mesajı bottom pozisyonu) - viewport + msg_yüksekliği.
-  /// Tahmin: msg yüksekliği ~80px (1-3 satır kullanıcı mesajı için tipik).
-  void _scrollUserMessageToTop() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scroll.hasClients) return;
-      final anchor = _userMessageBottomAnchor;
-      if (anchor == null) {
-        // Anchor yoksa düşük seviyeye in — son kullanıcı msg'ı yaklaşık üstte
-        _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 280),
-          curve: Curves.easeOutCubic,
-        );
-        return;
-      }
-      // Tahmini kullanıcı mesaj yüksekliği — 80 px. Çok kısa/uzun mesajlarda
-      // küçük bir kayma olabilir ama AI cevabı her zaman başından okunur.
-      const estUserMsgHeight = 80.0;
-      // anchor = kullanıcı mesajı bottom pozisyonu (max extent o anki)
-      // Hedef: kullanıcı mesajı viewport top'ında.
-      // user_top = anchor - estUserMsgHeight
-      // scrollOffset = user_top → kullanıcı mesajı viewport top'a yapışır.
-      final target = (anchor - estUserMsgHeight)
-          .clamp(0.0, _scroll.position.maxScrollExtent);
-      _scroll.animateTo(
-        target,
-        duration: const Duration(milliseconds: 380),
-        curve: Curves.easeOutCubic,
-      );
-      _userMessageBottomAnchor = null;
+      go();
+      // Markdown/uzun metin bir frame sonra ek yükseklik kazanabilir —
+      // ikinci geçiş son konumu garantiler.
+      WidgetsBinding.instance.addPostFrameCallback((_) => go());
     });
   }
 

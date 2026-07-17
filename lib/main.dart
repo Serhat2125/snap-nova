@@ -54,6 +54,7 @@ import 'services/remote_config_service.dart';
 import 'services/runtime_translator.dart';
 import 'services/subscription_service.dart';
 import 'widgets/smart_sidebar.dart';
+import 'widgets/force_update_gate.dart';
 import 'widgets/qualsar_splash_screen.dart';
 import 'widgets/parental_control_gate.dart';
 
@@ -243,14 +244,12 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
       }
     }
 
-    // Voice & TTS — Sesli Komut için. Hata atmaz; başarısızsa no-op.
-    unawaited(VoiceInputService.init());
-    unawaited(TtsService.init());
+    // Voice/TTS/kamera/billing/push → ERTELENDİ (aşağıda
+    // startDeferredServices): bu servislerin native bağlanmaları Android
+    // ana thread'ini meşgul edip splash animasyonunu kare kare
+    // takıltıyordu ("dönen logo ara ara duruyor").
 
     await Future.wait<void>([
-      guarded('camera_enumeration', () async {
-        globalCameras = await availableCameras();
-      }),
       guarded('locale_init', localeService.init),
       guarded('theme_init', themeService.init),
       guarded('connectivity_init', connectivityService.init),
@@ -268,16 +267,6 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     // otomatik FREE ↔ PREMIUM arasında swap edilir. Ödemeden sonra anında
     // yeni kotaya geçer; init'te de mevcut durum okunur.
     unawaited(UsageQuota.initPremiumListener());
-    // Pomodoro istatistikleri cloud restore — yerel boşsa cloud'dan al,
-    // yeni telefonda streak + toplam faz + rozet korunur.
-    unawaited(PomodoroStats.restoreFromCloudIfEmpty());
-    // Çalışma aktivite geçmişi cloud restore — yerel boşsa cloud'dan al;
-    // yeni cihazda Gelişim Paneli/haftalık özet, takvim açılmadan da dolu gelir.
-    unawaited(restoreActivityFromCloudIfEmpty());
-    // Uygulama Tercihleri cloud restore (dil/tema/bildirim/açılış ekranı)
-    // — yerel eksikse cloud'daki kullanıcı tercihlerini yere yaz, yeni
-    // telefonda kullanıcı ayarlarını tekrar yapmasın.
-    unawaited(PreferencesSyncService.restoreFromCloudIfEmpty());
     // AppSettings + AccountService yukarıdaki PARALEL Future.wait bloğunda
     // init edildi (tekrar await etmeye gerek yok; her ikisi idempotent olsa
     // da çift init = çift prefs okuması demek).
@@ -285,9 +274,10 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     // Cache hızlı; offline'da bile username görünür.
     unawaited(UserProfileService.instance.init());
     // FCM push + local notifications — Firebase init başarılıysa.
-    // Bildirim izni dialog'u burada çıkar; arka planda çalışır, UI bloklamaz.
-    if (AuthService.firebaseReady) {
-      unawaited(PushService.init(onTap: (payload) {
+    // Bildirim izni dialog'u burada çıkar; ERTELENMİŞ başlatılır (aşağıda).
+    Future<void> initPushAndReminders() async {
+      if (!AuthService.firebaseReady) return;
+      await PushService.init(onTap: (payload) {
         // Bildirime basınca türüne göre ilgili sayfaya yönlendir.
         final type = payload['type']?.toString() ?? '';
         final nav = globalNavigatorKey.currentState;
@@ -349,7 +339,7 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
 
         AccountService.instance.addListener(syncStudentReminders);
         syncStudentReminders(); // mevcut durumu hemen uygula
-      }));
+      });
     }
     // Deep link davet handler — uygulamayı linkten açana profil/davet sayfasını gösterir.
     unawaited(DeepLinkService.instance.init());
@@ -448,16 +438,39 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
     // (App kill / crash sonrası en kötü 30sn kayıpla session yine yazılır.)
     unawaited(StudySessionTracker.recoverPendingSession());
 
-    // Play Billing / StoreKit purchase stream'ini başlat (async, blocking değil).
-    // App startup'tan sonra ilk satın alma denenebilir; sub_service stream
-    // dinleyiciyi bu çağrıyla bağlar.
-    unawaited(SubscriptionService.instance.init());
-
     // ProviderScope: Yeni feature katmanları (lib/features/...) Riverpod
     // kullanır; eski ekranlar StatefulWidget+setState ile çalışmaya devam
     // eder — wrapper sadece yeni provider'ları aktive eder, eski koda
     // hiçbir etkisi yok.
     _launchAppOnce();
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  ERTELENMİŞ AĞIR SERVİSLER — uygulama AÇILDIKTAN 3 sn sonra.
+    //  TTS/mikrofon motoru bağlama, kamera enumerasyonu, Play Billing
+    //  bağlantısı, bildirim kanalı + izin diyaloğu ve cloud restore'lar
+    //  Android ana thread'ini / IO'yu meşgul eder; splash animasyonuyla
+    //  YARIŞINCA dönen logo kare kare takılıyordu ("ara ara duruyor").
+    //  Hiçbiri ilk ekran için gerekli değil; 3 sn gecikme kullanıcıya
+    //  hissedilmez, açılış akıcı kalır.
+    // ═══════════════════════════════════════════════════════════════════
+    Timer(const Duration(seconds: 3), () {
+      unawaited(VoiceInputService.init());
+      unawaited(TtsService.init());
+      // Kamera listesi — bazı cihazlarda enumerasyon 1-3sn ana thread yer.
+      // CameraScreen globalCameras boşsa kendisi doldurur (fallback hazır).
+      unawaited(guarded('camera_enumeration', () async {
+        globalCameras = await availableCameras();
+      }));
+      // Play Billing / StoreKit purchase stream'i.
+      unawaited(SubscriptionService.instance.init());
+      // FCM push + local notifications + öğrenci hatırlatıcıları.
+      unawaited(initPushAndReminders());
+      // Cloud restore'lar (yalnız yerel boşsa yazar; aciliyeti yok):
+      // pomodoro istatistikleri, çalışma aktivite geçmişi, tercihler.
+      unawaited(PomodoroStats.restoreFromCloudIfEmpty());
+      unawaited(restoreActivityFromCloudIfEmpty());
+      unawaited(PreferencesSyncService.restoreFromCloudIfEmpty());
+    });
   }, (error, stack) {
     // Zone dışına sızan her şey — hem ErrorLogger hem Crashlytics'e gönder.
     ErrorLogger.instance.capture(
@@ -568,12 +581,12 @@ class _StartupRouterState extends State<_StartupRouter>
   }
 
   Future<_StartupState> _resolve() async {
-    // Splash en az süresi. Eskiden 5sn'di — "uygulama yavaş açılıyor"
-    // şikayetinin en büyük parçası YAPAY bekleme çıktı. 2.2sn: başlık anında,
-    // dönen disk ~0.8sn'de belirir (qualsar_splash_screen._logoRevealAfter),
-    // marka anı korunur ama açılış 2.8sn kısalır. TEST modunda 0.5sn.
+    // Splash en az süresi: 0 — "uygulamaya basar basmaz anlık açılsın"
+    // (WhatsApp/TikTok gibi). Marka splash'ı zaten GERÇEK init süresi boyunca
+    // görünüyor (_InstantSplashApp); üstüne yapay bekleme eklemek (eski 5sn,
+    // sonra 2.2sn) açılışı sırf marka için uzatıyordu. TEST modunda 0.5sn.
     final minSplash = Future<void>.delayed(
-        Duration(milliseconds: kTestBypassAuth ? 500 : 2200));
+        Duration(milliseconds: kTestBypassAuth ? 500 : 0));
     final prefs = await SharedPreferences.getInstance();
 
     // ── GELİŞTİRME BYPASS (yapım aşaması) ──────────────────────────────
@@ -593,8 +606,6 @@ class _StartupRouterState extends State<_StartupRouter>
       try {
         await EduProfile.load();
       } catch (_) {/* yok say */}
-      // Kısa splash (animasyonu görmeden hızlı gir)
-      await Future<void>.delayed(const Duration(milliseconds: 300));
       return _StartupState.home;
     }
     // ───────────────────────────────────────────────────────────────────
@@ -1172,6 +1183,11 @@ class QuAlsarApp extends StatelessWidget {
                         // Ebeveyn kontrolü kilidi (yalnız öğrenci hesabı + ayar
                         // varsa görünür). Her şeyin ÜSTÜNDE.
                         const ParentalControlGate(),
+                        // Zorunlu güncelleme + bakım modu — EN ÜSTTE:
+                        // config/runtime'daki min_supported_build cihaz
+                        // build'inden büyükse tüm uygulamayı kilitleyip
+                        // mağazaya yönlendirir.
+                        const ForceUpdateGate(),
                       ],
                     ),
                   ),

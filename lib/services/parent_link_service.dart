@@ -217,6 +217,23 @@ class ParentLinkService {
 
   static String? get _myUid => FirebaseAuth.instance.currentUser?.uid;
 
+  /// Uid yoksa anonim oturum açmayı dener (ClassService._ensureUid ile aynı
+  /// desen). Açılıştaki arka plan signInAnonymously sessizce başarısız
+  /// olabiliyor; kod üretimi buna takılıp "Kod üretilemedi" demesin.
+  static Future<String?> _ensureUid() async {
+    final existing = _myUid;
+    if (existing != null) return existing;
+    try {
+      final cred = await FirebaseAuth.instance
+          .signInAnonymously()
+          .timeout(const Duration(seconds: 8));
+      return cred.user?.uid;
+    } catch (e) {
+      debugPrint('[ParentLink] anonim oturum açılamadı: $e');
+      return null;
+    }
+  }
+
   /// Ebeveyn → çocuk username ile bağlantı isteği.
   static Future<LinkRequestResult> requestLink(String childUsername) async {
     final myUid = _myUid;
@@ -330,30 +347,46 @@ class ParentLinkService {
   /// süre kısa tutulmaz). Aynı çocuk için varsa süresi dolmamış önceki kodu
   /// döndürür — gereksiz yazım önlenir. Ebeveyn QR okutur / linke dokunur.
   static Future<ChildLinkCode?> generateChildLinkCode() async {
-    final myUid = _myUid;
+    final myUid = await _ensureUid();
     if (myUid == null) return null;
+    final now = DateTime.now();
     try {
       // Daha önce aktif (süresi dolmamış) kodu var mı? Varsa onu döndür.
-      final existing = await _fs
-          .collection('parent_link_codes')
-          .where('childUid', isEqualTo: myUid)
-          .limit(5)
-          .get();
-      final now = DateTime.now();
-      for (final d in existing.docs) {
-        final m = d.data();
-        final ts = m['expiresAt'];
-        if (ts is Timestamp && ts.toDate().isAfter(now)) {
-          return ChildLinkCode(code: d.id, expiresAt: ts.toDate());
+      // Bu sorgu YALNIZCA optimizasyon — başarısız olursa (kural/index/
+      // web interop) kod üretimini DÜŞÜRMEZ, yeni kod yazmaya devam ederiz.
+      // Eskiden tüm fonksiyon tek try'daydı; burası patlayınca kullanıcı
+      // "Kod üretilemedi" görüyordu.
+      try {
+        final existing = await _fs
+            .collection('parent_link_codes')
+            .where('childUid', isEqualTo: myUid)
+            .limit(5)
+            .get();
+        for (final d in existing.docs) {
+          final m = d.data();
+          final ts = m['expiresAt'];
+          if (ts is Timestamp && ts.toDate().isAfter(now)) {
+            return ChildLinkCode(code: d.id, expiresAt: ts.toDate());
+          }
         }
+      } catch (e) {
+        debugPrint('[ParentLink] mevcut kod sorgusu başarısız '
+            '(yenisi üretilecek): $e');
       }
-      // Benzersiz yeni kod üret (en fazla 5 deneme)
+      // Benzersiz yeni kod üret (en fazla 5 deneme). Çakışma kontrolü de
+      // optimizasyondur: get() patlarsa (ağ/izin) yine de yazmayı dene —
+      // 32^6 uzayında çakışma olasılığı ihmal edilebilir.
       String? code;
       for (int attempt = 0; attempt < 5; attempt++) {
         final candidate = _newCode();
-        final ex = await _fs
-            .collection('parent_link_codes').doc(candidate).get();
-        if (!ex.exists) { code = candidate; break; }
+        try {
+          final ex = await _fs
+              .collection('parent_link_codes').doc(candidate).get();
+          if (!ex.exists) { code = candidate; break; }
+        } catch (_) {
+          code = candidate;
+          break;
+        }
       }
       if (code == null) return null;
       final expires = now.add(const Duration(hours: 24));
@@ -402,14 +435,22 @@ class ParentLinkService {
       }
       if (childUid == myUid) return LinkRequestResult.selfLink;
 
-      final childProfile =
-          await _fs.collection('users').doc(childUid).get();
-      final childData = childProfile.data() ?? const <String, dynamic>{};
-      if ((childData['username'] ?? '').toString().isEmpty) {
-        return LinkRequestResult.childNotFound;
-      }
-      final myProfile = await _fs.collection('users').doc(myUid).get();
-      final myData = myProfile.data() ?? const <String, dynamic>{};
+      // Çocuğun public profili YOKSA da bağlan — kod ibrazı yeterli kanıt
+      // (kodu üreten çocuğun kendisi). Eskiden username boşsa childNotFound
+      // dönüyordu; kullanıcı adı oluşturmamış (test/anonim) öğrencilerde
+      // veli tarafı HER ZAMAN "Bağlanamadı" alıyordu. username/displayName
+      // yalnızca görüntü verisi — eksikse fallback ile devam.
+      Map<String, dynamic> childData = const <String, dynamic>{};
+      try {
+        final childProfile =
+            await _fs.collection('users').doc(childUid).get();
+        childData = childProfile.data() ?? const <String, dynamic>{};
+      } catch (_) {/* profil okunamadı → fallback adlarla devam */}
+      Map<String, dynamic> myData = const <String, dynamic>{};
+      try {
+        final myProfile = await _fs.collection('users').doc(myUid).get();
+        myData = myProfile.data() ?? const <String, dynamic>{};
+      } catch (_) {}
 
       // Mevcut kayıt: aktifse iş yok; pending/rejected ise sil — kurallar
       // 'active' yazımına yalnızca CREATE'te (viaCode kanıtıyla) izin verir,
@@ -428,11 +469,16 @@ class ParentLinkService {
         try { await inviteRef.delete(); } catch (_) {}
       }
 
+      final childName = (childData['displayName'] ?? '').toString().isNotEmpty
+          ? childData['displayName'].toString()
+          : ((childData['username'] ?? '').toString().isNotEmpty
+              ? childData['username'].toString()
+              : 'Öğrenci');
       final now = FieldValue.serverTimestamp();
       final batch = _fs.batch();
       batch.set(linkRef, {
         'childUsername': childData['username'] ?? '',
-        'childDisplayName': childData['displayName'] ?? '',
+        'childDisplayName': childName,
         'childAvatar': childData['avatar'] ?? '👤',
         'linkedAt': now,
         'acceptedAt': now,

@@ -112,7 +112,11 @@ class NotificationsInboxScreen extends StatelessWidget {
                     .limit(50)
                     .snapshots(),
                 builder: (context, snap) {
-                  if (!snap.hasData) {
+                  // Sorgu hatasında sonsuz spinner'da takılma — boş listeyle
+                  // devam et (aşağıda "Yeni bildirim yok" görünür).
+                  if (snap.hasError) {
+                    debugPrint('[NotifInbox] stream error: ${snap.error}');
+                  } else if (!snap.hasData) {
                     return const Center(child: CircularProgressIndicator());
                   }
                   // Hesap tipine göre süz: öğretmen sadece geri bildirimleri,
@@ -120,7 +124,7 @@ class NotificationsInboxScreen extends StatelessWidget {
                   // ise öğrenci-tipi bildirimleri görür.
                   final isTeacher = AccountService.instance.isTeacher;
                   final isParent = AccountService.instance.isParent;
-                  final docs = snap.data!.docs.where((d) {
+                  final docs = (snap.data?.docs ?? const []).where((d) {
                     final t = (d.data()['type'] ?? '').toString();
                     if (isTeacher) return _kTeacherNotifTypes.contains(t);
                     if (isParent) return kParentNotifTypes.contains(t);

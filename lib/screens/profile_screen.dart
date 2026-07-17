@@ -4,10 +4,7 @@ import '../data/teacher_branches.dart';
 import '../services/account_service.dart';
 import '../services/local_reminder_service.dart';
 import '../services/error_logger.dart';
-import '../services/deep_link_service.dart';
-import '../services/parent_link_service.dart';
 import '../services/runtime_translator.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'delete_account_screen.dart';
 import 'dart:io';
 import 'dart:math';
@@ -25,6 +22,7 @@ import 'join_class_screen.dart';
 import 'notifications_inbox_screen.dart';
 import 'onboarding_screen.dart';
 import '../widgets/parent_invite_banner.dart';
+import '../widgets/parent_link_sheet.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/locale_service.dart';
 import '../services/pricing_service.dart';
@@ -117,135 +115,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   /// Öğrenci: velisini bağlamak için kod üretir; QR + WhatsApp linki olarak
   /// sunar. Veli QR'ı okutunca ya da linke dokununca bağlantı DOĞRUDAN
   /// kurulur — ek onay adımı yok (kodu üretip paylaşan çocuk = rıza).
-  Future<void> _showParentLinkCode() async {
-    // Yavaş ağda buton "ölü" gibi görünmesin: spinner + 10sn tavan.
-    // Eskiden await süresince hiçbir geri bildirim yoktu; Firestore geç
-    // yanıt verince kullanıcı "buton çalışmıyor" sanıyordu.
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
-    ChildLinkCode? code;
-    try {
-      code = await ParentLinkService.generateChildLinkCode()
-          .timeout(const Duration(seconds: 10));
-    } catch (_) {
-      code = null;
-    }
-    if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop(); // spinner kapat
-    if (code == null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-            'Kod üretilemedi. İnternet bağlantını ve giriş yaptığını kontrol et.'
-                .tr()),
-        behavior: SnackBarBehavior.floating,
-      ));
-      return;
-    }
-    final linkCode = code; // null-check sonrası closure'lar için non-null yerel
-    final link = DeepLinkService.parentLinkFor(linkCode.code);
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppPalette.card(ctx),
-        title: Text('Veliyi Bağla'.tr(),
-            style: GoogleFonts.poppins(
-                fontWeight: FontWeight.w800,
-                color: AppPalette.textPrimary(ctx))),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                  'Velin yanındaysa: kendi telefonundaki QuAlsar\'da '
-                  '"QR Kodu Okut" deyip bu kodu okutsun — bağlantı anında '
-                  'kurulur. Uzaktaysa: WhatsApp\'tan gönder, linke dokunması '
-                  'yeterli.'.tr(),
-                  style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      height: 1.4,
-                      color: AppPalette.textSecondary(ctx))),
-              const SizedBox(height: 16),
-              // QR — beyaz zemin üstünde (koyu temada da okunur olsun).
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: QrImageView(
-                  data: link,
-                  version: QrVersions.auto,
-                  size: 180,
-                ),
-              ),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: linkCode.code));
-                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                    content: Text('Kod kopyalandı'.tr()),
-                    behavior: SnackBarBehavior.floating,
-                  ));
-                },
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SelectableText(linkCode.code,
-                        style: GoogleFonts.poppins(
-                          fontSize: 22, fontWeight: FontWeight.w900,
-                          letterSpacing: 2, color: const Color(0xFF10B981),
-                        )),
-                    const SizedBox(width: 8),
-                    Icon(Icons.copy_rounded, size: 18,
-                        color: AppPalette.textSecondary(ctx)),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text('24 saat geçerli.'.tr(),
-                  style: GoogleFonts.poppins(
-                      fontSize: 11, color: AppPalette.textSecondary(ctx))),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF25D366), // WhatsApp yeşili
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: () {
-                    Share.share(
-                      '${'QuAlsar veli daveti 👨‍👩‍👧'.tr()}\n\n'
-                      '${'Çocuğunuzun ders gelişimini takip etmek için bu bağlantıya dokunun:'.tr()}\n'
-                      '$link\n\n'
-                      '${'Uygulama yüklü değilse önce QuAlsar\'ı indirip veli hesabı oluşturun, sonra bağlantıya tekrar dokunun.'.tr()}',
-                    );
-                  },
-                  icon: const Icon(Icons.share_rounded,
-                      color: Colors.white, size: 18),
-                  label: Text('WhatsApp\'tan Gönder'.tr(),
-                      style: GoogleFonts.poppins(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white)),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Kapat'.tr()),
-          ),
-        ],
-      ),
-    );
+  ///
+  /// YENİDEN TASARIM: eski "önce kapatılamayan spinner dialog, sonra kod
+  /// dialogu" akışı kod üretimi uzayınca ekranı kilitliyordu ("donuk
+  /// kalıyor"). Artık her şey ParentLinkSheet içinde: sheet anında açılır,
+  /// kod kendi içinde hazırlanır (hata olursa Tekrar Dene), her an
+  /// kapatılabilir.
+  Future<void> _showParentLinkCode() {
+    return showParentLinkSheet(context);
   }
 
   Future<void> _loadProfile() async {
@@ -3559,12 +3436,10 @@ class _PremiumBannerState extends State<_PremiumBanner>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // PRO rozeti + "Sınırlı teklif"
+                    // Premium rozeti ("Sınırlı teklif" çipi kaldırıldı)
                     Row(
                       children: [
-                        _proBadge(),
-                        SizedBox(width: 8),
-                        _limitedChip(),
+                        Flexible(child: _proBadge()),
                       ],
                     ),
                     SizedBox(height: 14),
@@ -3663,13 +3538,17 @@ class _PremiumBannerState extends State<_PremiumBanner>
           Icon(Icons.bolt_rounded,
               color: Color(0xFFFFE44D), size: 13),
           SizedBox(width: 4),
-          Text(
-            'PRO',
-            style: GoogleFonts.poppins(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w900,
-              color: Colors.white,
-              letterSpacing: 1.2,
+          Flexible(
+            child: Text(
+              'Premiumda tüm avantajlar seni bekliyor'.tr(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.poppins(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: 0.3,
+              ),
             ),
           ),
         ],
@@ -3677,36 +3556,6 @@ class _PremiumBannerState extends State<_PremiumBanner>
     );
   }
 
-  Widget _limitedChip() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: Color(0xFFFFE44D).withValues(alpha: 0.22),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Color(0xFFFFE44D).withValues(alpha: 0.45),
-          width: 0.8,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.local_fire_department_rounded,
-              color: Color(0xFFFFE44D), size: 13),
-          SizedBox(width: 4),
-          Text(
-            localeService.tr('limited_offer'),
-            style: GoogleFonts.poppins(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-              letterSpacing: 0.8,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

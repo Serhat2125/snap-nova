@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'error_logger.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'locale_service.dart';
 import 'secrets.dart';
@@ -68,39 +70,142 @@ class RuntimeTranslator extends ChangeNotifier {
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
+    // ANDROID ANR DÜZELTMESİ: seen listesi + dil cache'leri eskiden
+    // SharedPreferences'taydı. Android'de TÜM prefs tek XML dosyasıdır;
+    // cache büyüdükçe (dil başına ~5000 string) o XML birkaç MB oluyor,
+    // soğuk açılışta ANA THREAD'de komple parse ediliyor ve her yazışta
+    // komple yeniden yazılıyordu → "uygulama yanıt vermiyor" (ANR) +
+    // "bazen geç açılıyor". Artık mobilde dosyada tutulur (aşağıdaki
+    // _readBlob/_writeBlob); eski prefs anahtarları tek seferlik dosyaya
+    // taşınıp prefs'ten SİLİNİR (XML kalıcı olarak küçülür). Web'de dosya
+    // sistemi yok → prefs (localStorage) davranışı aynen sürer.
+    await _migrateFromPrefs();
     // Görüldü setini yükle
-    final seenRaw = _prefs!.getString(_prefSeenKey);
+    final seenRaw = await _readBlob(_seenBlob);
     if (seenRaw != null) {
       try {
         final list = jsonDecode(seenRaw) as List;
         _seen.addAll(list.map((e) => e.toString()));
       } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'runtime_translator'); }
     }
-    // ESKİ: 55 dilin cache'ini ana thread'de jsonDecode ederdi — büyük
-    // cache'lerde 1-2sn donma. ŞİMDİ: lazy — sadece aktif dilin cache'i
-    // ihtiyaç anında `_ensureLangLoaded` ile yüklenir.
+    // Sadece aktif dilin cache'i yüklenir (lazy); TR'de hiç yük yok.
     final active = LocaleService.global?.localeCode ?? _sourceLang;
     if (active != _sourceLang) {
-      _ensureLangLoaded(active);
+      await _ensureLangLoadedAsync(active);
     }
     _log('init: ${_seen.length} seen · lazy lang load');
   }
 
-  /// Belirtilen dilin SharedPreferences cache'ini lazy yükler. Cache zaten
-  /// bellekteyse no-op; yoksa jsonDecode + bellek map'e yazar.
-  void _ensureLangLoaded(String lang) {
-    if (_cache.containsKey(lang)) return;
-    final raw = _prefs?.getString('$_prefCachePrefix$lang');
-    if (raw == null) {
-      _cache[lang] = {};
-      return;
-    }
+  // ── Depolama katmanı: mobil/desktop = dosya, web = SharedPreferences ─────
+  static const _seenBlob = 'seen_v1';
+  String _langBlob(String lang) => 'cache_$lang';
+
+  Directory? _dirCache;
+  Future<Directory> _storageDir() async {
+    final d = _dirCache;
+    if (d != null) return d;
+    final base = await getApplicationSupportDirectory();
+    final dir = Directory('${base.path}/rt_translations');
+    if (!await dir.exists()) await dir.create(recursive: true);
+    _dirCache = dir;
+    return dir;
+  }
+
+  // Web'de eski prefs anahtarları aynen kullanılır (davranış değişmez).
+  String _webKey(String blob) =>
+      blob == _seenBlob ? _prefSeenKey : '$_prefCachePrefix${blob.substring(6)}';
+
+  Future<String?> _readBlob(String blob) async {
     try {
-      final map = jsonDecode(raw) as Map<String, dynamic>;
-      _cache[lang] = map.map((k, v) => MapEntry(k, v?.toString() ?? ''));
-    } catch (_) {
-      _cache[lang] = {};
+      if (kIsWeb) return _prefs?.getString(_webKey(blob));
+      final f = File('${(await _storageDir()).path}/$blob.json');
+      return await f.exists() ? await f.readAsString() : null;
+    } catch (e) {
+      _log('readBlob($blob) fail: $e');
+      return null;
     }
+  }
+
+  Future<void> _writeBlob(String blob, String data) async {
+    try {
+      if (kIsWeb) {
+        await _prefs?.setString(_webKey(blob), data);
+        return;
+      }
+      await File('${(await _storageDir()).path}/$blob.json')
+          .writeAsString(data);
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'runtime_translator');
+    }
+  }
+
+  Future<void> _deleteBlob(String blob) async {
+    try {
+      if (kIsWeb) {
+        await _prefs?.remove(_webKey(blob));
+        return;
+      }
+      final f = File('${(await _storageDir()).path}/$blob.json');
+      if (await f.exists()) await f.delete();
+    } catch (_) {}
+  }
+
+  /// Tek seferlik migrasyon: eski SharedPreferences anahtarlarını dosyaya
+  /// taşı + prefs'ten sil. Web'de no-op (prefs zaten kalıcı depo).
+  Future<void> _migrateFromPrefs() async {
+    if (kIsWeb) return;
+    final p = _prefs;
+    if (p == null) return;
+    try {
+      final seenRaw = p.getString(_prefSeenKey);
+      if (seenRaw != null) {
+        if (await _readBlob(_seenBlob) == null) {
+          await _writeBlob(_seenBlob, seenRaw);
+        }
+        await p.remove(_prefSeenKey);
+        _log('migrasyon: seen prefs → dosya');
+      }
+      for (final lang in LocaleService.supportedLocales) {
+        final key = '$_prefCachePrefix$lang';
+        final raw = p.getString(key);
+        if (raw == null) continue;
+        if (await _readBlob(_langBlob(lang)) == null) {
+          await _writeBlob(_langBlob(lang), raw);
+        }
+        await p.remove(key);
+        _log('migrasyon: $lang cache prefs → dosya');
+      }
+    } catch (e, st) {
+      ErrorLogger.instance.capture(e, st, context: 'runtime_translator');
+    }
+  }
+
+  /// Belirtilen dilin cache'ini lazy yükler (senkron çağıranlar için).
+  /// Bellekte hemen boş map oluşur — lookup'lar dosya gelene kadar baked
+  /// çevirilere düşer; dosya yüklenince UI debounce'lu notify ile tazelenir.
+  void _ensureLangLoaded(String lang) {
+    unawaited(_ensureLangLoadedAsync(lang));
+  }
+
+  final Map<String, Future<void>> _langLoads = {};
+  Future<void> _ensureLangLoadedAsync(String lang) {
+    return _langLoads.putIfAbsent(lang, () async {
+      final mem = _cache.putIfAbsent(lang, () => {});
+      final raw = await _readBlob(_langBlob(lang));
+      if (raw == null) return;
+      try {
+        final map = jsonDecode(raw) as Map<String, dynamic>;
+        // putIfAbsent: dosya okunurken API'den gelen taze çeviriler ezilmesin.
+        var added = false;
+        map.forEach((k, v) {
+          if (!mem.containsKey(k)) {
+            mem[k] = v?.toString() ?? '';
+            added = true;
+          }
+        });
+        if (added) _scheduleNotify(delay: const Duration(milliseconds: 50));
+      } catch (_) {/* bozuk dosya → boş cache ile devam */}
+    });
   }
 
   /// Bir kaynak string'i "görüldü" olarak işaretle (ileride preload eder).
@@ -207,7 +312,9 @@ class RuntimeTranslator extends ChangeNotifier {
     final result = <String, String>{};
     if (lang == _sourceLang) return result;
     if (!LocaleService.supportedLocales.contains(lang)) return result;
-    _ensureLangLoaded(lang);
+    // Dosya cache'i tam yüklenmeden "missing" hesaplanırsa zaten çevrilmiş
+    // string'ler API'ye tekrar gider — await ile garanti et.
+    await _ensureLangLoadedAsync(lang);
     final byLang = _cache.putIfAbsent(lang, () => {});
     final missing = <String>[];
     final seenForBatch = <String>{};
@@ -263,6 +370,8 @@ class RuntimeTranslator extends ChangeNotifier {
     // bir sonraki frame'de.
     _scheduleNotify(delay: const Duration(milliseconds: 100));
     try {
+      // Cache dosyası tam yüklenmeden todo hesaplanmasın (gereksiz API).
+      await _ensureLangLoadedAsync(targetLang);
       final byLang = _cache.putIfAbsent(targetLang, () => {});
       // Cache'te VEYA koda gömülü (baked) olanları atla — baked olanlar zaten
       // offline çözülüyor, tekrar API'ye gitmeye gerek yok.
@@ -330,9 +439,11 @@ class RuntimeTranslator extends ChangeNotifier {
   /// Cache'i dışarıdan temizleme (ayarlar sayfasından opsiyonel).
   Future<void> clearCache() async {
     _cache.clear();
-    if (_prefs == null) return;
+    _langLoads.clear();
     for (final lang in LocaleService.supportedLocales) {
-      await _prefs!.remove('$_prefCachePrefix$lang');
+      await _deleteBlob(_langBlob(lang));
+      // Eski (migrasyon öncesi) prefs anahtarı kalmışsa onu da temizle.
+      await _prefs?.remove('$_prefCachePrefix$lang');
     }
     notifyListeners();
   }
@@ -482,20 +593,18 @@ Output (JSON array only):'''
   }
 
   Future<void> _flushSeen() async {
-    if (!_dirty || _prefs == null) return;
+    if (!_dirty) return;
     _dirty = false;
     try {
-      await _prefs!.setString(_prefSeenKey, jsonEncode(_seen.toList()));
+      await _writeBlob(_seenBlob, jsonEncode(_seen.toList()));
     } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'runtime_translator'); }
   }
 
   Future<void> _persistLang(String lang) async {
-    if (_prefs == null) return;
     final map = _cache[lang];
     if (map == null) return;
     try {
-      await _prefs!.setString(
-          '$_prefCachePrefix$lang', jsonEncode(map));
+      await _writeBlob(_langBlob(lang), jsonEncode(map));
     } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'runtime_translator'); }
   }
 

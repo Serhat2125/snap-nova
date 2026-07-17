@@ -4902,16 +4902,6 @@ class _AuthPageState extends State<_AuthPage> {
               letterSpacing: -0.3,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            localeService.tr('auth_subtitle'),
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.black.withValues(alpha: 0.62),
-              height: 1.5,
-            ),
-          ),
           const SizedBox(height: 22),
           if (user != null) ...[
             Container(
@@ -4977,9 +4967,9 @@ class _AuthPageState extends State<_AuthPage> {
             localeService.tr('auth_choose_method'),
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 13.5,
+              fontSize: 16,
               fontWeight: FontWeight.w800,
-              color: Colors.black.withValues(alpha: 0.55),
+              color: Colors.black.withValues(alpha: 0.78),
               letterSpacing: 0.2,
             ),
           ),

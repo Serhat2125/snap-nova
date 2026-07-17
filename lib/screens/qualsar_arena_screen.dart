@@ -4958,6 +4958,15 @@ const Map<String, String> _nameByCountryCode = {
   'ua': 'Україна', 'gr': 'Ελλάδα', 'ir': 'ایران',
 };
 
+/// Mevcut kullanıcının ülke bayrağı (EduProfile ülkesine göre). Ülke
+/// kapsamı ('country') rozet/etiketlerinde sabit 🇹🇷 yerine kullanılır —
+/// yoksa Almanya'daki kullanıcı da "Ülke Çapında" sonucunda Türk bayrağı
+/// görüyordu (GLOBAL-FIRST ihlali). Bilinmeyen ülkede 🌍.
+String _userCountryFlagEmoji() {
+  final code = (EduProfile.current?.country ?? 'tr').toLowerCase();
+  return _flagByCountryCode[code] ?? '🌍';
+}
+
 /// Generic mock username üretici — country + index bazlı.
 String _genericUsername(String countryCode, int seed) {
   // Anonim ama plausible: "user_42", "player_7", "qa_19".
@@ -5648,7 +5657,7 @@ class _DueloRecordFullCard extends StatelessWidget {
         : (win == 0 ? AppPalette.textPrimary(context) : _Palette.error);
     final scopeTxt = record.scope == 'world'
         ? '🌍 ${"Dünya".tr()}'
-        : '🇹🇷 ${"Ülke".tr()}';
+        : '${_userCountryFlagEmoji()} ${"Ülke".tr()}';
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -6922,6 +6931,8 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
     if (picks.length > targetCount) {
       picks = picks.take(targetCount).toList();
     }
+    // Kolaydan zora sırala — düelloda da ilerledikçe zorlaşsın.
+    picks = _orderEasyToHard(picks);
     // picks.length artık [3, 5] aralığında — oyun başlayacak.
 
     // Bu testin sorularını "görüldü" defterine yaz (fire-and-forget) →
@@ -7056,9 +7067,11 @@ KURALLAR:
   hesaplı sorularda işlemi göster; sözel sorularda kavramı açıkla →
   şıkları değerlendir → doğruyu gerekçelendir; son satır
   "Doğru cevap: <şık harfi> — kısa gerekçe".
-• ZORLUK KARIŞIK: soruların ~%40'ı KOLAY, ~%40'ı ORTA, ~%20'si ZOR olsun
-  ("d": "easy" | "medium" | "hard"). Hepsi seçilen SEVİYE + MÜFREDATA uygun,
-  net, öğretici ve KALİTELİ olmalı — yüzeysel/ezber soru yazma.
+• ZORLUK DENGESİ: sorular biraz DAHA BASİT olsun — ~%55'i KOLAY, ~%35'i ORTA,
+  ~%10'u ZOR ("d": "easy" | "medium" | "hard"). Hepsi seçilen SEVİYE +
+  MÜFREDATA uygun, net, öğretici ve KALİTELİ olmalı — yüzeysel/ezber soru yazma.
+• SIRALAMA: soruları KOLAYDAN ZORA doğru diz — ilk sorular en kolay, son
+  sorular en zor olsun (öğrenci ilerledikçe zorlaşsın).
 • Soru MUTLAKA yalnızca "$topicLabel" konusuyla ilgili olsun.
 • "opts" her zaman $optCount şık: ${optLetters.join(', ')}.
 • "ans" şık harfi: $letterChoices.
@@ -7457,7 +7470,7 @@ KURALLAR:
     setState(() {
       _scope = 'country';
       _worldCountryContestMode = true;
-      _enterContestSetup('🇹🇷 ${"Ülke Çapında Yarış".tr()}');
+      _enterContestSetup('${_userCountryFlagEmoji()} ${"Ülke Çapında Yarış".tr()}');
     });
   }
 
@@ -7715,7 +7728,7 @@ KURALLAR:
           // kart (dünya kartıyla aynı boyut); diğer ülkelerde klasik satır.
           _countryHeroCard() ??
               option(
-                emoji: '🇹🇷',
+                emoji: _userCountryFlagEmoji(),
                 label: 'Ülke Çapında Yarış',
                 onTap: _startCountryContest,
               ),
@@ -8037,7 +8050,7 @@ KURALLAR:
             _raceTab('🌍', 'Dünya Çapında Yarışlarım', worldN,
                 () => _openRecordsPage(scope: 'world'),
                 colorKey: 'world'),
-            _raceTab('🇹🇷', 'Ülke Çapında Yarışlarım', countryN,
+            _raceTab(_userCountryFlagEmoji(), 'Ülke Çapında Yarışlarım', countryN,
                 () => _openRecordsPage(scope: 'country'),
                 colorKey: 'country'),
             _raceTab('👤', 'Arkadaşımla Yarışlarım', friendN,
@@ -8482,8 +8495,12 @@ KURALLAR:
       _selectedTopic = null;
     });
     // Inline kurulum sihirbazı açıksa (arkadaş/grup/demo) popup ders/konu
-    // penceresi AÇILMAZ — konular panelde satır-içi gösterilir.
-    if (_contestSetup) return;
+    // penceresi AÇILMAZ — konular panelde satır-içi gösterilir; liste
+    // otomatik konulara kaydırılır (konular altta/ekran dışında kalmasın).
+    if (_contestSetup) {
+      _revealTopicSection();
+      return;
+    }
     // Konular ORTADA, arka planı flu, uzun (çok konu sığan) bir pencerede açılır.
     final picked = await _showTopicsDialog(subjectName: s.name, topics: topics);
     if (picked != null && mounted) _handleTopicPicked(s, picked);
@@ -8791,7 +8808,8 @@ KURALLAR:
                       weight: FontWeight.w800,
                       color: AppPalette.textSecondary(context))),
             ),
-            ...list.take(6).map(_myContestCard),
+            // Tüm yarışlar alt alta kayıtlı görünsün (eski 6 sınırı kaldırıldı).
+            ...list.map(_myContestCard),
             const SizedBox(height: 12),
           ],
         );
@@ -9908,10 +9926,13 @@ KURALLAR:
                 const EdgeInsets.symmetric(horizontal: 20, vertical: 36),
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-            child: Padding(
-              padding:
-                  EdgeInsets.only(bottom: MediaQuery.of(dctx).viewInsets.bottom),
-              child: ConstrainedBox(
+            // NOT: Dialog klavye insets'ini KENDİSİ telafi eder (AnimatedPadding).
+            // Buradaki eski `Padding(bottom: viewInsets.bottom)` klavye
+            // yüksekliğini İKİNCİ kez düşüyordu → içerik ~0 yüksekliğe
+            // eziliyor, "Kullanıcı adı" arama kutusu hiç görünmüyordu
+            // (butonlar tepede ezik, altı bomboş). Yalnız maxHeight'ta
+            // klavyeyi hesaba katmak yeterli.
+            child: ConstrainedBox(
                 // Klavye açıkken taşmasın: görünür yüksekliğe (ekran − klavye)
                 // göre sınırla.
                 constraints: BoxConstraints(
@@ -9932,7 +9953,14 @@ KURALLAR:
                                     size: 19, weight: FontWeight.w800)),
                           ),
                           GestureDetector(
-                            onTap: () => Navigator.of(dctx).pop(),
+                            // Önce klavyeyi kapat, SONRA pop — klavye
+                            // açıkken dialog'u söküp atmak framework'ün
+                            // "_dependents.isEmpty" assertion kırmızı
+                            // ekranını tetikliyordu.
+                            onTap: () {
+                              FocusManager.instance.primaryFocus?.unfocus();
+                              Navigator.of(dctx).pop();
+                            },
                             child: Icon(Icons.close_rounded,
                                 size: 20,
                                 color: AppPalette.textSecondary(dctx)),
@@ -10102,13 +10130,16 @@ KURALLAR:
                   ),
                 ),
               ),
-            ),
           );
         },
       ),
     );
     debounce?.cancel();
-    searchCtl.dispose();
+    // Dialog kapanış ANİMASYONU (~200ms) bitmeden controller'ı dispose
+    // etmek, TextField hâlâ ekranda söküleceği için framework assertion'ı
+    // (kırmızı ekran) üretiyordu. Animasyon bittikten sonra temizle.
+    Future<void>.delayed(
+        const Duration(milliseconds: 600), searchCtl.dispose);
   }
 
   /// 1v1 merkezindeki arkadaş satırı — dokununca birebir yarış daveti.
@@ -10212,6 +10243,12 @@ KURALLAR:
     final uname = _inviteUsername();
     final link = 'https://qualsar.app/davet/$uname';
     try {
+      // Arama kutusunun klavyesi açıkken paylaşım intent'i fırlatmak bazı
+      // cihazlarda sistem paylaşım penceresini açılır açılmaz kapatıyordu
+      // ("WhatsApp tam çıkarken kayboluyor") — önce odağı/klavyeyi bırak,
+      // bir frame bekle, sonra paylaş.
+      FocusManager.instance.primaryFocus?.unfocus();
+      await Future<void>.delayed(const Duration(milliseconds: 120));
       await Share.share("QuAlsar Arena'da benimle yarış! 🏆\n"
           '@$uname davet ediyor · kabul edince ikiniz de +50 QP kazanırsınız.\n\n'
           '$link');
@@ -10801,7 +10838,31 @@ KURALLAR:
                   ),
                 ),
                 const SizedBox(height: 16),
-                _groupField(ctx, nameCtl, 'Grup adı'.tr(), 'Örn: Sınıf Kankalar'),
+                // Grup adı + SEÇİLİ SİMGE — simge, adın hemen sağında durur;
+                // bantta hangi karakter seçildiyse burada anında görünür
+                // (kullanıcı isteği: seçilen simge belli olsun).
+                Row(
+                  children: [
+                    Expanded(
+                      child: _groupField(ctx, nameCtl, 'Grup adı'.tr(),
+                          'Örn: Sınıf Kankalar'),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      width: 46,
+                      height: 46,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: _kGroupPurple.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                        border:
+                            Border.all(color: _kGroupPurple, width: 1.6),
+                      ),
+                      child: Text(emoji,
+                          style: const TextStyle(fontSize: 24)),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 12),
                 _groupField(ctx, statusCtl, 'Durum mesajı'.tr(),
                     'Örn: Bu hafta fizik!'),
@@ -11503,6 +11564,27 @@ KURALLAR:
     });
   }
 
+  /// Kurulum sayfasında "KONU SEÇ" bölümünün konumu — ders seçilince
+  /// otomatik buraya kaydırılır (konular ekranın altında kalmasın).
+  final GlobalKey _setupTopicsKey = GlobalKey();
+
+  /// Ders seçildikten sonra konu listesini ekrana getir. İki post-frame:
+  /// önce konu bölümü layout'a girer (ilk frame), sonra kaydırılır.
+  void _revealTopicSection() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = _setupTopicsKey.currentContext;
+        if (ctx == null || !mounted) return;
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.05, // başlık üste yakın → konular ekranı doldurur
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+        );
+      });
+    });
+  }
+
   /// Inline yarış kurulum panelini aç — seçimleri sıfırla, başlığı ata.
   /// (setState İÇİNDE çağrılmalı; kendisi setState çağırmaz.)
   void _enterContestSetup(String title) {
@@ -11778,7 +11860,7 @@ KURALLAR:
             child: Text(
               _scope == 'world'
                   ? '🌍 Dünyadan aynı seviyede bir rakiple karşılaşırsın. Her iki taraf aynı evrensel dersi/konuyu seçer.'.tr()
-                  : '🇹🇷 Ülkendeki aynı seviyede bir rakiple karşılaşırsın. Tüm derslerden yarışabilirsin.'.tr(),
+                  : '${_userCountryFlagEmoji()} ${"Ülkendeki aynı seviyede bir rakiple karşılaşırsın. Tüm derslerden yarışabilirsin.".tr()}',
               style: _sans(
                   size: 11.5,
                   color: AppPalette.textSecondary(context),
@@ -11965,7 +12047,12 @@ KURALLAR:
                         children: [
                           subjectSection,
                           const SizedBox(height: 18),
-                          label('KONU SEÇ — ${subj.name}'),
+                          // Ders seçilince _revealTopicSection bu anahtara
+                          // kaydırır — konular ekranın ortasına gelir.
+                          KeyedSubtree(
+                            key: _setupTopicsKey,
+                            child: label('KONU SEÇ — ${subj.name}'),
+                          ),
                           frame(
                             child: ConstrainedBox(
                               // En fazla ~4 konu görünür; fazlaysa çerçeve
@@ -12453,6 +12540,31 @@ KURALLAR:
   /// Grup yarışı için soru topla — havuz → AI → bank yedeği (1v1 ile aynı
   /// kaynak önceliği, matchmaking yok). Havuz + AI müfredat/sınıf odaklı
   /// olduğundan birincil; seviye-bağımsız statik banka son çare.
+  /// Yarış sorularını KOLAYDAN ZORA sıralar (ilerledikçe zorlaşsın). Aynı
+  /// zorluktakilerin göreli sırası korunur (kararlı sıralama). Havuz + AI +
+  /// statik banka nereden gelirse gelsin nihai sıra deterministik olur.
+  List<_QuizQuestion> _orderEasyToHard(List<_QuizQuestion> qs) {
+    int rank(String d) {
+      switch (d.toLowerCase()) {
+        case 'easy':
+          return 0;
+        case 'hard':
+          return 2;
+        default:
+          return 1; // medium / bilinmeyen
+      }
+    }
+
+    final indexed = [
+      for (int i = 0; i < qs.length; i++) (i, qs[i]),
+    ];
+    indexed.sort((a, b) {
+      final r = rank(a.$2.difficulty).compareTo(rank(b.$2.difficulty));
+      return r != 0 ? r : a.$1.compareTo(b.$1);
+    });
+    return indexed.map((e) => e.$2).toList();
+  }
+
   Future<List<_QuizQuestion>> _collectContestQuestions(
       _Subject subject, String topic, int targetCount) async {
     final rng = math.Random();
@@ -12538,10 +12650,11 @@ KURALLAR:
       addUnique(List.of(bank[topic]!)..shuffle(rng));
     }
 
-    if (picks.length > targetCount) {
-      return picks.take(targetCount).toList();
-    }
-    return picks;
+    final trimmed = picks.length > targetCount
+        ? picks.take(targetCount).toList()
+        : picks;
+    // Kolaydan zora sırala — ilerledikçe zorlaşsın.
+    return _orderEasyToHard(trimmed);
   }
 
   Future<String?> _showTopicsDialog({
@@ -13055,6 +13168,7 @@ KURALLAR:
         _selectedSubject = result;
         _selectedTopic = null;
       });
+      if (_contestSetup) _revealTopicSection();
     }
   }
 
@@ -13083,7 +13197,7 @@ KURALLAR:
             SizedBox(height: 8),
           if (countryCount > 0)
             _recordsTab(
-              icon: '🇹🇷',
+              icon: _userCountryFlagEmoji(),
               title: 'Ülke Çapında Yarışlarım'.tr(),
               count: countryCount,
               onTap: () => _openRecordsPage(scope: 'country'),
@@ -13967,7 +14081,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
         totalQuestions: total,
         myName: _displayUsername(),
         myCountry: _userCountryName(),
-        myFlag: '🇹🇷',
+        myFlag: _userCountryFlagEmoji(),
         myCorrect: _myCorrect,
         myWrong: myWrong,
         myEmpty: myEmpty,
@@ -13996,7 +14110,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
             myAnswers: _myAnswers,
             myName: _displayUsername(),
             myCountry: _userCountryName(),
-            myFlag: '🇹🇷',
+            myFlag: _userCountryFlagEmoji(),
             myCorrect: _myCorrect,
             myWrong: myWrong,
             myEmpty: myEmpty,
@@ -14206,7 +14320,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                             UserProfileService.instance.avatarData,
                         progress: _mySolved / _questions.length,
                         color: _Palette.brand,
-                        flag: '🇹🇷',
+                        flag: _userCountryFlagEmoji(),
                       ),
                       SizedBox(width: 12),
                       Column(
@@ -14666,7 +14780,10 @@ class _DueloResultsScreenState extends State<_DueloResultsScreen> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(scope == 'world' ? '🌍' : '🇹🇷',
+                              Text(
+                                  scope == 'world'
+                                      ? '🌍'
+                                      : _userCountryFlagEmoji(),
                                   style: TextStyle(fontSize: 12)),
                               SizedBox(width: 5),
                               Text(
@@ -16361,7 +16478,7 @@ class _DueloShareCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 4,
             children: [
-              _chip(scope == 'world' ? '🌍 ${"Dünya".tr()}' : '🇹🇷 ${"Ülke".tr()}'),
+              _chip(scope == 'world' ? '🌍 ${"Dünya".tr()}' : '${_userCountryFlagEmoji()} ${"Ülke".tr()}'),
               if (subjectName.isNotEmpty)
                 Text.rich(TextSpan(children: [
                   TextSpan(
@@ -25959,7 +26076,10 @@ class _DueloMatchingResultsScreen extends StatelessWidget {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(scope == 'world' ? '🌍' : '🇹🇷',
+                              Text(
+                                  scope == 'world'
+                                      ? '🌍'
+                                      : _userCountryFlagEmoji(),
                                   style: TextStyle(fontSize: 12)),
                               SizedBox(width: 5),
                               Text(

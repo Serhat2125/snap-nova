@@ -27,6 +27,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../features/leaderboard/data/location_catalog.dart';
 import '../features/leaderboard/domain/user_location.dart';
 import '../features/league/league_demo_students.dart';
 import '../features/league/league_leaderboard_service.dart';
@@ -36,6 +37,7 @@ import '../services/analytics.dart';
 import '../services/curriculum_catalog.dart';
 import '../services/education_profile.dart';
 import '../services/exam_catalog.dart';
+import '../services/geolocation_service.dart';
 import '../widgets/exam_mode_widgets.dart';
 import '../widgets/user_avatar.dart';
 import '../services/error_logger.dart';
@@ -887,6 +889,20 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     } catch (_) {
       loc = null;
     }
+    // Kullanıcı DAHA ÖNCE hiç konum seçmediyse (ilk açılış) IP tabanlı
+    // otomatik tespite düş — "Şehir" sekmesi jenerik etiketle kalıp
+    // kullanıcıyı manuel seçime zorlamasın; indirdiği/bulunduğu şehir
+    // otomatik yazılsın (kullanıcı isteği).
+    if (loc == null) {
+      try {
+        final auto = await _autoDetectLocation()
+            .timeout(const Duration(seconds: 6));
+        if (auto != null) {
+          loc = auto;
+          unawaited(_persistLocation(auto)); // bir daha sorgulanmasın
+        }
+      } catch (_) {/* tespit edilemedi → kullanıcı manuel seçer */}
+    }
 
     if (!mounted) return;
     setState(() {
@@ -958,6 +974,83 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'bilgi_ligi_screen'); }
     }
     return fromCloud;
+  }
+
+  /// IP tabanlı otomatik konum tespiti — kullanıcı hiç konum seçmediyse
+  /// açılışta çağrılır. Uygulamanın zaten kullandığı GeolocationService
+  /// (ülke için açılışta da kullanılıyor) IP servisinden şehir adını da
+  /// döndürüyor; burada onu okuyup katalogla eşleştirerek doğru Türkçe/
+  /// yerelleştirilmiş ad + tutarlı slug üretiyoruz. Şehir tespit edilemezse
+  /// (IP servisi vermedi) null — kullanıcı manuel seçime düşer.
+  Future<UserLocation?> _autoDetectLocation() async {
+    try {
+      final geo = await GeolocationService.resolve();
+      if (geo == null || geo.country.isEmpty) return null;
+      final countryCode = geo.country.toUpperCase();
+      final country = LocationCatalog.findByCode(countryCode);
+      final rawCity = (geo.extra['city'] as String?)?.trim() ?? '';
+      if (rawCity.isEmpty) return null;
+      // Katalogdaki şehirle eşleştir (aksan/büyük-küçük harf fark etmez) —
+      // eşleşirse doğru yerelleştirilmiş ad + kararlı slug kullanılır.
+      final norm = _normalizeCityKey(rawCity);
+      CityEntry? matched;
+      for (final c in country?.cities ?? const <CityEntry>[]) {
+        if (_normalizeCityKey(c.name) == norm) {
+          matched = c;
+          break;
+        }
+      }
+      return UserLocation(
+        country: country?.name ?? countryCode,
+        countryCode: countryCode,
+        city: matched?.name ?? rawCity,
+        cityCode: matched?.code ?? _slugifyCity(rawCity),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Türkçe karakterleri ASCII karşılığına çevirip küçük harfe indirger —
+  /// "İstanbul" ile IP servisinden gelen "Istanbul" aynı anahtara düşsün.
+  String _normalizeCityKey(String s) {
+    const map = {
+      'ı': 'i', 'İ': 'I', 'ş': 's', 'Ş': 'S', 'ğ': 'g', 'Ğ': 'G',
+      'ü': 'u', 'Ü': 'U', 'ö': 'o', 'Ö': 'O', 'ç': 'c', 'Ç': 'C',
+    };
+    final buf = StringBuffer();
+    for (final ch in s.split('')) {
+      buf.write(map[ch] ?? ch);
+    }
+    return buf.toString().toLowerCase().trim();
+  }
+
+  /// Katalogda karşılığı bulunamayan şehirler için slug üretir
+  /// (ör. "Sao Paulo" → "sao_paulo").
+  String _slugifyCity(String s) {
+    final norm = _normalizeCityKey(s);
+    return norm
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'^_+|_+$'), '');
+  }
+
+  /// Konumu yerele + (auth varsa) cloud'a kalıcı yazar. Hem manuel seçim
+  /// (_openLocationSheet) hem otomatik tespit (_bootstrap) aynı yolu kullanır.
+  Future<void> _persistLocation(UserLocation loc) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_locationPrefKey, jsonEncode(loc.toJson()));
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'bilgi_ligi_screen'); }
+    final uid = _safeAuthUser()?.uid;
+    if (uid != null && uid.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(uid).set({
+          'location': loc.toJson(),
+          'isLocationSet': true,
+          'locationSetAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (_) {/* offline → bir sonraki açılışta tekrar denenir */}
+    }
   }
 
   /// Auth varsa users/{uid}.location'tan okur; yoksa null döner.
@@ -3536,24 +3629,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     if (loc == null) return;
     if (!mounted) return;
     setState(() => _location = loc);
-
-    // Yerele yaz (kalıcı, offline-first)
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_locationPrefKey, jsonEncode(loc.toJson()));
-    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'bilgi_ligi_screen'); }
-
-    // Cloud'a yaz (auth varsa)
-    final uid = _safeAuthUser()?.uid;
-    if (uid != null && uid.isNotEmpty) {
-      try {
-        await FirebaseFirestore.instance.collection('users').doc(uid).set({
-          'location': loc.toJson(),
-          'isLocationSet': true,
-          'locationSetAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      } catch (_) {/* offline → bir sonraki açılışta tekrar denenir */}
-    }
+    await _persistLocation(loc);
     _refreshLeaderboard();
   }
 
