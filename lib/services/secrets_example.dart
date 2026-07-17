@@ -10,6 +10,10 @@ class Secrets {
   /// Google Gemini API key — aistudio.google.com üzerinden alınır.
   static const gemini = 'YOUR_GEMINI_API_KEY_HERE';
 
+  /// Kota/limit dolunca sırayla denenecek yedek Gemini anahtarları.
+  /// Boş bırakılabilir; gerçek anahtarlarını secrets.dart'ta doldur.
+  static const List<String> geminiFallbacks = [];
+
   /// OpenAI API key (Gemini kotası dolunca fallback). Boş bırakılabilir.
   static const openai = '';
 }
