@@ -217,7 +217,8 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
     // ÖNCE offline bake edilmiş içerik (assets/labirent_content) — internetsiz,
     // anında, ücretsiz. Yoksa AI ile üret.
     setState(() => _generating = true);
-    final bundled = await LabyrinthQuizGen.loadBundled(genLevel, grade);
+    final bundled =
+        await LabyrinthQuizGen.loadBundled(genLevel, grade, track: track);
     if (!mounted) return;
     setState(() => _generating = false);
     if (bundled != null) {

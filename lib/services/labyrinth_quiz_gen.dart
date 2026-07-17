@@ -25,8 +25,30 @@ class LabyrinthQuizGen {
   LabyrinthQuizGen._();
 
   /// OFFLINE (sınıf): assets/labirent_content dizinindeki `level-grade.json`.
-  static Future<Map<String, dynamic>?> loadBundled(String level, int grade) =>
-      _loadBundledStem('$level-$grade');
+  /// Lise'de alan (Sayısal/Sözel/Eşit Ağırlık) seçilmişse önce alana özel
+  /// `lise-<grade>-<alan>.json` denenir (varsa 11/12), yoksa temel sınıfa düşer.
+  static Future<Map<String, dynamic>?> loadBundled(String level, int grade,
+      {String? track}) async {
+    final suffix = _trackSuffix(track);
+    if (suffix != null) {
+      final t = await _loadBundledStem('$level-$grade-$suffix');
+      if (t != null) return t;
+    }
+    return _loadBundledStem('$level-$grade');
+  }
+
+  /// Alan etiketi → dosya son eki (Türkiye lise alanları).
+  static String? _trackSuffix(String? track) {
+    switch (track) {
+      case 'Sayısal':
+        return 'sayisal';
+      case 'Sözel':
+        return 'sozel';
+      case 'Eşit Ağırlık':
+        return 'ea';
+    }
+    return null;
+  }
 
   /// OFFLINE (sınav): assets/labirent_content dizinindeki `exam-<key>.json`
   /// (ör. exam-lgs, exam-ayt_sayisal, exam-kpss_lisans).
