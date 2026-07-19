@@ -3342,58 +3342,31 @@ class _LibraryLandingState extends State<LibraryLanding> {
               ],
             ),
             SizedBox(height: 10),
-            // ── OYUN: Bilgi Labirenti'nden Kaçış — Yedi Mühür ────────
-            // Tam genişlik kart; dokununca hazır HTML oyunu (WebView) açılır.
+            // ── KİTAPLIĞIM: Bilgi Labirenti | 3D Eğitim Modelleri ────
+            // (Çözümlerim en alta, Sınıf Kaynaklarım'ın yanına taşındı —
+            //  Bilgi Labirenti diğer kartlarla aynı boyut/tasarımda.)
             Row(
               children: [
                 Expanded(
                   child: _LandingCard(
                     icon: Icons.castle_rounded,
+                    // Diğer kartlar gibi kartı kaplayan CANLI görsel: oyunun
+                    // kuşbakışı dairesel labirenti yavaşça döner, ortada
+                    // ejderha bekler. Palet rengi zemine uygulanır.
+                    backgroundWidget:
+                        _LabyrinthCardBg(bgColor: _cardBgs['labirent']),
+                    tintBg: false,
                     title: 'Bilgi Labirenti'.tr(),
                     subtitle: 'Yedi Mühür\'ü çöz, labirentten kaç'.tr(),
+                    textNudgeY: 8,
                     color: Color(0xFF6D28D9),
                     customBg: _cardBgs['labirent'],
-                    customTextColor: _cardInks['labirent'],
+                    // Beyaz zemin üstünde yazılar varsayılan SİYAH.
+                    customTextColor: _cardInks['labirent'] ?? Colors.black,
                     onColorAccept: (c) => _applyLibraryColor('labirent', c),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const BilgiLabirentiScreen(),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 10),
-            // ── KİTAPLIĞIM: Çözümlerim | 3D Eğitim Modelleri ─────────
-            Row(
-              children: [
-                Expanded(
-                  child: _LandingCard(
-                    icon: Icons.history_rounded,
-                    // Yeni 3D görsel (Gemini): grafik + onay tiki — kartın
-                    // TAMAMINI kaplayan arka plan (mockup ile birebir).
-                    // Kullanıcı isteği: %10 küçültme + %12 büyütme → net
-                    // 1.008 ölçek (orijinalin %0.8 üstü, cover hafif zoom).
-                    backgroundWidget: Transform.scale(
-                      scale: 1.008,
-                      child: Image.asset(
-                        'assets/library_icons/history_v2.png',
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    title: 'Çözümlerim'.tr(),
-                    subtitle: 'Geçmiş çözümlerini incele'.tr(),
-                    textNudgeY: 5,
-                    color: Color(0xFF3B82F6),
-                    customBg: _cardBgs['history'],
-                    // Açık pastel görsel üstünde yazılar varsayılan SİYAH.
-                    customTextColor: _cardInks['history'] ?? Colors.black,
-                    onColorAccept: (c) =>
-                        _applyLibraryColor('history', c),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => HistoryScreen(),
                       ),
                     ),
                   ),
@@ -3410,18 +3383,22 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     // Kullanıcı isteği: -6 hâlâ yüksekti → +6'ya indirildi.
                     // Sonra tekrar kart boyunun (122) ~%10'u (12px) daha
                     // aşağı alındı: +6 + 12 = +18.
-                    backgroundWidget: Transform.translate(
-                      offset: const Offset(0, 18),
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: ClipRect(
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            heightFactor: 0.60, // alt %40 (tabla + sis) yok
-                            child: Image.asset(
-                              'assets/library_icons/edu3d_solar.jpg',
-                              width: double.infinity,
-                              fit: BoxFit.fitWidth,
+                    // %10 küçük görsel (kullanıcı isteği: ikon biraz küçülsün).
+                    backgroundWidget: Transform.scale(
+                      scale: 0.9,
+                      child: Transform.translate(
+                        offset: const Offset(0, 18),
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: ClipRect(
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              heightFactor: 0.60, // alt %40 (tabla + sis) yok
+                              child: Image.asset(
+                                'assets/library_icons/edu3d_solar.jpg',
+                                width: double.infinity,
+                                fit: BoxFit.fitWidth,
+                              ),
                             ),
                           ),
                         ),
@@ -3692,7 +3669,36 @@ class _LibraryLandingState extends State<LibraryLanding> {
                   ),
                 ),
                 SizedBox(width: 10),
-                Expanded(child: SizedBox()),
+                Expanded(
+                  child: _LandingCard(
+                    icon: Icons.history_rounded,
+                    // Yeni 3D görsel (Gemini): grafik + onay tiki — kartın
+                    // TAMAMINI kaplayan arka plan (mockup ile birebir).
+                    // Kullanıcı isteği: %10 küçültme + %12 büyütme → net
+                    // 1.008 ölçek (orijinalin %0.8 üstü, cover hafif zoom).
+                    backgroundWidget: Transform.scale(
+                      scale: 1.008,
+                      child: Image.asset(
+                        'assets/library_icons/history_v2.png',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    title: 'Çözümlerim'.tr(),
+                    subtitle: 'Geçmiş çözümlerini incele'.tr(),
+                    textNudgeY: 5,
+                    color: Color(0xFF3B82F6),
+                    customBg: _cardBgs['history'],
+                    // Açık pastel görsel üstünde yazılar varsayılan SİYAH.
+                    customTextColor: _cardInks['history'] ?? Colors.black,
+                    onColorAccept: (c) =>
+                        _applyLibraryColor('history', c),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => HistoryScreen(),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ],
@@ -4282,6 +4288,123 @@ class _LandingCardState extends State<_LandingCard> {
 //   • dolunca kum saati 180° dönüp döngü kusursuz baştan başlar
 // Zemin, eski görselin pembe pastel tonlarıyla aynı. Route önde değilken
 // TickerMode animasyonu otomatik durdurur.
+// ═══════ Bilgi Labirenti kartı: kuşbakışı dönen dairesel labirent ═════════
+// Diğer kartlardaki canlı görseller (dönen küre, kum saati) ile aynı desen:
+// bgColor paletten gelirse zemine uygulanır, çizim boyanmaz.
+class _LabyrinthCardBg extends StatefulWidget {
+  final Color? bgColor;
+  const _LabyrinthCardBg({this.bgColor});
+
+  @override
+  State<_LabyrinthCardBg> createState() => _LabyrinthCardBgState();
+}
+
+class _LabyrinthCardBgState extends State<_LabyrinthCardBg>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 24), // yavaş, huzurlu dönüş
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final base = widget.bgColor;
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: base == null
+              ? const [Colors.white, Color(0xFFF4F6FA)]
+              : [base, Color.lerp(base, Colors.black, 0.06)!],
+        ),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          AnimatedBuilder(
+            animation: _c,
+            // Açı ~12 adıma/sn kuantalanır: shouldRepaint aradaki karelerde
+            // false döner → 60 FPS yerine sn'de ~12 boyama (ısınma/pil).
+            builder: (_, __) => CustomPaint(
+              painter: _LabyrinthPainter(
+                  (_c.value * 288).floorToDouble() / 288 * 2 * math.pi),
+              size: Size.infinite,
+            ),
+          ),
+          // Ortada oyunun ejderhası — halkalar onun çevresinde döner.
+          const Text('🐉', style: TextStyle(fontSize: 22)),
+        ],
+      ),
+    );
+  }
+}
+
+class _LabyrinthPainter extends CustomPainter {
+  final double angle; // halkaların dönüş açısı
+  const _LabyrinthPainter(this.angle);
+
+  // Oyunun kendi paleti: altın duvarlar + mor vurgu.
+  static const _wall = Color(0xFFC9A24B);
+  static const _wallDark = Color(0xFF8A6D2F);
+  static const _accent = Color(0xFF6D28D9);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height / 2);
+    // %14 küçük labirent (kullanıcı isteği: ikon biraz küçülsün).
+    final maxR = math.min(size.width, size.height) * 0.38;
+    // Arka ışıma — kum saati kartıyla aynı "yüzen" his.
+    canvas.drawCircle(
+      c,
+      maxR * 1.05,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.30)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+    );
+    // 4 eşmerkezli labirent halkası — her birinde kapı boşlukları; halkalar
+    // sırayla zıt yönde döner (labirent canlıymış hissi).
+    for (int ring = 0; ring < 4; ring++) {
+      final r = maxR * (0.34 + ring * 0.22);
+      final sweepDir = ring.isEven ? 1.0 : -1.0;
+      final rot = angle * sweepDir * (ring.isEven ? 1 : 0.7);
+      final gaps = 1 + ring; // dışa doğru daha çok kapı
+      final gapHalf = 0.30 / (ring + 1) + 0.16;
+      final paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = maxR * 0.10
+        ..strokeCap = StrokeCap.round
+        ..color = ring == 3 ? _wallDark : _wall;
+      for (int g = 0; g < gaps; g++) {
+        final segStart =
+            rot + g * (2 * math.pi / gaps) + gapHalf;
+        final segSweep = 2 * math.pi / gaps - gapHalf * 2;
+        canvas.drawArc(
+            Rect.fromCircle(center: c, radius: r), segStart, segSweep,
+            false, paint);
+      }
+      // Kapı eşiği: her boşluğun ortasına mor nokta (oyundaki kapılar).
+      for (int g = 0; g < gaps; g++) {
+        final doorAng = rot + g * (2 * math.pi / gaps);
+        canvas.drawCircle(
+          c + Offset(math.cos(doorAng), math.sin(doorAng)) * r,
+          maxR * 0.045,
+          Paint()..color = _accent.withValues(alpha: 0.85),
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LabyrinthPainter old) => old.angle != angle;
+}
+
 class _SandHourglassBg extends StatefulWidget {
   /// Paletten seçilen kart rengi — kum saatinin DIŞINDA kalan zemine
   /// uygulanır; kum saatinin kendisi hiç boyanmaz. null → beyaz zemin.

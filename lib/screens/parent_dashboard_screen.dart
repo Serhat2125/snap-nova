@@ -316,6 +316,11 @@ class _ParentDashboardScreenState extends State<ParentDashboardScreen> {
                           refreshTick: _refreshTick,
                         ),
                         const SizedBox(height: 12),
+                        LabyrinthReportCard(
+                          childUid: _selectedChild!.uid,
+                          refreshTick: _refreshTick,
+                        ),
+                        const SizedBox(height: 12),
                         UpcomingHomeworksCard(
                           childUid: _selectedChild!.uid,
                           refreshTick: _refreshTick,

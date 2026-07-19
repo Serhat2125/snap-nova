@@ -1145,6 +1145,118 @@ class _LeagueStatsCardState extends State<LeagueStatsCard> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// 0a-2) BİLGİ LABİRENTİ RAPORU — oyunun içindeki "Veli Raporu" bölümünün
+//       birebir alanları; öğrenci cihazı Firestore'a yazar, burada okunur.
+// ─────────────────────────────────────────────────────────────────────────
+class LabyrinthReportCard extends StatefulWidget {
+  final String childUid;
+  final int refreshTick;
+  const LabyrinthReportCard({
+    super.key,
+    required this.childUid,
+    this.refreshTick = 0,
+  });
+
+  @override
+  State<LabyrinthReportCard> createState() => _LabyrinthReportCardState();
+}
+
+class _LabyrinthReportCardState extends State<LabyrinthReportCard> {
+  ParentLabyrinthReport? _report;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(LabyrinthReportCard old) {
+    super.didUpdateWidget(old);
+    if (old.childUid != widget.childUid ||
+        old.refreshTick != widget.refreshTick) {
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final r =
+        await ParentLinkService.readChildLabyrinthReport(widget.childUid);
+    if (!mounted) return;
+    setState(() => _report = r);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = _report;
+    if (r == null || !r.hasData) return const SizedBox.shrink();
+    const brand = Color(0xFF00897B);
+    Widget row(String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(label,
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: AppPalette.textSecondary(context),
+                    )),
+              ),
+              Text(value,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppPalette.textPrimary(context),
+                  )),
+            ],
+          ),
+        );
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: brand.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: brand.withValues(alpha: 0.30)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.explore_rounded, size: 18, color: brand),
+              const SizedBox(width: 8),
+              Text('Bilgi Labirenti raporu'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13, fontWeight: FontWeight.w800, color: brand,
+                  )),
+            ],
+          ),
+          const SizedBox(height: 8),
+          row('Tamamlanan ada'.tr(), '${r.islands}'),
+          row('Doğruluk oranı'.tr(), '%${r.acc}'),
+          row('Gün serisi'.tr(), '${r.dayStreak} ${"gün".tr()}'),
+          row('En güçlü ders'.tr(),
+              r.bestPct >= 0 ? '${r.best} (%${r.bestPct})' : r.best),
+          row('Gelişmesi gereken'.tr(),
+              r.worstPct <= 100 ? '${r.worst} (%${r.worstPct})' : r.worst),
+          row('Aralıklı tekrarla pekişen'.tr(),
+              '${r.consolidated} ${"soru".tr()}'),
+          row('Genel hazırlık'.tr(), r.readiness),
+          const SizedBox(height: 6),
+          Text(
+              'Bu rapor öğrencinin oyun içi performansından otomatik oluşturulur.'
+                  .tr(),
+              style: GoogleFonts.poppins(
+                fontSize: 10,
+                color: AppPalette.textSecondary(context),
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // 0a) YAKLAŞAN ÖDEVLER — son tarihe göre sıralı; teslim durumu rozetli.
 // ─────────────────────────────────────────────────────────────────────────
 class UpcomingHomeworksCard extends StatefulWidget {

@@ -211,6 +211,40 @@ class ParentLeagueStats {
   bool get hasData => attempts > 0;
 }
 
+/// Ebeveyn paneli "Bilgi Labirenti raporu" kartı için hafif DTO —
+/// oyun içi Veli Raporu'nun birebir alanları (öğrenci cihazı
+/// `users/{uid}/game_reports/labyrinth` dokümanına yazar).
+class ParentLabyrinthReport {
+  final int islands; // tamamlanan ada
+  final int acc; // doğruluk yüzdesi
+  final int answered; // toplam cevaplanan soru
+  final int dayStreak;
+  final String best; // en güçlü ders
+  final int bestPct;
+  final String worst; // gelişmesi gereken ders
+  final int worstPct;
+  final int consolidated; // aralıklı tekrarla pekişen soru
+  final String readiness; // genel hazırlık etiketi
+  final int totalScore;
+  final DateTime? updatedAt;
+  const ParentLabyrinthReport({
+    required this.islands,
+    required this.acc,
+    required this.answered,
+    required this.dayStreak,
+    required this.best,
+    required this.bestPct,
+    required this.worst,
+    required this.worstPct,
+    required this.consolidated,
+    required this.readiness,
+    required this.totalScore,
+    required this.updatedAt,
+  });
+
+  bool get hasData => answered > 0 || islands > 0;
+}
+
 class ParentLinkService {
   ParentLinkService._();
   static final _fs = FirebaseFirestore.instance;
@@ -1043,6 +1077,44 @@ class ParentLinkService {
         attempts: 0, averageScore: 0, bestScore: 0,
         streakDays: 0, lastAttemptAt: null,
       );
+    }
+  }
+
+  /// Bağlı çocuğun Bilgi Labirenti (oyun) Veli Raporu'nu okur —
+  /// öğrenci cihazı her oyun kaydında `users/{uid}/game_reports/labyrinth`
+  /// dokümanını günceller; kurallar gereği aktif bağlı ebeveyn salt-okur.
+  /// Hiç oynanmamışsa (doküman yok) null döner → kart gizlenir.
+  static Future<ParentLabyrinthReport?> readChildLabyrinthReport(
+      String childUid) async {
+    try {
+      final doc = await _fs
+          .collection('users')
+          .doc(childUid)
+          .collection('game_reports')
+          .doc('labyrinth')
+          .get();
+      final m = doc.data();
+      if (m == null) return null;
+      int i(String k) => (m[k] as num?)?.toInt() ?? 0;
+      String s(String k) => (m[k] ?? '—').toString();
+      final ts = m['updatedAt'];
+      return ParentLabyrinthReport(
+        islands: i('islands'),
+        acc: i('acc'),
+        answered: i('answered'),
+        dayStreak: i('dayStreak'),
+        best: s('best'),
+        bestPct: i('bestPct'),
+        worst: s('worst'),
+        worstPct: i('worstPct'),
+        consolidated: i('consolidated'),
+        readiness: s('readiness'),
+        totalScore: i('totalScore'),
+        updatedAt: ts is Timestamp ? ts.toDate() : null,
+      );
+    } catch (e) {
+      debugPrint('[ParentLink] readChildLabyrinthReport fail: $e');
+      return null;
     }
   }
 
