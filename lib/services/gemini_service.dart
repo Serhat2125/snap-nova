@@ -1587,6 +1587,9 @@ Karmaşık terimi açıkla, örnekle pekiştir, samimi ama saygılı ton.''';
 
   /// 59 dil için native dil ismi. LocaleService.languages tuple'ından okur
   /// (tek kaynak — yeni dil eklenince burada da otomatik kapsanır).
+  /// Dış servisler (ör. LabyrinthQuizGen) için public erişim.
+  static String languageNameFor(String code) => _languageNameFor(code);
+
   static String _languageNameFor(String code) {
     final c = code.toLowerCase();
     for (final l in LocaleService.languages) {

@@ -9,16 +9,24 @@
 //  gösterilir; mobil/masaüstünde WebViewController kullanılır.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import 'dart:async';
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../services/curriculum_catalog.dart' show curriculumFor;
 import '../services/education_profile.dart';
 import '../services/exam_catalog.dart' show ExamDefinition, examGroupsFor;
 import '../services/labyrinth_quiz_gen.dart';
+import '../services/locale_service.dart';
+import '../services/school_structure.dart';
 import '../services/runtime_translator.dart';
+import '../services/tts_service.dart';
 import '../widgets/exam_mode_widgets.dart';
 
 // Web'de webview_flutter desteklenmediği için HTML asset iframe ile gösterilir.
@@ -64,10 +72,22 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
       // seçimi + soru üretimi Flutter'da yapılıp oyun başlatılır.
       ..addJavaScriptChannel('FlutterMode',
           onMessageReceived: (m) => _onGameMode(m.message))
+      // Bilgi Panosu "Sesli Oku": Android WebView'da window.speechSynthesis
+      // bulunmadığından oyun metni bu kanala yollar; native TTS okur.
+      ..addJavaScriptChannel('FlutterTTS',
+          onMessageReceived: (m) => _onTtsMessage(m.message))
+      // Veli Raporu: oyun her profil kaydında özetini yollar; Firestore'a
+      // yazılır ki bağlı ebeveyn kendi panelinden görebilsin.
+      ..addJavaScriptChannel('FlutterVeliRapor',
+          onMessageReceived: (m) => _onVeliRapor(m.message))
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) {
             if (mounted) setState(() => _loading = false);
+            // GLOBAL: menü kartlarını ülkenin okul yapısı/sınavlarıyla eşle.
+            unawaited(_pushLevelMeta());
+            // GLOBAL: oyun içi metinleri kullanıcının diline çevir.
+            unawaited(_pushGameI18n());
           },
           onWebResourceError: (err) {
             // Alt-frame / kaynak hataları ana çerçeveyi bozmaz — sadece ana
@@ -92,6 +112,7 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
     final ctrl = _controller;
     if (ctrl == null) return;
     final paused = state != AppLifecycleState.resumed;
+    if (paused) unawaited(TtsService.stop()); // arka planda sesli okuma sussun
     try {
       ctrl.runJavaScript(
         'window.__appPaused=$paused;'
@@ -103,7 +124,56 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(TtsService.stop()); // ekran kapanınca okuma yarıda kesilsin
     super.dispose();
+  }
+
+  /// Son yazılan rapor JSON'u — aynı içerik tekrar gelirse Firestore'a
+  /// gereksiz yazım yapılmaz (oyun her soru sonrası kaydediyor).
+  String? _lastVeliRapor;
+
+  /// Oyundan gelen Veli Raporu özetini `users/{uid}/game_reports/labyrinth`
+  /// dokümanına yazar. Firestore kuralları gereği bu yolu sahibi yazar,
+  /// AKTİF bağlı ebeveyn salt-okur — ebeveyn paneli oradan gösterir.
+  void _onVeliRapor(String msg) {
+    if (msg == _lastVeliRapor) return;
+    _lastVeliRapor = msg;
+    unawaited(() async {
+      try {
+        final uid = FirebaseAuth.instance.currentUser?.uid;
+        if (uid == null) return;
+        final data = jsonDecode(msg);
+        if (data is! Map) return;
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('game_reports')
+            .doc('labyrinth')
+            .set({
+          ...Map<String, dynamic>.from(data),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (_) {/* rapor senkronu kritik değil; sessizce geç */}
+    }());
+  }
+
+  /// Oyundan gelen sesli okuma isteği: {action:'speak', text, lang} | {action:'stop'}.
+  void _onTtsMessage(String msg) {
+    try {
+      final data = jsonDecode(msg);
+      if (data is! Map) return;
+      final action = (data['action'] ?? '').toString();
+      if (action == 'speak') {
+        final text = (data['text'] ?? '').toString().trim();
+        if (text.isEmpty) return;
+        final lang = (data['lang'] ?? 'tr').toString().split('-').first;
+        // Önceki okuma varsa kes, yenisini başlat.
+        unawaited(TtsService.stop()
+            .then((_) => TtsService.speak(text, langCode: lang)));
+      } else if (action == 'stop') {
+        unawaited(TtsService.stop());
+      }
+    } catch (_) {}
   }
 
 
@@ -136,8 +206,24 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
   /// uygun labirent seviyesini başlat.
   Future<void> _pickAndInjectExam() async {
     if (_controller == null) return;
-    final groups = examGroupsFor(EduProfile.current?.country);
-    if (groups == null || groups.isEmpty || !mounted) return;
+    // Profil henüz belleğe yüklenmemişse yükle — yoksa tık sessizce yutuluyordu.
+    if (EduProfile.current == null) {
+      try {
+        await EduProfile.load();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    // Ülke kataloğu yoksa TR kataloğuna düş (oyun kartı da TR sınavlarını
+    // listeler); o da yoksa kullanıcıya söyle — ölü buton bırakma.
+    final groups = examGroupsFor(EduProfile.current?.country) ??
+        examGroupsFor('TR');
+    if (groups == null || groups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Bu ülke için sınav kataloğu henüz yok.'.tr()),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
     final exam = await showDialog<ExamDefinition>(
       context: context,
       barrierDismissible: true,
@@ -147,11 +233,9 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
     // Sınav → labirent seviyesi (tema/zorluk): LGS ortaokul, TYT/AYT lise,
     // DGS/KPSS üniversite.
     final ek = exam.key.toLowerCase();
-    final startKey = ek.startsWith('lgs')
-        ? 'ortaokul'
-        : (ek.startsWith('dgs') || ek.startsWith('kpss'))
-            ? 'üniversite'
-            : 'lise';
+    // NOT: Oyunda yalnız ilkokul/ortaokul/lise labirent teması var —
+    // 'üniversite' gönderilirse oyun çakılıyordu; DGS/KPSS lise temasında oynar.
+    final startKey = ek.startsWith('lgs') ? 'ortaokul' : 'lise';
     // ÖNCE offline bake edilmiş sınav havuzu (varsa) — internetsiz, anında,
     // ders seçtirmeden (havuz zaten o sınavın derslerini kapsıyor).
     setState(() => _generating = true);
@@ -184,56 +268,200 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
     );
   }
 
-  /// SINIFLAR: (seviye kartından gelen) seviye için Sınıf → (Lise 10+ alan) →
-  /// o sınıfa özel sorular üret ve o labirent seviyesini başlat.
+  /// GLOBAL i18n: oyun içi metinler için sözlük (`assets/labirent_i18n/<dil>.json`,
+  /// anahtar = Türkçe kaynak) + DOM gözlemci çevirmen enjekte eder.
+  /// Sözlük React'in her yeniden çiziminde metin düğümlerini birebir eşleşmeyle
+  /// çevirir; dil dosyası yoksa İngilizce'ye düşer (Türkçe asla görünmez).
+  Future<void> _pushGameI18n() async {
+    final ctrl = _controller;
+    if (ctrl == null) return;
+    final code = LocaleService.global?.localeCode ?? 'tr';
+    if (code == 'tr') return; // oyunun ana dili zaten Türkçe
+    String? raw;
+    try {
+      raw = await rootBundle.loadString('assets/labirent_i18n/$code.json');
+    } catch (_) {}
+    if (raw == null) {
+      try {
+        raw = await rootBundle.loadString('assets/labirent_i18n/en.json');
+      } catch (_) {}
+    }
+    if (raw == null) return;
+    // Gözlemci: metin düğümlerini sözlükten çevirir; React yeniden çizince
+    // rAF toplu yeniden tarama yapar. Kendi değişikliği döngü yaratmaz
+    // (çevrilmiş metin sözlükte anahtar değildir).
+    const observer = '''
+(function(){if(window.__i18nInstalled)return;window.__i18nInstalled=true;
+var D=window.__gameI18n||{};
+var SUB=D['__sub']||{};var SUBK=Object.keys(SUB).sort(function(a,b){return b.length-a.length;});
+function txl(n){var t=n.data;if(!t)return;var k=t.trim();if(!k)return;var r=D[k];if(r&&r!==k){n.data=t.replace(k,r);return;}
+if(/[0-9]/.test(k)){var s2=t,ch=false;for(var i=0;i<SUBK.length;i++){var kk=SUBK[i];if(s2.indexOf(kk)>=0){s2=s2.split(kk).join(SUB[kk]);ch=true;}}if(ch&&s2!==t)n.data=s2;}}
+function walk(){try{var w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null);var n;while((n=w.nextNode()))txl(n);
+var els=document.querySelectorAll('[title]');for(var i=0;i<els.length;i++){var v=els[i].getAttribute('title');var r2=D[v&&v.trim()];if(r2)els[i].setAttribute('title',r2);}}catch(e){}}
+var pend=false;var obs=new MutationObserver(function(){if(pend)return;pend=true;requestAnimationFrame(function(){pend=false;walk();});});
+obs.observe(document.body,{childList:true,subtree:true,characterData:true});walk();})();''';
+    try {
+      await ctrl.runJavaScript('window.__gameI18n=$raw;$observer');
+    } catch (_) {}
+  }
+
+  /// GLOBAL menü uyarlaması: oyunun seviye kartlarını (ad, sınıf aralığı,
+  /// alanlar) ve Sınavlar kartı alt yazısını ülkenin gerçek yapısıyla değiştirir.
+  /// TR + Türkçe'de oyunun kendi metinleri zaten doğru → dokunulmaz.
+  Future<void> _pushLevelMeta() async {
+    final ctrl = _controller;
+    if (ctrl == null) return;
+    if (EduProfile.current == null) {
+      try {
+        await EduProfile.load();
+      } catch (_) {}
+    }
+    final country = (EduProfile.current?.country ?? 'tr').toLowerCase();
+    final langIsTr = (LocaleService.global?.localeCode ?? 'tr') == 'tr';
+    if (country == 'tr' && langIsTr) return;
+    final ss = schoolStructureFor(country);
+    String rng(String k) {
+      final g = ss.gradesOf(k);
+      return '${g.first}-${g.last}';
+    }
+
+    final groups = examGroupsFor(EduProfile.current?.country);
+    final examLabel = (groups == null || groups.isEmpty)
+        ? null
+        : groups.map((g) => g.displayName).take(5).join(' · ');
+    final meta = <String, dynamic>{
+      'ilkokul': {
+        'name': 'İlkokul'.tr(),
+        'sub': '${rng('primary')}. ${'sınıf'.tr()}',
+        'tracks': 'Tek alan'.tr(),
+      },
+      'ortaokul': {
+        'name': 'Ortaokul'.tr(),
+        'sub': '${rng('middle')}. ${'sınıf'.tr()}',
+        'tracks': 'Tek alan'.tr(),
+      },
+      'lise': {
+        'name': 'Lise'.tr(),
+        'sub': '${rng('high')}. ${'sınıf'.tr()}',
+        if (ss.tracks.isNotEmpty)
+          'tracks': ss.tracks.map((t) => t.label).join(' · '),
+      },
+      if (examLabel != null) 'examLabel': examLabel,
+    };
+    final js = jsonEncode(meta);
+    try {
+      await ctrl.runJavaScript(
+          'window.__levelMeta=$js;if(window.__setLevelMeta)window.__setLevelMeta(window.__levelMeta);');
+    } catch (_) {}
+  }
+
+  /// SINIFLAR: (seviye kartından gelen) seviye için Sınıf → (alan sistemi
+  /// olan ülkelerde Alan) → o ülkenin O SINIFTAKİ müfredat dersleriyle soru
+  /// üret ve labirenti başlat. GLOBAL: sınıf sayıları/alanlar ülkeye göre
+  /// (school_structure.dart), dersler curriculum_catalog'dan, içerik dili
+  /// kullanıcının uygulama dili.
   Future<void> _pickAndInjectClass({required String presetLevel}) async {
     if (_controller == null) return;
+    if (EduProfile.current == null) {
+      try {
+        await EduProfile.load();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    final country = (EduProfile.current?.country ?? 'tr').toLowerCase();
+    final isTR = country == 'tr';
+    final ss = schoolStructureFor(country);
     // Oyun anahtarını normalize et (üniversite = universite).
     final level = presetLevel == 'universite' ? 'üniversite' : presetLevel;
     final genLevel = level == 'üniversite' ? 'lise' : level; // üretim şablonu
-    final grades = level == 'ilkokul'
-        ? [1, 2, 3, 4]
+    // Oyun tema anahtarı → yapısal kademe anahtarı.
+    final structKey = level == 'ilkokul'
+        ? 'primary'
         : level == 'ortaokul'
-            ? [5, 6, 7, 8]
-            : level == 'lise'
-                ? [9, 10, 11, 12]
-                : [1, 2, 3, 4]; // üniversite sınıfları
+            ? 'middle'
+            : 'high';
+    final grades = level == 'üniversite'
+        ? [1, 2, 3, 4] // üniversite sınıfları (ülkeden bağımsız)
+        : ss.gradesOf(structKey);
     final label0 = _levelNamesTr[level] ?? level;
-    final gi = await _chooseOne('$label0 · ${"Sınıf seç".tr()}',
+    final gi = await _chooseOne('${label0.tr()} · ${"Sınıf seç".tr()}',
         [for (final g in grades) '$g. ${"sınıf".tr()}']);
     if (gi == null || !mounted) return;
     final grade = grades[gi];
-    // Lise 10 ve sonrası: alan seçimi (Türkiye).
-    String? track;
-    if (level == 'lise' && grade >= 10) {
-      const tracks = ['Sayısal', 'Sözel', 'Eşit Ağırlık'];
+    // Alan seçimi: ülkenin alan sistemi varsa ve bu sınıfta geçerliyse.
+    String? track; // TR bundled dosya son eki için üretici etiketi
+    String? trackKey; // curriculum_catalog anahtarı ('sayisal','jayeon'…)
+    String? trackLabel; // ekranda görünen (endonim) ad
+    if (level == 'lise' && ss.tracksApply(grade)) {
+      final opts = ss.tracks;
       final ti = await _chooseOne('Alan seç'.tr(),
-          [for (final t in tracks) t.tr()]);
+          [for (final t in opts) '${t.emoji}  ${t.label}']);
       if (ti == null || !mounted) return;
-      track = tracks[ti];
+      trackKey = opts[ti].key;
+      trackLabel = opts[ti].label;
+      if (isTR) {
+        track = const {
+          'sayisal': 'Sayısal',
+          'sozel': 'Sözel',
+          'esit_agirlik': 'Eşit Ağırlık',
+        }[trackKey];
+      }
     }
     final label =
-        '$label0 $grade${track != null ? " · $track" : ""}';
-    // ÖNCE offline bake edilmiş içerik (assets/labirent_content) — internetsiz,
-    // anında, ücretsiz. Yoksa AI ile üret.
-    setState(() => _generating = true);
-    final bundled =
-        await LabyrinthQuizGen.loadBundled(genLevel, grade, track: track);
-    if (!mounted) return;
-    setState(() => _generating = false);
-    if (bundled != null) {
-      await _injectAndStart(
-        questions:
-            (bundled['questions'] as List).cast<Map<String, dynamic>>(),
-        facts: (bundled['facts'] as List).cast<String>(),
-        label: label,
-        startLevelKey: level,
-      );
-      return;
+        '${label0.tr()} $grade${trackLabel != null ? " · $trackLabel" : ""}';
+    // ÖNCE offline bake edilmiş içerik — YALNIZ TR (dosyalar TR müfredatı ve
+    // Türkçe; başka ülkeye/dile servis edilmez). Yoksa/değilse AI ile üret.
+    if (isTR && (LocaleService.global?.localeCode ?? 'tr') == 'tr') {
+      setState(() => _generating = true);
+      final bundled =
+          await LabyrinthQuizGen.loadBundled(genLevel, grade, track: track);
+      if (!mounted) return;
+      setState(() => _generating = false);
+      if (bundled != null) {
+        await _injectAndStart(
+          questions:
+              (bundled['questions'] as List).cast<Map<String, dynamic>>(),
+          facts: (bundled['facts'] as List).cast<String>(),
+          label: label,
+          startLevelKey: level,
+        );
+        return;
+      }
+    }
+    // Ülke müfredatından bu sınıfın dersleri + konuları (statik katalog;
+    // 150 ülke, yoksa international şablonu).
+    var subjects = curriculumFor(EduProfile(
+      country: country,
+      level: structKey,
+      grade: '$grade',
+      track: trackKey,
+    ));
+    // Quiz oyununa uygun akademik çekirdek: müzik/beden/görsel sanatlar gibi
+    // uygulamalı dersleri prompt'a sokma (soru kalitesini düşürür).
+    const nonAcademic = {
+      'muzik', 'gorsel_sanatlar', 'beden', 'pe', 'music', 'art',
+      'physical_education', 'sports', 'crafts',
+    };
+    final core = [
+      for (final s in subjects)
+        if (!nonAcademic.contains(s.key)) s
+    ];
+    if (core.isNotEmpty) subjects = core;
+    String? countryName;
+    for (final c in kAllCountries) {
+      if (c.key == country) {
+        countryName = c.name;
+        break;
+      }
     }
     await _generateAndInject(
       () => LabyrinthQuizGen.generateForClass(
-          level: genLevel, grade: grade, track: track, count: 24),
+          level: genLevel,
+          grade: grade,
+          track: isTR ? track : trackLabel,
+          count: 24,
+          countryName: countryName,
+          subjects: isTR ? null : subjects),
       label,
       startLevelKey: level,
     );
@@ -373,7 +601,7 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
   /// Ortak: soruları üret, oyuna enjekte et; [startLevelKey] verilirse o
   /// labirent seviyesini oyunda başlatır (window.__startLevel).
   Future<void> _generateAndInject(
-    Future<List<Map<String, dynamic>>> Function() gen,
+    Future<Map<String, dynamic>> Function() gen,
     String label, {
     String? startLevelKey,
   }) async {
@@ -381,7 +609,18 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
     if (ctrl == null) return;
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _generating = true);
-    final qs = await gen();
+    // AI üretimi asla sonsuza asılmasın: 40 sn'de kes (kredi bitik/offline ise
+    // spinner takılıp kalmaz; kullanıcıya hızlı geri bildirim gider).
+    List<Map<String, dynamic>> qs;
+    List<String> facts;
+    try {
+      final b = await gen().timeout(const Duration(seconds: 40));
+      qs = (b['questions'] as List? ?? const []).cast<Map<String, dynamic>>();
+      facts = (b['facts'] as List? ?? const []).cast<String>();
+    } catch (_) {
+      qs = const [];
+      facts = const [];
+    }
     if (!mounted) return;
     setState(() => _generating = false);
     if (qs.isEmpty) {
@@ -394,7 +633,10 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
       return;
     }
     await _injectAndStart(
-        questions: qs, label: label, startLevelKey: startLevelKey);
+        questions: qs,
+        facts: facts.isEmpty ? null : facts,
+        label: label,
+        startLevelKey: startLevelKey);
   }
 
   /// Soruları (+ varsa bilgileri) oyuna enjekte eder ve [startLevelKey]

@@ -1,1 +1,2743 @@
-{"exam":"kpss_ogretmenlik","opt":5,"questions":[{"q":"Türkiye'nin en büyük gölü hangisidir?","opts":["Tuz Gölü","Van Gölü","Beyşehir","Eğirdir","İznik"],"a":1,"sol":"Van Gölü en büyük göldür."},{"q":"Ölçme sonuçlarının tutarlılığına ne denir?","opts":["Geçerlik","Güvenirlik","Kullanışlılık","Nesnellik","Örnekleme"],"a":1,"sol":"Tutarlılık güvenirliktir."},{"q":"10 + 10 kaç eder?","opts":["19","22","18","21","20"],"a":4,"sol":"10+10=20."},{"q":"27 − 13 kaç eder?","opts":["14","15","16","12","13"],"a":0,"sol":"27−13=14."},{"q":"7 × 2 kaç eder?","opts":["7","15","21","14","13"],"a":3,"sol":"7×2=14."},{"q":"80 sayısının %20'i kaçtır?","opts":["14","21","16","18","11"],"a":2,"sol":"80×20/100=16."},{"q":"15 − 6 kaç eder?","opts":["8","10","9","7","11"],"a":2,"sol":"15−6=9."},{"q":"37 − 12 kaç eder?","opts":["27","26","25","23","24"],"a":2,"sol":"37−12=25."},{"q":"38 − 8 kaç eder?","opts":["28","31","30","29","32"],"a":2,"sol":"38−8=30."},{"q":"Lozan Antlaşması hangi yıl imzalanmıştır?","opts":["1920","1921","1922","1923","1924"],"a":3,"sol":"Lozan 24 Temmuz 1923'te imzalandı."},{"q":"5 × 7 kaç eder?","opts":["36","40","34","35","30"],"a":3,"sol":"5×7=35."},{"q":"17 + 10 kaç eder?","opts":["27","28","25","29","26"],"a":0,"sol":"17+10=27."},{"q":"18 − 11 kaç eder?","opts":["6","5","9","7","8"],"a":3,"sol":"18−11=7."},{"q":"9 + 5 kaç eder?","opts":["12","14","15","16","13"],"a":1,"sol":"9+5=14."},{"q":"120 sayısının %25'i kaçtır?","opts":["35","30","28","32","25"],"a":1,"sol":"120×25/100=30."},{"q":"60 sayısının %50'i kaçtır?","opts":["35","32","30","25","28"],"a":2,"sol":"60×50/100=30."},{"q":"14 + 5 kaç eder?","opts":["21","18","20","19","17"],"a":3,"sol":"14+5=19."},{"q":"43 − 12 kaç eder?","opts":["31","30","32","29","33"],"a":0,"sol":"43−12=31."},{"q":"Bir düzine kaç eder?","opts":["6","10","12","20","24"],"a":2,"sol":"Bir düzine 12'dir."},{"q":"27 − 6 kaç eder?","opts":["22","23","19","21","20"],"a":3,"sol":"27−6=21."},{"q":"10 + 4 kaç eder?","opts":["14","12","15","16","13"],"a":0,"sol":"10+4=14."},{"q":"Aşağıdakilerden hangisi soru zamiridir?","opts":["Kim","Ve","Çünkü","Ama","İle"],"a":0,"sol":"'Kim' soru zamiridir."},{"q":"19 − 12 kaç eder?","opts":["8","9","6","5","7"],"a":4,"sol":"19−12=7."},{"q":"25 − 7 kaç eder?","opts":["20","17","16","19","18"],"a":4,"sol":"25−7=18."},{"q":"75 ile 85 sayılarından hangisi daha büyüktür?","opts":["85","70","75","95","80"],"a":0,"sol":"85 daha büyüktür."},{"q":"17 + 7 kaç eder?","opts":["25","22","23","24","26"],"a":3,"sol":"17+7=24."},{"q":"44 − 13 kaç eder?","opts":["33","30","32","31","29"],"a":3,"sol":"44−13=31."},{"q":"41 − 5 kaç eder?","opts":["36","38","35","37","34"],"a":0,"sol":"41−5=36."},{"q":"21 − 13 kaç eder?","opts":["7","10","6","8","9"],"a":3,"sol":"21−13=8."},{"q":"2 × 3 kaç eder?","opts":["4","6","8","7","5"],"a":1,"sol":"2×3=6."},{"q":"6 × 9 kaç eder?","opts":["48","60","54","53","55"],"a":2,"sol":"6×9=54."},{"q":"15 + 9 kaç eder?","opts":["22","23","26","24","25"],"a":3,"sol":"15+9=24."},{"q":"18 − 5 kaç eder?","opts":["15","14","13","12","11"],"a":2,"sol":"18−5=13."},{"q":"45 − 5 kaç eder?","opts":["40","41","38","39","42"],"a":0,"sol":"45−5=40."},{"q":"30 − 4 kaç eder?","opts":["27","26","24","28","25"],"a":1,"sol":"30−4=26."},{"q":"38 − 5 kaç eder?","opts":["33","34","31","32","35"],"a":0,"sol":"38−5=33."},{"q":"40 sayısının %50'i kaçtır?","opts":["22","15","20","25","18"],"a":2,"sol":"40×50/100=20."},{"q":"22 − 4 kaç eder?","opts":["18","17","20","16","19"],"a":0,"sol":"22−4=18."},{"q":"41 − 13 kaç eder?","opts":["30","26","29","27","28"],"a":4,"sol":"41−13=28."},{"q":"8 × 6 kaç eder?","opts":["40","56","47","48","49"],"a":3,"sol":"8×6=48."},{"q":"Bir haftada kaç gün vardır?","opts":["5","6","7","8","10"],"a":2,"sol":"Bir hafta 7 gündür."},{"q":"Sınıfta olumlu öğrenme ortamı oluşturmaya ne denir?","opts":["Sınıf yönetimi","Ölçme","Program","Rehberlik","Denetim"],"a":0,"sol":"Bu, sınıf yönetimidir."},{"q":"21 − 11 kaç eder?","opts":["9","8","11","12","10"],"a":4,"sol":"21−11=10."},{"q":"24 − 13 kaç eder?","opts":["10","12","11","9","13"],"a":2,"sol":"24−13=11."},{"q":"14 + 8 kaç eder?","opts":["20","22","21","24","23"],"a":1,"sol":"14+8=22."},{"q":"16 + 6 kaç eder?","opts":["23","24","22","20","21"],"a":2,"sol":"16+6=22."},{"q":"18 + 4 kaç eder?","opts":["24","22","21","20","23"],"a":1,"sol":"18+4=22."},{"q":"Türkiye'nin en kalabalık ili hangisidir?","opts":["Ankara","İzmir","İstanbul","Bursa","Antalya"],"a":2,"sol":"İstanbul en kalabalık ildir."},{"q":"13 + 10 kaç eder?","opts":["23","21","22","25","24"],"a":0,"sol":"13+10=23."},{"q":"25 − 12 kaç eder?","opts":["12","14","15","11","13"],"a":4,"sol":"25−12=13."},{"q":"5 × 4 kaç eder?","opts":["19","21","25","20","15"],"a":3,"sol":"5×4=20."},{"q":"38 − 11 kaç eder?","opts":["28","26","27","29","25"],"a":2,"sol":"38−11=27."},{"q":"19 − 10 kaç eder?","opts":["10","8","9","11","7"],"a":2,"sol":"19−10=9."},{"q":"34 − 9 kaç eder?","opts":["24","25","27","26","23"],"a":1,"sol":"34−9=25."},{"q":"33 − 12 kaç eder?","opts":["22","19","20","21","23"],"a":3,"sol":"33−12=21."},{"q":"45 − 11 kaç eder?","opts":["36","35","32","34","33"],"a":3,"sol":"45−11=34."},{"q":"18 + 9 kaç eder?","opts":["27","28","29","25","26"],"a":0,"sol":"18+9=27."},{"q":"16 + 7 kaç eder?","opts":["25","21","24","23","22"],"a":3,"sol":"16+7=23."},{"q":"44 − 9 kaç eder?","opts":["36","34","35","37","33"],"a":2,"sol":"44−9=35."},{"q":"32 − 12 kaç eder?","opts":["20","22","19","18","21"],"a":0,"sol":"32−12=20."},{"q":"25 sayısının karekökü kaçtır?","opts":["7","5","3","4","6"],"a":1,"sol":"√25=5."},{"q":"7 + 5 kaç eder?","opts":["12","13","11","14","10"],"a":0,"sol":"7+5=12."},{"q":"49 sayısının karekökü kaçtır?","opts":["8","5","9","7","6"],"a":3,"sol":"√49=7."},{"q":"26 − 12 kaç eder?","opts":["14","15","13","16","12"],"a":0,"sol":"26−12=14."},{"q":"38 − 10 kaç eder?","opts":["27","29","30","28","26"],"a":3,"sol":"38−10=28."},{"q":"18 − 4 kaç eder?","opts":["13","14","15","16","12"],"a":1,"sol":"18−4=14."},{"q":"34 − 13 kaç eder?","opts":["22","21","20","19","23"],"a":1,"sol":"34−13=21."},{"q":"45 − 13 kaç eder?","opts":["31","32","34","30","33"],"a":1,"sol":"45−13=32."},{"q":"19 + 4 kaç eder?","opts":["22","25","23","24","21"],"a":2,"sol":"19+4=23."},{"q":"7 + 6 kaç eder?","opts":["13","15","12","11","14"],"a":0,"sol":"7+6=13."},{"q":"26 − 9 kaç eder?","opts":["19","18","17","15","16"],"a":2,"sol":"26−9=17."},{"q":"Işık yılı neyin birimidir?","opts":["Zaman","Uzaklık","Hız","Kütle","Sıcaklık"],"a":1,"sol":"Işık yılı bir uzaklık birimidir."},{"q":"Bloom taksonomisinde en üst bilişsel basamak hangisidir?","opts":["Bilgi","Kavrama","Uygulama","Değerlendirme/Yaratma","Analiz"],"a":3,"sol":"En üst basamak değerlendirme/yaratmadır."},{"q":"Tanzimat Fermanı hangi yıl ilan edilmiştir?","opts":["1789","1839","1876","1908","1923"],"a":1,"sol":"Tanzimat Fermanı 1839'da ilan edildi."},{"q":"16 − 8 kaç eder?","opts":["6","10","7","9","8"],"a":4,"sol":"16−8=8."},{"q":"28 − 5 kaç eder?","opts":["22","23","21","25","24"],"a":1,"sol":"28−5=23."},{"q":"6 + 11 kaç eder?","opts":["17","16","18","19","15"],"a":0,"sol":"6+11=17."},{"q":"45 − 4 kaç eder?","opts":["40","43","39","41","42"],"a":3,"sol":"45−4=41."},{"q":"4 × 2 kaç eder?","opts":["9","7","8","4","12"],"a":2,"sol":"4×2=8."},{"q":"10 + 6 kaç eder?","opts":["16","18","15","14","17"],"a":0,"sol":"10+6=16."},{"q":"39 − 10 kaç eder?","opts":["27","28","30","29","31"],"a":3,"sol":"39−10=29."},{"q":"14 + 4 kaç eder?","opts":["20","17","16","18","19"],"a":3,"sol":"14+4=18."},{"q":"6 + 9 kaç eder?","opts":["16","13","14","17","15"],"a":4,"sol":"6+9=15."},{"q":"70 ile 80 sayılarından hangisi daha büyüktür?","opts":["80","90","70","75","65"],"a":0,"sol":"80 daha büyüktür."},{"q":"17 + 5 kaç eder?","opts":["23","24","21","22","20"],"a":3,"sol":"17+5=22."},{"q":"11 × 9 kaç eder?","opts":["98","110","100","99","88"],"a":3,"sol":"11×9=99."},{"q":"26 − 7 kaç eder?","opts":["21","17","18","19","20"],"a":3,"sol":"26−7=19."},{"q":"10 × 4 kaç eder?","opts":["41","40","30","39","50"],"a":1,"sol":"10×4=40."},{"q":"9 × 8 kaç eder?","opts":["71","81","63","73","72"],"a":4,"sol":"9×8=72."},{"q":"30 − 12 kaç eder?","opts":["18","20","17","16","19"],"a":0,"sol":"30−12=18."},{"q":"Öğrencilerin bireysel farklılıklarına uygun öğretime ne denir?","opts":["Toplu öğretim","Bireyselleştirilmiş öğretim","Düz anlatım","Ezber","Test"],"a":1,"sol":"Bu, bireyselleştirilmiş öğretimdir."},{"q":"25 − 9 kaç eder?","opts":["16","17","14","15","18"],"a":0,"sol":"25−9=16."},{"q":"42 − 4 kaç eder?","opts":["36","37","39","38","40"],"a":3,"sol":"42−4=38."},{"q":"39 − 13 kaç eder?","opts":["28","27","26","25","24"],"a":2,"sol":"39−13=26."},{"q":"45 − 12 kaç eder?","opts":["33","34","35","32","31"],"a":0,"sol":"45−12=33."},{"q":"16 + 5 kaç eder?","opts":["22","19","20","23","21"],"a":4,"sol":"16+5=21."},{"q":"41 − 8 kaç eder?","opts":["35","32","34","33","31"],"a":3,"sol":"41−8=33."},{"q":"Kanunları uygulayan (yürütme) organ kimdir?","opts":["TBMM","Cumhurbaşkanı ve idare","Yargı","Anayasa Mahkemesi","Barolar"],"a":1,"sol":"Yürütme cumhurbaşkanı ve idaredir."},{"q":"İstanbul hangi yıl fethedilmiştir?","opts":["1453","1071","1299","1526","1683"],"a":0,"sol":"İstanbul 1453'te Fatih tarafından fethedildi."},{"q":"13 + 4 kaç eder?","opts":["19","15","17","18","16"],"a":2,"sol":"13+4=17."},{"q":"36 − 11 kaç eder?","opts":["27","26","24","23","25"],"a":4,"sol":"36−11=25."},{"q":"8 × 9 kaç eder?","opts":["64","72","71","80","73"],"a":1,"sol":"8×9=72."},{"q":"160 sayısının %20'i kaçtır?","opts":["30","27","37","32","34"],"a":3,"sol":"160×20/100=32."},{"q":"37 − 9 kaç eder?","opts":["27","29","28","30","26"],"a":2,"sol":"37−9=28."},{"q":"12 + 11 kaç eder?","opts":["21","23","25","22","24"],"a":1,"sol":"12+11=23."},{"q":"36 − 13 kaç eder?","opts":["22","21","23","25","24"],"a":2,"sol":"36−13=23."},{"q":"8 + 5 kaç eder?","opts":["15","11","14","12","13"],"a":4,"sol":"8+5=13."},{"q":"'Çabuk' sözcüğünün zıt anlamlısı hangisidir?","opts":["Hızlı","Seri","Yavaş","Atik","Süratli"],"a":2,"sol":"Çabuğun karşıtı yavaştır."},{"q":"42 − 5 kaç eder?","opts":["36","38","37","39","35"],"a":2,"sol":"42−5=37."},{"q":"10 × 8 kaç eder?","opts":["79","90","81","70","80"],"a":4,"sol":"10×8=80."},{"q":"24 − 12 kaç eder?","opts":["10","13","12","14","11"],"a":2,"sol":"24−12=12."},{"q":"6 × 7 kaç eder?","opts":["41","43","36","42","48"],"a":3,"sol":"6×7=42."},{"q":"42 − 6 kaç eder?","opts":["36","37","34","38","35"],"a":0,"sol":"42−6=36."},{"q":"28 − 11 kaç eder?","opts":["15","17","18","19","16"],"a":1,"sol":"28−11=17."},{"q":"2 × 7 kaç eder?","opts":["16","15","13","12","14"],"a":4,"sol":"2×7=14."},{"q":"15 − 8 kaç eder?","opts":["9","8","5","6","7"],"a":4,"sol":"15−8=7."},{"q":"'Cömert' sözcüğünün eş anlamlısı hangisidir?","opts":["Cimri","Eli açık","Kaba","Korkak","Tembel"],"a":1,"sol":"Cömert = eli açık."},{"q":"40 − 9 kaç eder?","opts":["29","30","32","33","31"],"a":4,"sol":"40−9=31."},{"q":"9 × 2 kaç eder?","opts":["17","9","19","27","18"],"a":4,"sol":"9×2=18."},{"q":"23 − 8 kaç eder?","opts":["14","15","17","16","13"],"a":1,"sol":"23−8=15."},{"q":"18 + 5 kaç eder?","opts":["25","21","24","22","23"],"a":4,"sol":"18+5=23."},{"q":"43 − 7 kaç eder?","opts":["36","38","37","35","34"],"a":0,"sol":"43−7=36."},{"q":"6 × 5 kaç eder?","opts":["30","36","31","29","24"],"a":0,"sol":"6×5=30."},{"q":"6 + 5 kaç eder?","opts":["12","9","10","13","11"],"a":4,"sol":"6+5=11."},{"q":"43 − 13 kaç eder?","opts":["32","31","29","30","28"],"a":3,"sol":"43−13=30."},{"q":"12 × 4 kaç eder?","opts":["47","60","48","49","36"],"a":2,"sol":"12×4=48."},{"q":"43 − 4 kaç eder?","opts":["39","41","37","38","40"],"a":0,"sol":"43−4=39."},{"q":"200 sayısının %25'i kaçtır?","opts":["55","45","48","52","50"],"a":4,"sol":"200×25/100=50."},{"q":"31 − 10 kaç eder?","opts":["23","20","22","21","19"],"a":3,"sol":"31−10=21."},{"q":"30 − 13 kaç eder?","opts":["16","17","19","18","15"],"a":1,"sol":"30−13=17."},{"q":"43 − 5 kaç eder?","opts":["40","37","39","36","38"],"a":4,"sol":"43−5=38."},{"q":"28 − 13 kaç eder?","opts":["15","17","16","14","13"],"a":0,"sol":"28−13=15."},{"q":"Vygotsky'nin çocuğun yardımla ulaşabileceği alan kavramı hangisidir?","opts":["Şema","Yakınsak gelişim alanı","Özdeşim","Pekiştireç","Sönme"],"a":1,"sol":"Yakınsak gelişim alanı (ZPD) yardımla ulaşılır."},{"q":"36 sayısının karekökü kaçtır?","opts":["8","5","7","6","4"],"a":3,"sol":"√36=6."},{"q":"25 − 4 kaç eder?","opts":["19","22","20","23","21"],"a":4,"sol":"25−4=21."},{"q":"12 × 5 kaç eder?","opts":["72","61","59","60","48"],"a":3,"sol":"12×5=60."},{"q":"Bir üçgenin iç açıları toplamı kaç derecedir?","opts":["90","180","270","360","120"],"a":1,"sol":"Üçgende iç açılar toplamı 180°'dir."},{"q":"64 sayısının karekökü kaçtır?","opts":["7","6","10","8","9"],"a":3,"sol":"√64=8."},{"q":"21 − 10 kaç eder?","opts":["10","11","12","13","9"],"a":1,"sol":"21−10=11."},{"q":"27 − 11 kaç eder?","opts":["18","16","14","15","17"],"a":1,"sol":"27−11=16."},{"q":"13 + 7 kaç eder?","opts":["21","19","22","20","18"],"a":3,"sol":"13+7=20."},{"q":"19 + 9 kaç eder?","opts":["26","30","29","28","27"],"a":3,"sol":"19+9=28."},{"q":"31 − 7 kaç eder?","opts":["22","23","25","26","24"],"a":4,"sol":"31−7=24."},{"q":"42 − 7 kaç eder?","opts":["36","35","33","34","37"],"a":1,"sol":"42−7=35."},{"q":"9 × 9 kaç eder?","opts":["90","80","72","82","81"],"a":4,"sol":"9×9=81."},{"q":"23 − 10 kaç eder?","opts":["14","15","11","12","13"],"a":4,"sol":"23−10=13."},{"q":"12 + 6 kaç eder?","opts":["18","16","20","17","19"],"a":0,"sol":"12+6=18."},{"q":"16 + 8 kaç eder?","opts":["26","23","22","24","25"],"a":3,"sol":"16+8=24."},{"q":"Deprem şiddetini ölçen ölçek hangisidir?","opts":["Celsius","Richter","Newton","Watt","Volt"],"a":1,"sol":"Deprem büyüklüğü Richter ölçeğiyle ifade edilir."},{"q":"Devletin temel belgesi (en üstün hukuk kuralı) hangisidir?","opts":["Kanun","Anayasa","Yönetmelik","Genelge","Tüzük"],"a":1,"sol":"Anayasa en üstün hukuk kuralıdır."},{"q":"12 + 7 kaç eder?","opts":["21","20","19","18","17"],"a":2,"sol":"12+7=19."},{"q":"2 × 8 kaç eder?","opts":["17","18","15","16","14"],"a":3,"sol":"2×8=16."},{"q":"28 − 8 kaç eder?","opts":["20","19","18","22","21"],"a":0,"sol":"28−8=20."},{"q":"37 − 11 kaç eder?","opts":["26","27","25","28","24"],"a":0,"sol":"37−11=26."},{"q":"20 − 12 kaç eder?","opts":["6","7","8","10","9"],"a":2,"sol":"20−12=8."},{"q":"39 − 7 kaç eder?","opts":["30","34","31","33","32"],"a":4,"sol":"39−7=32."},{"q":"10 + 11 kaç eder?","opts":["20","21","19","23","22"],"a":1,"sol":"10+11=21."},{"q":"'Yalnız' sözcüğünün yanlış yazımı hangisidir?","opts":["Yalnız","Yanlız","Yalnızca","Yalnızlık","Yalnızım"],"a":1,"sol":"'Yanlız' yanlıştır."},{"q":"11 + 8 kaç eder?","opts":["19","18","20","21","17"],"a":0,"sol":"11+8=19."},{"q":"27 − 8 kaç eder?","opts":["20","21","19","17","18"],"a":2,"sol":"27−8=19."},{"q":"İstiklal Marşı'nın şairi kimdir?","opts":["Namık Kemal","Mehmet Akif Ersoy","Ziya Gökalp","Tevfik Fikret","Yahya Kemal"],"a":1,"sol":"İstiklal Marşı Mehmet Akif Ersoy'a aittir."},{"q":"7 + 12 kaç eder?","opts":["17","21","19","20","18"],"a":2,"sol":"7+12=19."},{"q":"24 − 5 kaç eder?","opts":["18","21","19","20","17"],"a":2,"sol":"24−5=19."},{"q":"39 − 5 kaç eder?","opts":["33","32","36","34","35"],"a":3,"sol":"39−5=34."},{"q":"7 + 7 kaç eder?","opts":["15","13","14","16","12"],"a":2,"sol":"7+7=14."},{"q":"Barometre neyi ölçer?","opts":["Sıcaklığı","Açık hava basıncını","Nemi","Rüzgârı","Yağışı"],"a":1,"sol":"Barometre hava basıncını ölçer."},{"q":"27 − 4 kaç eder?","opts":["24","22","21","25","23"],"a":4,"sol":"27−4=23."},{"q":"23 − 6 kaç eder?","opts":["16","19","17","15","18"],"a":2,"sol":"23−6=17."},{"q":"32 − 4 kaç eder?","opts":["30","28","26","29","27"],"a":1,"sol":"32−4=28."},{"q":"9 × 5 kaç eder?","opts":["45","46","54","36","44"],"a":0,"sol":"9×5=45."},{"q":"16 − 6 kaç eder?","opts":["8","11","12","10","9"],"a":3,"sol":"16−6=10."},{"q":"7 + 8 kaç eder?","opts":["14","13","16","17","15"],"a":4,"sol":"7+8=15."},{"q":"24 − 8 kaç eder?","opts":["14","16","15","18","17"],"a":1,"sol":"24−8=16."},{"q":"19 − 9 kaç eder?","opts":["11","9","10","12","8"],"a":2,"sol":"19−9=10."},{"q":"42 − 11 kaç eder?","opts":["30","31","33","32","29"],"a":1,"sol":"42−11=31."},{"q":"31 − 12 kaç eder?","opts":["21","17","19","20","18"],"a":2,"sol":"31−12=19."},{"q":"14 + 12 kaç eder?","opts":["27","25","26","24","28"],"a":2,"sol":"14+12=26."},{"q":"12 + 8 kaç eder?","opts":["21","19","22","20","18"],"a":3,"sol":"12+8=20."},{"q":"19 + 7 kaç eder?","opts":["25","28","26","27","24"],"a":2,"sol":"19+7=26."},{"q":"15 − 11 kaç eder?","opts":["2","4","6","5","3"],"a":1,"sol":"15−11=4."},{"q":"10 + 3 kaç eder?","opts":["14","11","12","15","13"],"a":4,"sol":"10+3=13."},{"q":"38 − 6 kaç eder?","opts":["32","31","30","34","33"],"a":0,"sol":"38−6=32."},{"q":"40 − 12 kaç eder?","opts":["27","26","29","28","30"],"a":3,"sol":"40−12=28."},{"q":"29 − 8 kaç eder?","opts":["21","23","19","20","22"],"a":0,"sol":"29−8=21."},{"q":"10 × 3 kaç eder?","opts":["31","30","20","40","29"],"a":1,"sol":"10×3=30."},{"q":"39 − 6 kaç eder?","opts":["31","34","33","32","35"],"a":2,"sol":"39−6=33."},{"q":"200 sayısının %20'i kaçtır?","opts":["42","35","40","38","45"],"a":2,"sol":"200×20/100=40."},{"q":"11 + 9 kaç eder?","opts":["19","18","22","20","21"],"a":3,"sol":"11+9=20."},{"q":"12 + 4 kaç eder?","opts":["18","17","15","16","14"],"a":3,"sol":"12+4=16."},{"q":"22 − 6 kaç eder?","opts":["17","18","15","14","16"],"a":4,"sol":"22−6=16."},{"q":"Boylam bir yerin öncelikle neyini etkiler?","opts":["İklimini","Yerel saatini","Bitki örtüsünü","Toprağını","Deprem riskini"],"a":1,"sol":"Boylam yerel saati belirler."},{"q":"Türkiye'nin para birimi nedir?","opts":["Euro","Dolar","Türk Lirası","Sterlin","Ruble"],"a":2,"sol":"Para birimi Türk Lirası'dır."},{"q":"3 × 2 kaç eder?","opts":["3","5","7","6","9"],"a":3,"sol":"3×2=6."},{"q":"7 + 10 kaç eder?","opts":["17","16","15","19","18"],"a":0,"sol":"7+10=17."},{"q":"36 − 7 kaç eder?","opts":["28","30","29","27","31"],"a":2,"sol":"36−7=29."},{"q":"16 − 7 kaç eder?","opts":["9","7","11","10","8"],"a":0,"sol":"16−7=9."},{"q":"19 + 5 kaç eder?","opts":["22","25","26","24","23"],"a":3,"sol":"19+5=24."},{"q":"30 − 7 kaç eder?","opts":["23","22","21","25","24"],"a":0,"sol":"30−7=23."},{"q":"7 × 6 kaç eder?","opts":["49","43","42","35","41"],"a":2,"sol":"7×6=42."},{"q":"12 × 9 kaç eder?","opts":["107","120","96","108","109"],"a":3,"sol":"12×9=108."}],"facts":["Attila İlhan Cumhuriyet Dönemi'nin önemli şair ve romancılarındandır.","Sokrates soru-cevaba dayalı diyalektik yöntemi kullanmıştır.","Lirik şiir duygu yoğunluğuna dayanır; didaktik şiir öğreticidir.","12 sayısının karesi 144, küpü 1728'tür.","Sevr Antlaşması Osmanlı'yı ağır koşullar altına sokmuştur.","Sanatta perspektif kullanımı, üç boyutlu nesneleri iki boyutlu bir yüzeyde gerçekçi bir şekilde göstermek için matematiksel prensiplere dayanır.","Septisizm kesin ve genel geçer bilginin mümkün olmadığını savunur.","Büyük ünlü uyumu kalın-ince ünlü sırasına dayanır.","16 ile 14'nin çarpımı 224'dir.","Bir sayının 9 ile tam bölünebilmesi için rakamları toplamının 9'un katı olması gerekir.","Küçük ünlü uyumu düzlük-yuvarlaklık kuralına dayanır.","Yansıma sözcükler doğadaki sesleri taklit eder.","Düzenli uyku ve spor sağlığı korur.","Brezilya'nın başkenti Brasília'dir.","200 sayısının %50'i 100'dir.","Karbondioksitin formülü CO₂'dir.","EKOK, iki veya daha fazla sayının ortak katlarının en küçüğüdür ve bu sayıların katıdır.","DNA canlının kalıtsal bilgisini taşıyan moleküldür.","Bir dörtgenin iç açıları toplamı 360 derecedir.","120 sayısının %20'i 24'dir.","Neden-sonuç ilişkisi 'için, -den dolayı, bu yüzden' gibi ifadelerle sağlanır.","Birinci Dünya Savaşı 1914-1918 yılları arasında yaşanmıştır.","Özel adların ilk harfi büyük yazılır.","Olasılık teorisi, rastgele olayların analiziyle ilgilenir ve genetikten hava tahminine kadar geniş bir yelpazede bilimsel uygulamalara sahiptir.","Delta ovaları akarsuların denize döküldüğü yerde alüvyon biriktirmesiyle oluşur.","40 sayısının %20'i 8'dir.","Vektörel büyüklüklerin hem yönü hem büyüklüğü vardır.","200 sayısının %10'i 20'dir.","Türkiye'nin en yüksek dağı Ağrı Dağı'dır.","Berlin Duvarı 1989'da yıkılmıştır.","Asal sayı, yalnızca 1'e ve kendisine tam bölünen 1'den büyük doğal sayıdır.","Deyimler, kalıplaşmış söz öbekleri olup genellikle gerçek anlamından uzaklaşarak yeni bir anlam kazanır.","Doğal seçilim çevreye uyum sağlayan bireylerin hayatta kalmasıdır.","Sayısal bölümde deneme çözmek, sadece bilginizi değil, hızınızı ve stratejinizi de geliştirir.","Türkiye'nin en uzun akarsuyu Kızılırmak'tır.","Amasya Genelgesi milletin bağımsızlığını yine milletin azminin kurtaracağını duyurdu.","Yapım ekleri yeni sözcük türetir.","Ukrayna'nın başkenti Kiev'dir.","17 ile 4'nin çarpımı 68'dir.","Cümlenin ilk harfi her zaman büyük yazılır.","Kutuplarda buzullar bulunur.","2 ile 4'nin çarpımı 8'dir.","Karmaşık sayılar, reel sayılar kümesini genişleterek x² + 1 = 0 gibi denklemlerin çözülmesini sağlayan i (sanal birim) içerir.","TBMM 23 Nisan 1920'de Ankara'da açılmıştır.","Bağlaçlar, eş görevli sözcükleri, söz öbeklerini veya cümleleri birbirine bağlayan, cümleden çıkarıldığında anlamda büyük bozulma yaratmayan kelimelerdir.","Bir sayının mutlak değeri, o sayının sıfıra olan uzaklığını ifade eder ve daima pozitif veya sıfırdır.","Gereksiz sözcük kullanımı, aynı anlama gelen kelimelerin bir arada kullanılmasıyla ortaya çıkan anlatım bozukluğudur.","Karekök içindeki bir sayı negatif olamaz, çünkü hiçbir reel sayının karesi negatif değildir.","Bir küpün hacmi ayrıtının üçüncü kuvvetidir.","Bir düzine 12, bir deste 10 adettir.","Soy gazlar tepkimeye pek girmez çünkü son yörüngeleri elektronla doludur.","Ödül ve pekiştireç istendik davranışı artırır.","Hindistan'nın başkenti Yeni Delhi'dir.","81 sayısının karekökü 9'dir.","Mutlak değer bir sayının sıfıra uzaklığıdır ve negatif olamaz.","Işık boşlukta yaklaşık saniyede 300.000 kilometre hızla yayılır.","İngiltere'nın başkenti Londra'dir.","Kazakistan'nın başkenti Astana'dir.","Zarflar, fiilleri, fiilimsileri, sıfatları ve kendi türünden kelimeleri durum, zaman, miktar, yer-yön ve soru bakımından tamamlayan sözcüklerdir.","Fas'nın başkenti Rabat'dir.","Bağlaçlar sözcükleri ya da cümleleri birbirine bağlar.","Fotosentezin ışığa bağımlı evresi tilakoid zarda gerçekleşir.","6 sayısının karesi 36, küpü 216'tür.","Zarflar fiillerin anlamını çeşitli yönlerden belirginleştirir.","240 sayısının %10'i 24'dir.","Işık farklı yoğunluktaki bir ortama geçerken kırılır.","Suyun donma noktası 0°C, kaynama noktası ise deniz seviyesinde 100°C'dir.","Kuvvet, kütle ile ivmenin çarpımına eşittir (F = m·a).","Ölçme, bir özelliğin sayılarla ifade edilmesidir.","Türk Dil Kurumu 1932, Türk Tarih Kurumu 1931'de kurulmuştur.","Dünya'nın en derin noktası Mariana Çukuru'dur.","Kanuni Sultan Süleyman 46 yıl tahtta kalmıştır.","Aktif katılım öğrenmeyi artırır.","Momentum kütle ile hızın çarpımıdır ve dış kuvvet yoksa korunur.","Ardışık iki tek sayının EBOB'u her zaman 1'dir.","Açıklama, bir konuda bilgi vermek, okuyucuyu aydınlatmak amacıyla kullanılan anlatım biçimidir.","Volkanlar yer altındaki magmanın yüzeye çıkmasıyla oluşur.","Bir yılda dört mevsim vardır.","Edatlar (ilgeçler), tek başlarına anlamı olmayan, cümle içinde kendinden önceki sözcükle ilgi kurarak anlam kazanan kelimelerdir.","Anlatım bozuklukları, anlamsal (gereksiz sözcük kullanımı) ve yapısal (özne-yüklem uyumsuzluğu) olmak üzere iki ana başlıkta incelenir.","Suyun iyonlaşma çarpımı 25 derecede 10⁻¹⁴'tür.","İrrasyonel sayılar, kesir olarak ifade edilemeyen ve ondalık açılımları sonsuz, tekrarsız olan reel sayılardır.","120 sayısının %50'i 60'dir.","ATP hücrenin enerji birimidir.","49 sayısının karekökü 7'dir.","Ankara 13 Ekim 1923'te başkent ilan edilmiştir.","80 sayısının %10'i 8'dir.","Simetri, matematiksel bir kavram olmasının yanı sıra, sanat, mimari ve doğadaki estetik algımızın önemli bir parçasıdır.","Formatif değerlendirme süreç içinde yapılır.","Dünya'nın en yüksek dağı Everest'tir.","2 ile 5'nin çarpımı 10'dir.","Tekrar öğrenmeyi kalıcı kılar.","Belçika'nın başkenti Brüksel'dir.","3 üzeri 8, 6561 eder.","İkinci derece denklemde kökler toplamı −b/a'dır.","En büyük ada Grönland'dır.","Yüzde problemleri genellikle 'yüzde X'i Y olan sayı kaçtır?' veya 'bir sayının %A'sı kaçtır?' şeklinde sorulur.","İsviçre'nın başkenti Bern'dir.","160 sayısının %25'i 40'dir.","12 ile 19'nin çarpımı 228'dir.","Türkçede vurgu genellikle yükleme en yakın öge üzerindedir, ancak soru sözcüğü veya soru eki varsa vurgu onlara kayar.","Servet-i Fünun'un öncü şairi Tevfik Fikret'tir.","Akdeniz ikliminde yazlar sıcak ve kurak, kışlar ılık ve yağışlı geçer.","Zarf tümleci, yüklemi durum, zaman, miktar, yer-yön, sebep, amaç gibi yönlerden açıklayan ögedir ve 'nasıl, ne zaman, ne kadar' gibi sorularla bulunur.","Büyük Taarruz 26 Ağustos 1922'de başladı, 30 Ağustos'ta zaferle sonuçlandı.","Motivasyon öğrenmeyi doğrudan etkileyen bir etkendir.","Bir futbol maçı 90 dakika sürer.","25 sayısının küpü 15625'tür.","Matbaayı Johannes Gutenberg geliştirmiştir.","Kinetik enerji ½mv² formülüyle hesaplanır.","100 sayısının karekökü 10'dir.","Yangında 112 ve 110 acil numaraları aranır.","Pi sayısı (π), bir çemberin çevresinin çapına oranıdır ve virgülden sonra sonsuz basamağa sahip, düzensiz bir irrasyonel sayıdır.","Katar'nın başkenti Doha'dir.","Norveç'nın başkenti Oslo'dir.","Marmara Bölgesi sanayinin ve nüfusun en yoğun olduğu bölgedir.","Boğazlar Karadeniz ile Akdeniz'i birbirine bağlar.","Ünlü düşmesi, genellikle iki heceli bazı kelimelerin ünlü ile başlayan bir ek aldığında ikinci hecedeki ünlünün düşmesidir.","Nüfus yoğunluğu nüfusun yüzölçümüne bölünmesiyle bulunur.","Deprem yer kabuğundaki fayların hareketiyle oluşur.","'Örneğin, mesela' ifadeleri düşünceyi somutlaştırmak (örneklendirmek) için kullanılır.","Öğrenci merkezli eğitim öğrenciyi etkin kılar.","Bireysel farklılıklar öğretimde göz önünde bulundurulur.","Ağırlık, kütle ile yer çekimi ivmesinin çarpımıdır (G = m·g).","Karışım problemleri oranların korunumu ilkesiyle çözülür.","3 sayısının karesi 9, küpü 27'tür.","Öğretim ilkeleri arasında bilinenden bilinmeyene, somuttan soyuta yer alır.","Bir metnin akıcılığı bağlaç ve geçiş ifadeleriyle (bağdaşıklık) sağlanır.","Bir işin tamamı 1 kabul edilerek işçi problemleri kurulur.","120 sayısının %25'i 30'dir.","Büyük harflerin kullanımı, özel adlar, unvanlar, millet, dil, din adları, belirli tarih ve coğrafi terimlerin başında zorunludur.","Muson rüzgarları, mevsimsel sıcaklık ve basınç farklarına bağlı olarak yön değiştiren ve özellikle Güney Asya'da yoğun yağışlara neden olan rüzgar sistemleridir.","Ünlem işareti seslenme ve duygu cümlelerinde kullanılır.","120 sayısının %10'i 12'dir.","Anlatım bozuklukları, cümlenin açık, anlaşılır ve doğru olmasını engelleyen anlamsal veya yapısal kusurlardır.","200 sayısının %25'i 50'dir.","İki tam kare sayının farkı her zaman iki sayının toplamı ile farkının çarpımına eşittir.","Sıfat, ismi niteleyen ya da belirten sözcük türüdür.","İki basamaklı en büyük asal sayı 97'dir.","Nota sayısı yedidir: do re mi fa sol la si.","Ekvator Dünya'yı kuzey ve güney yarım küre olarak ikiye ayırır.","Değerlendirme, ölçme sonuçlarının yorumlanmasıdır.","Ekvatordan kutuplara gidildikçe sıcaklık genellikle azalır.","Kanun-i Esasi (1876) ile I. Meşrutiyet dönemi başlamıştır.","Yazımında yanlışlık yapılan birleşik sözcükler genellikle somut anlamını yitirip yeni bir anlam kazanmış olanlardır.","Anlamca çelişen sözcüklerin bir arada kullanılması, 'eminim ki belki gelir' örneğinde olduğu gibi anlatım bozukluğuna yol açar.","9 ile 9'nin çarpımı 81'dir.","Dikdörtgenin alanı kenarlarının çarpımı, çevresi ise iki kenarın toplamının iki katıdır.","Enlem iklimi, boylam ise yerel saati etkiler.","Ana yönler kuzey, güney, doğu ve batıdır.","Felsefede ontoloji varlığı, epistemoloji bilgiyi inceler.","Rehberlik gönüllülük ve gizlilik ilkesine dayanır.","Bir dalganın hızı frekans ile dalga boyunun çarpımıdır.","6 ile 4'nin çarpımı 24'dir.","Lehçe, bir dilin tarihsel gelişim sürecinde ayrılmış, önemli ses, şekil ve söz varlığı farklılıkları gösteren kollarıdır.","İspanya'nın başkenti Madrid'dir.","Serbest Cumhuriyet Fırkası 1930'da çok partili hayat denemesidir.","Bir mol madde 6,02×10²³ tanecik içerir.","Türkiye'nin en kalabalık şehri İstanbul'dur.","Rusya'nın başkenti Moskova'dir.","Sağlıklı beslenme için sebze ve meyve tüketilmelidir.","36 sayısının karekökü 6'dir.","Bir fonksiyonun türevi o noktadaki teğetin eğimini verir.","8 ile 17'nin çarpımı 136'dir.","Tanzimat edebiyatı 1860'ta Şinasi'nin gazeteciliğiyle başlamıştır.","İki nokta, kendisinden sonra örnek verilecek veya açıklama yapılacak cümlenin sonuna konur.","Atatürk ilkeleri cumhuriyetçilik, milliyetçilik, halkçılık, devletçilik, laiklik ve inkılapçılıktır.","Belirli integral, bir fonksiyonun grafiği ile x ekseni arasında kalan alanı hesaplamak için kullanılır.","Her 15 derece boylam farkı 1 saatlik yerel saat farkı oluşturur.","Türkiye'de en fazla yağış Doğu Karadeniz'e düşer.","En kalabalık kıta Asya'dır.","Bir sayının yüzdesi, sayının 100'e bölünüp ilgili oranla çarpımıyla bulunur.","Halifelik 1924'te kaldırılmıştır.","Sözcükte anlam soruları gerçek, mecaz, terim ve yan anlamı ayırt etmeyi gerektirir.","Yağmur ormanları en fazla oksijen üreten bölgelerdendir.","Bir sayının yüzdesi, o sayının 100'e bölünüp ilgili oranla çarpılmasıyla bulunur.","Macaristan'nın başkenti Budapeşte'dir.","11 sayısının karesi 121, küpü 1331'tür.","160 sayısının %50'i 80'dir.","Volkanik patlamalar, Dünya'nın iç yapısından çıkan magma, kül ve gazların yüzeye ulaşmasıyla meydana gelen jeolojik olaylardır.","Büyük harflerin kullanımı, özel adların, cümle başlarının, unvanların ve belirli tarihlerin yazımında önem taşır.","Gürcistan'nın başkenti Tiflis'dir.","Defterdar Osmanlı divanında maliye işlerinden sorumluydu.","Metinde geçiş ve bağlantı ifadeleri bağdaşıklığı (tutarlılığı) sağlar.","Teizm Tanrı'nın varlığını, ateizm yokluğunu savunur.","Karadeniz iklimi her mevsim yağışlı, Akdeniz iklimi yazın kuraktır.","Nesne, öznenin yaptığı işten etkilenen ögedir ve yükleme 'neyi/kimi' sorusuyla bulunur.","Dmitri Mendeleyev, elementlerin periyodik tablosunu oluşturarak kimya biliminin sistemleşmesini sağlamıştır.","200 sayısının %20'i 40'dir.","Ünlü daralması, geniş ünlülerin (a, e) dar ünlülere (ı, i, u, ü) dönüşmesi olayıdır ve genellikle \"-yor\" ekiyle görülür.","Kesme işareti özel adlara gelen ekleri ayırır.","Bir cümlede karşılaştırma 'daha, en, göre, kadar' gibi sözcüklerle kurulur.","18 ile 10'nin çarpımı 180'dir.","Türkiye'de en az yağış İç Anadolu'ya düşer.","Problemlerde verilen bilgileri matematiksel denklemlere dönüştürmek, çözümün ilk ve en önemli adımıdır.","ABD'nın başkenti Washington'dir.","Yükseltinin artması sıcaklığı düşürür.","Fibonacci dizisi, her terimin kendinden önceki iki terimin toplamı olduğu bir sayı dizisidir ve doğada sıkça görülür.","Fiilimsiler (eylemsiler), fiil kök veya gövdelerinden türeyen ancak fiil özelliklerini yitirip isim, sıfat veya zarf görevi üstlenen sözcüklerdir.","Çanakkale Deniz Zaferi 18 Mart 1915'te kazanılmıştır.","Bir kümedeki eleman sayısı, o kümenin kardinalitesi olarak adlandırılır.","Enerji yoktan var edilemez, yalnızca biçim değiştirir.","Postmodern Türk romanının öncüsü Oğuz Atay'ın 'Tutunamayanlar'ıdır.","Bir çıkarımda öncüller doğruyken sonuç yanlışsa çıkarım geçersizdir.","Bir devrede seri dirençler toplanarak, paralel dirençler tersleri toplanarak hesaplanır.","Permütasyon, nesnelerin sıralanış biçimlerini incelerken, kombinasyon sıralama önemsiz olduğunda kullanılır.","25 sayısının karekökü 5'dir.","Bir gün 24 saat, bir saat 60 dakikadır.","Küme teorisi, matematiksel nesneleri gruplar halinde sınıflandırmanın temelini oluşturan bir kavramdır ve modern matematiğin ana yapılarından biridir.","Devletçilik, devletin ekonomiye gerektiğinde katılımını öngören Atatürk ilkesidir.","Silindirin hacmi taban alanı ile yüksekliğin çarpımıdır.","Bir problemde verileni ve isteneni ayırmak çözümü kolaylaştırır.","Türkiye'de saltanat 1922'de, halifelik 1924'te kaldırılmıştır.","Oyun teorisi, stratejik karar alma durumlarını matematiksel olarak analiz eden bir dal olup, ekonomi ve sosyal bilimlerde uygulamaları bulunur.","Güdülenme (motivasyon) öğrenmeyi kolaylaştırır.","Mitoz bölünmede bir hücreden birbirinin aynısı iki hücre oluşur.","Yeterlilik fiili (-ebilmek), birleşik fiil olup her zaman bitişik yazılır ve olumsuzu 'gelemedi' gibi farklı bir yapıdadır.","Periyodik tabloda düşey sütunlara grup, yatay sıralara periyot denir.","Türkiye 1952'de NATO'ya üye olmuştur.","Elektrik akımının birimi amper, gerilimin birimi volttur.","14 ile 7'nin çarpımı 98'dir.","Antik Mısır'daki piramitlerin inşasında kullanılan ileri geometri bilgisi, o dönemin matematiksel yeteneklerini gözler önüne serer.","pH değeri 7'den küçükse asidik, büyükse baziktir.","Yunanistan'nın başkenti Atina'dir.","Paragraf, bir ana düşünce çevresinde toplanan cümleler bütünüdür.","Gazel çoğunlukla aşk, kaside ise övgü konulu divan şiiri biçimidir.","Zarf tümleci, yüklemin zamanını, durumunu, miktarını, yönünü veya sebebini belirten ögedir.","8 ile 11'nin çarpımı 88'dir.","Benzetme (teşbih) iki varlık arasında ortak yön kurarak yapılan söz sanatıdır.","İran'nın başkenti Tahran'dir.","80 sayısının %50'i 40'dir.","Amerika kıtası 1492'de Kristof Kolomb tarafından keşfedilmiştir.","Bir yerin mutlak konumu enlem ve boylam değerleriyle belirlenir.","Almanya'nın başkenti Berlin'dir.","Bir haftada beş iş günü bulunur.","Mısır'nın başkenti Kahire'dir.","Kanada'nın başkenti Ottava'dir.","Milli Edebiyat sade Türkçeyi ve hece ölçüsünü benimsemiştir.","12 ile 12'nin çarpımı 144'dir.","Birleşmiş Milletler 1945'te kurulmuştur.","Amazon dünyanın en geniş havzalı nehridir.","Büyük Selçuklu Devleti Tuğrul Bey tarafından kurulmuştur.","Betimleyici anlatımda varlıkların ayırt edici özellikleri sözcüklerle resmedilir.","Divan edebiyatı beyit temeline dayanır.","Glikozun molekül formülü C₆H₁₂O₆'dır.","Eş sesli (sesteş) sözcükler yazılışı aynı, anlamı farklıdır.","Rüzgar, hava basıncı farkından doğar.","Periyodik tabloda soldan sağa atom yarıçapı azalır.","Rehberlik öğrencinin kendini tanımasına yardımcı olur.","Sıfır, ne pozitif ne de negatif bir tam sayıdır.","Sayısal mantık soruları örüntü, sıralama ve akıl yürütme becerisini ölçer.","Grafik okuma ve tablo yorumlama sorularında, verilen verileri dikkatlice analiz etmek ve doğru çıkarımlar yapmak esastır.","İlk Türk devletlerinden Göktürkler kendi alfabelerini kullanmıştır.","4 ile 15'nin çarpımı 60'dir.","Edatlar tek başına anlamı olmayan görevli sözcüklerdir.","Zamirler isimlerin yerini tutar.","Çekya'nın başkenti Prag'dir.","7 ile 16'nin çarpımı 112'dir.","121 sayısının karekökü 11'dir.","Fırat ve Dicle nehirleri Güneydoğu Anadolu'dan doğar.","Laiklik din ve devlet işlerinin birbirinden ayrılmasıdır.","60 sayısının %25'i 15'dir.","Çekim ekleri sözcüğü cümleye bağlar.","Geometrik dizide her terim bir öncekinin ortak çarpanla çarpımıdır.","Dünya Sağlık Örgütü'nün kısaltması DSÖ (WHO)'dur.","Bulgaristan'nın başkenti Sofya'dir.","Basketbolda bir takım sahada 5 oyuncuyla oynar.","İki basamaklı en küçük asal sayı 11'dir.","İsveç'nın başkenti Stockholm'dir.","Newton'un ikinci yasasına göre kuvvet, kütle ile ivmenin çarpımına eşittir (F=m·a).","Meksika'nın başkenti Meksiko'dir.","4 sayısının karesi 16, küpü 64'tür.","200 sayısının %40'i 80'dir.","Azerbaycan'nın başkenti Bakü'dir.","Yüklem, cümlenin yargısını bildiren temel öge olup, çekimli bir fiil veya ek fiil almış bir isim soylu sözcük olabilir.","Türkiye'nin en sıcak bölgesi Güneydoğu Anadolu'dur.","64 sayısının karekökü 8'dir.","Kinaye, bir sözü hem gerçek hem de mecaz anlamıyla düşündürecek şekilde kullanmak olup, asıl kastedilen genellikle mecaz anlamdır.","'Ki' bağlacı çoğunlukla ayrı yazılır; 'oysaki, mademki, halbuki' gibi kalıplaşmış birkaç sözcükte bitişik yazılır.","Satranç 64 kareli bir tahtada oynanır.","Sırbistan'nın başkenti Belgrad'dir.","Pusula yön bulmaya yarar.","Karadeniz'in en yüksek dağı Kaçkar Dağı'dır.","Mantık, doğru akıl yürütme ilkelerini inceleyen bir disiplin olup, matematiğin ve felsefenin temel taşlarından biridir.","Yüzölçümü en büyük ülke Rusya'dır.","Ardışık iki çift sayının EBOB'u her zaman 2'dir.","Fiilimsiler (isim-fiil, sıfat-fiil, zarf-fiil) cümlede genellikle yan cümlecik kurarak temel cümlenin bir ögesi olur, ancak ek eylem alarak yüklem de olabilirler.","Portekiz'nın başkenti Lizbon'dir.","Alexander Fleming'in penisilini keşfetmesi, antibiyotik çağını başlatarak enfeksiyon hastalıklarıyla mücadelede devrim yaratmıştır.","Garip akımı Orhan Veli öncülüğünde doğmuştur.","80 sayısının %5'i 4'dir.","Kütleçekimi, cisimlerin birbirini çekme kuvveti olup evrendeki dört temel kuvvetten biridir.","40 sayısının %10'i 4'dir.","6 ile 13'nin çarpımı 78'dir.","19 ile 17'nin çarpımı 323'dir.","2 ile 19'nin çarpımı 38'dir.","İnternet dünya çapında bir bilgi ağıdır.","Finlandiya'nın başkenti Helsinki'dir.","Doğu Karadeniz kıyıları Türkiye'de en çok yağış alan yöredir.","Noktalama işaretleri anlamı ve okuma akışını düzenler.","Virgül, sıralı cümleleri ayırmanın yanı sıra eş görevli sözcük ve söz öbeklerini ayırmak için de kullanılır.","Zamirler, isimlerin yerini tutan kelimeler olup işaret, kişi, dönüşlülük, soru ve belirsizlik zamirleri olarak ayrılır.","İstanbul'un fethi Orta Çağ'ı bitirip Yeni Çağ'ı başlatmıştır.","Saf su 1 atmosfer basınçta 100 derecede kaynar, 0 derecede donar.","Türkiye aktif fay hatları üzerinde bulunduğu için deprem riski yüksektir.","8 ile 19'nin çarpımı 152'dir.","Orhan Pamuk 2006'da Nobel Edebiyat Ödülü'nü kazanmıştır.","En büyük okyanus Pasifik Okyanusu'dur.","Karmaşık sayılarda i²=−1'dir.","Dünya'nın en uzun nehri Nil olarak kabul edilir.","Vitaminler vücudun düzenli çalışması için az miktarda gereken besinlerdir.","Deyimlerin ve atasözlerinin yanlış kullanılması, onların kalıplaşmış yapısını bozarak veya farklı bir bağlamda kullanarak anlatım bozukluğuna yol açar.","Tuzlu su, homojen bir karışımdır ve çözücü ile çözünen içerir.","Polonya'nın başkenti Varşova'dir.","4 sayısının karekökü 2'dir.","Deyimler kalıplaşmış, çoğunlukla mecazlı söz gruplarıdır.","Akdeniz iklimi, yazları sıcak ve kurak, kışları ise ılık ve yağışlı geçmesiyle karakterize edilen bir iklim tipidir.","Noktalı virgül, ögeleri arasına virgül konmuş sıralı cümleleri ayırmada ve tür veya takımları ayırmada kullanılır.","Potansiyel enerji cismin konumundan kaynaklanır ve mgh ile bulunur.","Logaritma, bir sayının belirli bir tabana göre hangi kuvveti olduğunu bulma işlemidir.","Soru işareti soru cümlelerinin sonuna konur.","İkilemeler anlatımı güçlendirmek için kullanılır.","Euler sabiti (e, yaklaşık 2.718), doğal logaritmanın tabanıdır ve sürekli bileşik faiz gibi büyüme modellerinde merkezi bir rol oynar.","Bağlaçlar, sözcükleri, söz öbeklerini veya cümleleri birbirine bağlayan, cümleden çıkarıldığında anlam bozulmayan kelimelerdir.","Avustralya'nın başkenti Canberra'dir.","Ahmet Hamdi Tanpınar 'Huzur' ve 'Saatleri Ayarlama Enstitüsü'nün yazarıdır.","Sıfatlar isimleri niteler ya da belirtir.","Tayland'nın başkenti Bangkok'dir.","Mayoz bölünmede kromozom sayısı yarıya iner.","Hırvatistan'nın başkenti Zagreb'dir.","Türkiye'nin yüzölçümü en büyük ili Konya'dır.","Türkiye Birleşmiş Milletler'in kurucu üyelerindendir.","Türk Medeni Kanunu 1926'da kabul edilmiştir.","Bir cümlede birden fazla yüklem varsa, o cümle yapısına göre sıralı veya bağlı cümle olarak adlandırılır.","Virgül eş görevli sözcükleri ayırır.","5 ile 17'nin çarpımı 85'dir.","İsimler varlıkları karşılayan sözcüklerdir.","Japonya'nın başkenti Tokyo'dir.","Kar-zarar problemlerinde maliyet, satış fiyatı ve kar/zarar yüzdesi arasındaki ilişkiyi iyi anlamak önemlidir.","10 ile 15'nin çarpımı 150'dir.","Cümlede kullanılan 'yalnız' ve 'ancak' sözcükleri, bağlaç, edat, zarf veya sıfat görevinde bulunabilir ve bu durum cümlenin anlamına göre belirlenir.","Mudanya Ateşkes Antlaşması 1922'de imzalanmıştır.","Bağlaçlar, sözcükleri, söz öbeklerini veya cümleleri birbirine bağlayarak anlam ilişkisi kurar.","Cumhuriyet 29 Ekim 1923'te ilan edilmiştir.","7 sayısının karesi 49, küpü 343'tür.","Gökkuşağının renkleri kırmızıdan mora doğru sıralanır.","Suudi Arabistan'nın başkenti Riyad'dir.","Öğrenme kalıcı davranış değişikliğidir.","Maslow ihtiyaçları bir piramitle sıralamıştır.","15 ile 10'nin çarpımı 150'dir.","Kalkülüs, değişim oranlarını ve birikmiş miktarları inceleyen matematik dalı olup fizik, mühendislik ve ekonomi gibi birçok bilimde temel araçtır.","Cumhuriyet 29 Ekim 1923'te ilan edildi; ilk cumhurbaşkanı Atatürk'tür.","Türkiye Cumhuriyeti demokratik, laik ve sosyal bir hukuk devletidir.","Drama ve oyun küçük yaşlarda etkili öğretim yöntemleridir.","Kurtuluş Savaşı 1919-1922 yılları arasında verilmiştir.","Ünlemler sevinç, korku gibi duyguları anlatır.","Görsel materyaller öğrenmeyi destekler.","İstiklal Marşı 12 Mart 1921'de kabul edilmiştir.","Mustafa Kemal'e 'Atatürk' soyadı 1934'te verilmiştir.","Türk alfabesinde 29 harf bulunur.","Öğretim yöntemleri konuya ve öğrenciye göre seçilir.","Yükselti arttıkça sıcaklık düşer.","Osmanlı'da Lale Devri bir kültür ve sanat dönemidir.","Bloom taksonomisi bilişsel hedefleri basamaklandırır.","Merkezi Limit Teoremi, yeterince büyük örneklemlerin ortalamalarının, ana kütle dağılımı ne olursa olsun, normal dağılıma yakınsadığını belirtir.","Halk edebiyatında mâni dört dizeli, koşma ise 11'li hece ölçüsüyle yazılır.","Altın Oran (Phi, yaklaşık 1.618), estetik ve denge sembolü olarak sanatta ve mimaride kullanılan irrasyonel bir sayıdır.","Türkçede 8 ünlü, 21 ünsüz harf vardır.","Türkiye'yi çevreleyen denizler Karadeniz, Marmara, Ege ve Akdeniz'dir.","160 sayısının %15'i 24'dir.","Sözcük türleri isim, sıfat, zarf, zamir, edat, bağlaç, ünlem ve fiildir.","Büyük Taarruz 26 Ağustos 1922'de başlamış, 30 Ağustos'ta zaferle sonuçlanmıştır.","Fransa'nın başkenti Paris'dir.","Mükemmel sayı, kendisi hariç pozitif tam bölenlerinin toplamına eşit olan pozitif tam sayıdır; örneğin 6 ve 28.","Çöllerde gece ile gündüz arası sıcaklık farkı fazladır.","Yapılandırmacı yaklaşım öğrencinin bilgiyi kendi oluşturmasını savunur.","8 sayısının karesi 64, küpü 512'tür.","Noktalama işaretleri, okumayı kolaylaştırmak, anlam karışıklığını önlemek ve duygu ile tonlamayı doğru aktarmak için kullanılır.","13 ile 8'nin çarpımı 104'dir.","4 ile 10'nin çarpımı 40'dir.","160 sayısının %20'i 32'dir.","Kovalent bağda atomlar elektron ortaklaşır.","sin²x + cos²x ifadesi her açı için 1'e eşittir.","İkilemeler anlatımı pekiştirmek için kullanılan sözcük yinelemeleridir.","240 sayısının %50'i 120'dir.","19 ile 15'nin çarpımı 285'dir.","Bir asır 100, bir çeyrek asır 25 yıldır.","Katalizör aktivasyon enerjisini düşürerek tepkimeyi hızlandırır.","Paragraf sorularında ana düşünce, yardımcı düşünce ve akış incelenir.","Sanayi Devrimi 18. yüzyılda İngiltere'de başlamıştır.","Divan edebiyatında \"kaside\", din veya devlet büyüklerini övmek amacıyla yazılan, belirli bir kafiye düzenine sahip uzun şiirlerdir.","Enzimler biyolojik tepkimeleri hızlandıran protein yapılı katalizörlerdir.","Tırnak işaretleri, başkasına ait sözleri doğrudan aktarmak, vurgulanmak istenen kelime veya eser adlarını belirtmek için kullanılır.","60 sayısının %20'i 12'dir.","Çift sayılarla herhangi bir sayının çarpımı her zaman çift bir sayı verir.","Osmanlı'da ilk başkent Bursa, sonra Edirne olmuştur.","5 ile 19'nin çarpımı 95'dir.","Noktalı virgül, ögeleri arasında virgül bulunan sıralı cümleleri ayırmak veya türleri farklı ögeleri birbirinden ayırmak için kullanılır.","Karadeniz iklimi her mevsim yağışlıdır.","40 sayısının %50'i 20'dir.","Somut örnekler soyut kavramların öğrenilmesini kolaylaştırır.","300 sayısının %50'i 150'dir.","Tümevarım özelden genele, tümdengelim genelden özele gider.","Mecazımürsel (ad aktarması), bir sözcüğün gerçek anlamının dışında, ilgili olduğu başka bir şeyin yerine kullanılmasıdır.","Alkanlar yalnızca tekli bağ içeren doymuş hidrokarbonlardır.","Zaman yönetimi öğretmenin önemli bir becerisidir.","Arjantin'nın başkenti Buenos Aires'dir.","Hareket problemlerinde yol = hız x zaman formülü temel prensiptir.","Orhun Yazıtları Türklerin ilk yazılı belgelerindendir.","Kesme işareti, özel adlara gelen çekim eklerini ayırmanın yanı sıra kısaltmalara gelen ekleri ayırmada da kullanılır.","Bir sayının bölen sayısı, asal çarpanların üslerinin bir fazlalarının çarpımıdır.","Isaac Newton'ın evrensel kütle çekim yasası, gök cisimlerinin hareketlerini açıklayarak fizik biliminde çığır açmıştır.","Aşk-ı Memnu, Halit Ziya Uşaklıgil'in ünlü romanıdır.","Halk edebiyatında koşma 11'li, mâni 7'li hece ölçüsüyle yazılır.","n kenarlı çokgenin iç açıları toplamı (n−2)·180 derecedir.","144 sayısının karekökü 12'dir.","Mantık doğru ve geçerli düşünmenin kurallarını inceler.","Trafik işaretleri sürücü ve yayaları uyarır.","Gereksiz sözcük kullanımı, bir cümlede aynı anlama gelen kelimelerin veya anlamı zaten bulunan bir ifadenin tekrar edilmesidir.","Deltalar akarsuyun denize döküldüğü yerde alüvyon biriktirmesiyle oluşur.","2 sayısının karesi 4, küpü 8'tür.","Bilgisayar algoritmalarının temelinde, problem çözme adımlarını matematiksel ve mantıksal bir sırayla ifade etme yeteneği yatar.","DNA'da adenin timinle, guanin sitozinle eşleşir.","Nokta cümlenin bittiğini gösterir.","13 ile 10'nin çarpımı 130'dir.","9 sayısının karesi 81, küpü 729'tür.","9 sayısının karekökü 3'dir.","İstanbul 1453'te Fatih Sultan Mehmet tarafından fethedilmiştir.","Ara yönler kuzeydoğu, güneydoğu, kuzeybatı ve güneybatıdır.","İkili sayı sistemi (binary), bilgisayarların çalışma prensibini oluşturan, sadece 0 ve 1 rakamlarını kullanan bir sayı sistemidir.","Dünya'nın en büyük sıcak çölü Sahra'dır.","Danimarka'nın başkenti Kopenhag'dir.","Baraj gölleri insan yapımı su birikintileridir.","İkinci Dünya Savaşı 1939-1945 yılları arasında yaşanmıştır.","Matematik, evrenin dili olarak kabul edilir ve doğadaki pek çok düzenliliğin ve fiziksel yasanın altında yatan prensipleri açıklar.","Ses boşlukta (vakumda) yayılamaz; katıda en hızlı yayılır.","Güney Kore'nın başkenti Seul'dir.","Kütle her yerde aynı kalır, ağırlık çekim ivmesine göre değişir.","Rasyonalizm bilginin kaynağı olarak aklı, empirizm deneyi görür.","Bir olayın olasılığı istenen durumun tüm durumlara oranıdır.","Aritmetik ortalama, bir veri grubundaki tüm sayıların toplamının veri sayısına bölünmesiyle bulunur.","240 sayısının %25'i 60'dir.","İntegral, türevin ters işlemidir.","Avusturya'nın başkenti Viyana'dir.","Olumlu geri bildirim öğrenmeyi pekiştirir.","Alyuvarlar oksijen taşır, akyuvarlar vücudu hastalıklara karşı korur.","İyi bir sınav geçerli, güvenilir ve kullanışlı olmalıdır.","Altın oran, Fibonacci dizisiyle yakından ilişkili olup doğada birçok bitki ve hayvan yapısında gözlemlenir.","Voleybolda bir takım sahada 6 oyuncuyla oynar.","17 ile 16'nin çarpımı 272'dir.","15 sayısının karesi 225, küpü 3375'tür.","Ohm yasasına göre gerilim, akım ile direncin çarpımına eşittir (V=I·R).","Lozan Antlaşması 1923'te yeni Türkiye'nin sınırlarını belirlemiştir.","Tasarruf, kaynakların bilinçli kullanılmasıdır.","Romanya'nın başkenti Bükreş'dir.","Irak'nın başkenti Bağdat'dir.","Işık yoğun ortamdan az yoğun ortama geçerken kırılır.","10 ile 11'nin çarpımı 110'dir.","Bir sayının karekökü, kendisiyle çarpıldığında o sayıyı veren pozitif değerdir.","Anadolu Selçuklu Devleti'nin başkenti Konya'ydı.","TBMM 23 Nisan 1920'de Ankara'da açıldı.","Çin'nın başkenti Pekin'dir.","2 ile 10'nin çarpımı 20'dir.","13 sayısının karesi 169, küpü 2197'tür.","Bir üçgenin iç açıları toplamı her zaman 180 derecedir.","Hollanda'nın başkenti Amsterdam'dir.","Determinizm her olayın bir nedeni olduğunu savunur.","60 sayısının %10'i 6'dir.","Olasılıkta 've' durumları çarpılır, 'veya' durumları toplanır.","80 sayısının %25'i 20'dir.","Bilgisayarın beyni işlemcidir (CPU).","240 sayısının %20'i 48'dir.","Kesme işareti, özel adlara gelen çekim eklerini, kısaltmalara gelen ekleri ayırmak ve belirli durumlarda harf veya ek düşmesini göstermek için kullanılır.","Harf İnkılabı ile 1928'de Latin alfabesine geçilmiştir.","Rasyonel sayılar a/b şeklinde yazılabilen sayılardır, burada b sıfırdan farklı bir tam sayıdır.","Sınıf kuralları birlikte belirlenmelidir.","Türkiye'nin uluslararası plaka kodu TR'dir.","Bir metinde bakış açısı ilahi, kahraman ve gözlemci olabilir.","Fiiller iş, oluş ve durum bildirir.","Türkiye'de dağlar genel olarak doğu-batı doğrultusunda uzanır.","Asal sayılar, sadece 1'e ve kendisine bölünebilen sayılardır ve modern şifreleme teknolojilerinin temelini oluşturur.","İkinci derece denklemde kökler çarpımı c/a'dır.","Trafikte emniyet kemeri takmak hayat kurtarır.","Elektrik akımı, elektronların bir iletken içinde düzenli hareketidir.","İstanbul 1453'te Fatih Sultan Mehmet tarafından fethedildi.","Fransız İhtilali 1789'da başlamıştır.","Yargıların nesnel mi öznel mi olduğu kanıtlanabilirliğe göre belirlenir.","Olimpiyatlarda beş halka beş kıtayı simgeler.","Aritmetik dizide genel terim aₙ=a₁+(n−1)d formülüyle bulunur.","9 ile 3'nin çarpımı 27'dir.","Gutenberg'in matbaayı icadı, bilimsel bilginin hızla yayılmasını sağlayarak Rönesans ve Reform hareketlerini tetiklemiştir.","Erzurum ve Sivas Kongreleri'nde manda ve himaye reddedildi.","40 sayısının %25'i 10'dir.","Tam kareler 1, 4, 9, 16, 25 gibi n² biçiminde sayılardır.","Lojistik denklem, sınırlı kaynaklara sahip bir ortamda popülasyon büyümesini modelleyen ve kaotik davranışlar gösterebilen bir matematiksel modeldir.","Zarf, fiilin anlamını zaman, durum, yer, miktar bakımından belirginleştirir.","İtalya'nın başkenti Roma'dir.","14 ile 11'nin çarpımı 154'dir.","İsim-fiiller (-ma, -ış, -mak), cümle içinde isim gibi kullanılır ve olumsuzluk eki alabilirken kalıcı isim de olabilirler.","Türev ve integral matematiksel analizin temel işlemleridir."]}
+{
+ "exam": "kpss_ogretmenlik",
+ "opt": 5,
+ "questions": [
+  {
+   "q": "Türkiye'nin en büyük gölü hangisidir?",
+   "opts": [
+    "Tuz Gölü",
+    "Van Gölü",
+    "Beyşehir",
+    "Eğirdir",
+    "İznik"
+   ],
+   "a": 1,
+   "sol": "Van Gölü en büyük göldür."
+  },
+  {
+   "q": "Ölçme sonuçlarının tutarlılığına ne denir?",
+   "opts": [
+    "Geçerlik",
+    "Güvenirlik",
+    "Kullanışlılık",
+    "Nesnellik",
+    "Örnekleme"
+   ],
+   "a": 1,
+   "sol": "Tutarlılık güvenirliktir."
+  },
+  {
+   "q": "80 sayısının %20'i kaçtır?",
+   "opts": [
+    "14",
+    "21",
+    "16",
+    "18",
+    "11"
+   ],
+   "a": 2,
+   "sol": "80×20/100=16."
+  },
+  {
+   "q": "Lozan Antlaşması hangi yıl imzalanmıştır?",
+   "opts": [
+    "1920",
+    "1921",
+    "1922",
+    "1923",
+    "1924"
+   ],
+   "a": 3,
+   "sol": "Lozan 24 Temmuz 1923'te imzalandı."
+  },
+  {
+   "q": "120 sayısının %25'i kaçtır?",
+   "opts": [
+    "35",
+    "30",
+    "28",
+    "32",
+    "25"
+   ],
+   "a": 1,
+   "sol": "120×25/100=30."
+  },
+  {
+   "q": "60 sayısının %50'i kaçtır?",
+   "opts": [
+    "35",
+    "32",
+    "30",
+    "25",
+    "28"
+   ],
+   "a": 2,
+   "sol": "60×50/100=30."
+  },
+  {
+   "q": "Aşağıdakilerden hangisi soru zamiridir?",
+   "opts": [
+    "Kim",
+    "Ve",
+    "Çünkü",
+    "Ama",
+    "İle"
+   ],
+   "a": 0,
+   "sol": "'Kim' soru zamiridir."
+  },
+  {
+   "q": "40 sayısının %50'i kaçtır?",
+   "opts": [
+    "22",
+    "15",
+    "20",
+    "25",
+    "18"
+   ],
+   "a": 2,
+   "sol": "40×50/100=20."
+  },
+  {
+   "q": "Bir haftada kaç gün vardır?",
+   "opts": [
+    "5",
+    "6",
+    "7",
+    "8",
+    "10"
+   ],
+   "a": 2,
+   "sol": "Bir hafta 7 gündür."
+  },
+  {
+   "q": "Sınıfta olumlu öğrenme ortamı oluşturmaya ne denir?",
+   "opts": [
+    "Sınıf yönetimi",
+    "Ölçme",
+    "Program",
+    "Rehberlik",
+    "Denetim"
+   ],
+   "a": 0,
+   "sol": "Bu, sınıf yönetimidir."
+  },
+  {
+   "q": "Türkiye'nin en kalabalık ili hangisidir?",
+   "opts": [
+    "Ankara",
+    "İzmir",
+    "İstanbul",
+    "Bursa",
+    "Antalya"
+   ],
+   "a": 2,
+   "sol": "İstanbul en kalabalık ildir."
+  },
+  {
+   "q": "25 sayısının karekökü kaçtır?",
+   "opts": [
+    "7",
+    "5",
+    "3",
+    "4",
+    "6"
+   ],
+   "a": 1,
+   "sol": "√25=5."
+  },
+  {
+   "q": "49 sayısının karekökü kaçtır?",
+   "opts": [
+    "8",
+    "5",
+    "9",
+    "7",
+    "6"
+   ],
+   "a": 3,
+   "sol": "√49=7."
+  },
+  {
+   "q": "Işık yılı neyin birimidir?",
+   "opts": [
+    "Zaman",
+    "Uzaklık",
+    "Hız",
+    "Kütle",
+    "Sıcaklık"
+   ],
+   "a": 1,
+   "sol": "Işık yılı bir uzaklık birimidir."
+  },
+  {
+   "q": "Bloom taksonomisinde en üst bilişsel basamak hangisidir?",
+   "opts": [
+    "Bilgi",
+    "Kavrama",
+    "Uygulama",
+    "Değerlendirme/Yaratma",
+    "Analiz"
+   ],
+   "a": 3,
+   "sol": "En üst basamak değerlendirme/yaratmadır."
+  },
+  {
+   "q": "Tanzimat Fermanı hangi yıl ilan edilmiştir?",
+   "opts": [
+    "1789",
+    "1839",
+    "1876",
+    "1908",
+    "1923"
+   ],
+   "a": 1,
+   "sol": "Tanzimat Fermanı 1839'da ilan edildi."
+  },
+  {
+   "q": "Öğrencilerin bireysel farklılıklarına uygun öğretime ne denir?",
+   "opts": [
+    "Toplu öğretim",
+    "Bireyselleştirilmiş öğretim",
+    "Düz anlatım",
+    "Ezber",
+    "Test"
+   ],
+   "a": 1,
+   "sol": "Bu, bireyselleştirilmiş öğretimdir."
+  },
+  {
+   "q": "Kanunları uygulayan (yürütme) organ kimdir?",
+   "opts": [
+    "TBMM",
+    "Cumhurbaşkanı ve idare",
+    "Yargı",
+    "Anayasa Mahkemesi",
+    "Barolar"
+   ],
+   "a": 1,
+   "sol": "Yürütme cumhurbaşkanı ve idaredir."
+  },
+  {
+   "q": "İstanbul hangi yıl fethedilmiştir?",
+   "opts": [
+    "1453",
+    "1071",
+    "1299",
+    "1526",
+    "1683"
+   ],
+   "a": 0,
+   "sol": "İstanbul 1453'te Fatih tarafından fethedildi."
+  },
+  {
+   "q": "160 sayısının %20'i kaçtır?",
+   "opts": [
+    "30",
+    "27",
+    "37",
+    "32",
+    "34"
+   ],
+   "a": 3,
+   "sol": "160×20/100=32."
+  },
+  {
+   "q": "'Çabuk' sözcüğünün zıt anlamlısı hangisidir?",
+   "opts": [
+    "Hızlı",
+    "Seri",
+    "Yavaş",
+    "Atik",
+    "Süratli"
+   ],
+   "a": 2,
+   "sol": "Çabuğun karşıtı yavaştır."
+  },
+  {
+   "q": "'Cömert' sözcüğünün eş anlamlısı hangisidir?",
+   "opts": [
+    "Cimri",
+    "Eli açık",
+    "Kaba",
+    "Korkak",
+    "Tembel"
+   ],
+   "a": 1,
+   "sol": "Cömert = eli açık."
+  },
+  {
+   "q": "200 sayısının %25'i kaçtır?",
+   "opts": [
+    "55",
+    "45",
+    "48",
+    "52",
+    "50"
+   ],
+   "a": 4,
+   "sol": "200×25/100=50."
+  },
+  {
+   "q": "Vygotsky'nin çocuğun yardımla ulaşabileceği alan kavramı hangisidir?",
+   "opts": [
+    "Şema",
+    "Yakınsak gelişim alanı",
+    "Özdeşim",
+    "Pekiştireç",
+    "Sönme"
+   ],
+   "a": 1,
+   "sol": "Yakınsak gelişim alanı (ZPD) yardımla ulaşılır."
+  },
+  {
+   "q": "36 sayısının karekökü kaçtır?",
+   "opts": [
+    "8",
+    "5",
+    "7",
+    "6",
+    "4"
+   ],
+   "a": 3,
+   "sol": "√36=6."
+  },
+  {
+   "q": "Bir üçgenin iç açıları toplamı kaç derecedir?",
+   "opts": [
+    "90",
+    "180",
+    "270",
+    "360",
+    "120"
+   ],
+   "a": 1,
+   "sol": "Üçgende iç açılar toplamı 180°'dir."
+  },
+  {
+   "q": "64 sayısının karekökü kaçtır?",
+   "opts": [
+    "7",
+    "6",
+    "10",
+    "8",
+    "9"
+   ],
+   "a": 3,
+   "sol": "√64=8."
+  },
+  {
+   "q": "Deprem şiddetini ölçen ölçek hangisidir?",
+   "opts": [
+    "Celsius",
+    "Richter",
+    "Newton",
+    "Watt",
+    "Volt"
+   ],
+   "a": 1,
+   "sol": "Deprem büyüklüğü Richter ölçeğiyle ifade edilir."
+  },
+  {
+   "q": "Devletin temel belgesi (en üstün hukuk kuralı) hangisidir?",
+   "opts": [
+    "Kanun",
+    "Anayasa",
+    "Yönetmelik",
+    "Genelge",
+    "Tüzük"
+   ],
+   "a": 1,
+   "sol": "Anayasa en üstün hukuk kuralıdır."
+  },
+  {
+   "q": "'Yalnız' sözcüğünün yanlış yazımı hangisidir?",
+   "opts": [
+    "Yalnız",
+    "Yanlız",
+    "Yalnızca",
+    "Yalnızlık",
+    "Yalnızım"
+   ],
+   "a": 1,
+   "sol": "'Yanlız' yanlıştır."
+  },
+  {
+   "q": "İstiklal Marşı'nın şairi kimdir?",
+   "opts": [
+    "Namık Kemal",
+    "Mehmet Akif Ersoy",
+    "Ziya Gökalp",
+    "Tevfik Fikret",
+    "Yahya Kemal"
+   ],
+   "a": 1,
+   "sol": "İstiklal Marşı Mehmet Akif Ersoy'a aittir."
+  },
+  {
+   "q": "Barometre neyi ölçer?",
+   "opts": [
+    "Sıcaklığı",
+    "Açık hava basıncını",
+    "Nemi",
+    "Rüzgârı",
+    "Yağışı"
+   ],
+   "a": 1,
+   "sol": "Barometre hava basıncını ölçer."
+  },
+  {
+   "q": "200 sayısının %20'i kaçtır?",
+   "opts": [
+    "42",
+    "35",
+    "40",
+    "38",
+    "45"
+   ],
+   "a": 2,
+   "sol": "200×20/100=40."
+  },
+  {
+   "q": "Boylam bir yerin öncelikle neyini etkiler?",
+   "opts": [
+    "İklimini",
+    "Yerel saatini",
+    "Bitki örtüsünü",
+    "Toprağını",
+    "Deprem riskini"
+   ],
+   "a": 1,
+   "sol": "Boylam yerel saati belirler."
+  },
+  {
+   "q": "Türkiye'nin para birimi nedir?",
+   "opts": [
+    "Euro",
+    "Dolar",
+    "Türk Lirası",
+    "Sterlin",
+    "Ruble"
+   ],
+   "a": 2,
+   "sol": "Para birimi Türk Lirası'dır."
+  },
+  {
+   "q": "Yaz Olimpiyat Oyunları kaç yılda bir düzenlenir?",
+   "opts": [
+    "2",
+    "3",
+    "4",
+    "5"
+   ],
+   "a": 2,
+   "sol": "Olimpiyatlar 4 yılda bir yapılır."
+  },
+  {
+   "q": "Türkiye toprakları hangi iki kıtada yer alır?",
+   "opts": [
+    "Asya-Afrika",
+    "Asya-Avrupa",
+    "Avrupa-Afrika",
+    "Yalnız Asya"
+   ],
+   "a": 1,
+   "sol": "Trakya Avrupa'da, Anadolu Asya'dadır."
+  },
+  {
+   "q": "\"Küçük Prens\" adlı eserin yazarı kimdir?",
+   "opts": [
+    "Jules Verne",
+    "Antoine de Saint-Exupéry",
+    "Victor Hugo",
+    "Mark Twain"
+   ],
+   "a": 1,
+   "sol": "Fransız yazar ve pilot Saint-Exupéry 1943'te yayımlamıştır."
+  },
+  {
+   "q": "Ludwig van Beethoven hangi alanda ünlüdür?",
+   "opts": [
+    "Resim",
+    "Müzik (bestecilik)",
+    "Heykel",
+    "Mimari"
+   ],
+   "a": 1,
+   "sol": "Beethoven, 9 senfonisiyle tanınan Alman bestecidir."
+  },
+  {
+   "q": "\"Mona Lisa\" tablosunun ressamı kimdir?",
+   "opts": [
+    "Michelangelo",
+    "Leonardo da Vinci",
+    "Van Gogh",
+    "Picasso"
+   ],
+   "a": 1,
+   "sol": "Mona Lisa, Leonardo da Vinci'nin eseridir; Louvre Müzesi'ndedir."
+  },
+  {
+   "q": "İnternet alan adlarında \".tr\" uzantısı hangi ülkeyi belirtir?",
+   "opts": [
+    "Tayland",
+    "Türkiye",
+    "Türkmenistan",
+    "Trinidad"
+   ],
+   "a": 1,
+   "sol": ".tr, Türkiye'nin ülke kodu uzantısıdır."
+  },
+  {
+   "q": "Türk Kızılay'ının temel görevi nedir?",
+   "opts": [
+    "Spor organizasyonu",
+    "Afetlerde yardım ve kan hizmetleri",
+    "Eğitim müfredatı",
+    "Vergi toplama"
+   ],
+   "a": 1,
+   "sol": "Kızılay; afet yardımı, kan bağışı ve insani yardım yürütür."
+  },
+  {
+   "q": "TBMM'nin ilk başkanı kimdir?",
+   "opts": [
+    "İsmet İnönü",
+    "Mustafa Kemal Paşa",
+    "Fevzi Çakmak",
+    "Kâzım Karabekir"
+   ],
+   "a": 1,
+   "sol": "23 Nisan 1920'de açılan meclisin başkanlığına Mustafa Kemal seçildi."
+  },
+  {
+   "q": "\"Nutuk\" adlı eser kime aittir?",
+   "opts": [
+    "İsmet İnönü",
+    "Mustafa Kemal Atatürk",
+    "Ziya Gökalp",
+    "Halide Edib"
+   ],
+   "a": 1,
+   "sol": "Atatürk, Nutuk'u 1927'de CHP kurultayında okumuştur."
+  },
+  {
+   "q": "Fotosentez bitki hücresinin hangi organelinde gerçekleşir?",
+   "opts": [
+    "Mitokondri",
+    "Kloroplast",
+    "Ribozom",
+    "Koful"
+   ],
+   "a": 1,
+   "sol": "Kloroplastlardaki klorofil, ışık enerjisiyle besin üretir."
+  },
+  {
+   "q": "Canlılarda kalıtsal bilgiyi taşıyan molekül hangisidir?",
+   "opts": [
+    "Protein",
+    "DNA",
+    "Yağ",
+    "Glikoz"
+   ],
+   "a": 1,
+   "sol": "DNA, kalıtım bilgisini nesilden nesile aktarır."
+  },
+  {
+   "q": "Kanın oksijenle temizlendiği organ hangisidir?",
+   "opts": [
+    "Kalp",
+    "Karaciğer",
+    "Akciğer",
+    "Böbrek"
+   ],
+   "a": 2,
+   "sol": "Akciğerlerde kan karbondioksiti bırakıp oksijen alır."
+  },
+  {
+   "q": "Newton'un 1. hareket yasası hangisidir?",
+   "opts": [
+    "Etki-tepki",
+    "Eylemsizlik",
+    "İvme",
+    "Kütle çekimi"
+   ],
+   "a": 1,
+   "sol": "Net kuvvet sıfırsa cisim durumunu korur; buna eylemsizlik denir."
+  },
+  {
+   "q": "Ses hangi ortamda yayılmaz?",
+   "opts": [
+    "Havada",
+    "Suda",
+    "Katıda",
+    "Boşlukta"
+   ],
+   "a": 3,
+   "sol": "Ses mekanik dalgadır; taşıyıcı madde olmayan boşlukta yayılmaz."
+  },
+  {
+   "q": "Işığın boşluktaki hızı yaklaşık kaçtır?",
+   "opts": [
+    "300 km/s",
+    "3.000 km/s",
+    "300.000 km/s",
+    "30.000 km/s"
+   ],
+   "a": 2,
+   "sol": "Işık hızı yaklaşık 300.000 km/s'dir."
+  },
+  {
+   "q": "Atom çekirdeğinde bulunan pozitif yüklü parçacık hangisidir?",
+   "opts": [
+    "Elektron",
+    "Nötron",
+    "Proton",
+    "Foton"
+   ],
+   "a": 2,
+   "sol": "Protonlar pozitif, nötronlar yüksüzdür; elektronlar çekirdek çevresindedir."
+  },
+  {
+   "q": "pH değeri 7'den küçük olan çözeltiler nasıl adlandırılır?",
+   "opts": [
+    "Baz",
+    "Asit",
+    "Nötr",
+    "Tuz"
+   ],
+   "a": 1,
+   "sol": "pH < 7 asidik, pH > 7 bazik, pH = 7 nötrdür."
+  },
+  {
+   "q": "Periyodik tabloda \"Fe\" sembolü hangi elementi gösterir?",
+   "opts": [
+    "Flor",
+    "Fosfor",
+    "Demir",
+    "Fermiyum"
+   ],
+   "a": 2,
+   "sol": "Fe (Latince ferrum) demirin sembolüdür."
+  },
+  {
+   "q": "Evrendeki en hafif element hangisidir?",
+   "opts": [
+    "Helyum",
+    "Hidrojen",
+    "Oksijen",
+    "Lityum"
+   ],
+   "a": 1,
+   "sol": "Hidrojen, 1 protonuyla en hafif ve en bol elementtir."
+  },
+  {
+   "q": "Dünya'ya en yakın yıldız hangisidir?",
+   "opts": [
+    "Kutup Yıldızı",
+    "Güneş",
+    "Sirius",
+    "Proxima Centauri"
+   ],
+   "a": 1,
+   "sol": "Güneş, Dünya'ya en yakın yıldızdır (~150 milyon km)."
+  },
+  {
+   "q": "Ay'ın evrelerinin oluşmasının nedeni nedir?",
+   "opts": [
+    "Dünya'nın gölgesi",
+    "Ay'ın Dünya çevresinde dolanması",
+    "Güneş tutulması",
+    "Bulutlar"
+   ],
+   "a": 1,
+   "sol": "Ay dolanırken aydınlanan yüzünün görünen kısmı değişir."
+  },
+  {
+   "q": "Mayoz bölünmenin canlılar için en önemli sonucu nedir?",
+   "opts": [
+    "Büyüme",
+    "Kalıtsal çeşitlilik",
+    "Yaraların onarımı",
+    "Enerji üretimi"
+   ],
+   "a": 1,
+   "sol": "Mayoz, üreme hücreleri oluşturur ve genetik çeşitlilik sağlar."
+  },
+  {
+   "q": "İnsanın vücut hücrelerinde kaç kromozom bulunur?",
+   "opts": [
+    "23",
+    "44",
+    "46",
+    "48"
+   ],
+   "a": 2,
+   "sol": "İnsan vücut hücrelerinde 23 çift, yani 46 kromozom vardır."
+  },
+  {
+   "q": "Elektrik akımının birimi nedir?",
+   "opts": [
+    "Volt",
+    "Watt",
+    "Amper",
+    "Ohm"
+   ],
+   "a": 2,
+   "sol": "Akım amper (A), gerilim volt, direnç ohm ile ölçülür."
+  },
+  {
+   "q": "Enerjinin korunumu yasasına göre enerji için ne söylenebilir?",
+   "opts": [
+    "Yok edilebilir",
+    "Yoktan var edilebilir",
+    "Ancak biçim değiştirir",
+    "Sürekli azalır"
+   ],
+   "a": 2,
+   "sol": "Enerji yoktan var edilemez, vardan yok edilemez; dönüşür."
+  },
+  {
+   "q": "Küresel ısınmanın başlıca nedeni nedir?",
+   "opts": [
+    "Ozon tabakası",
+    "Sera gazlarının artışı",
+    "Deprem",
+    "Volkanlar"
+   ],
+   "a": 1,
+   "sol": "CO₂ ve metan gibi sera gazları atmosferde ısıyı hapseder."
+  },
+  {
+   "q": "Antibiyotikler hangi mikroorganizmalara karşı etkilidir?",
+   "opts": [
+    "Virüsler",
+    "Bakteriler",
+    "Mantarlar",
+    "Tüm mikroplar"
+   ],
+   "a": 1,
+   "sol": "Antibiyotikler bakterilere etki eder; gripte (virüs) işe yaramaz."
+  },
+  {
+   "q": "D vitamini sentezi için gerekli olan doğal kaynak nedir?",
+   "opts": [
+    "Su",
+    "Güneş ışığı",
+    "Rüzgâr",
+    "Toprak"
+   ],
+   "a": 1,
+   "sol": "Deri, güneşin UV ışınlarıyla D vitamini sentezler."
+  },
+  {
+   "q": "Buharlaşma ile kaynama arasındaki temel fark nedir?",
+   "opts": [
+    "İkisi de aynıdır",
+    "Buharlaşma her sıcaklıkta yüzeyde olur",
+    "Kaynama her sıcaklıkta olur",
+    "Buharlaşma yalnız 100°C'de olur"
+   ],
+   "a": 1,
+   "sol": "Kaynama belirli sıcaklıkta tüm sıvıda, buharlaşma her sıcaklıkta yüzeyde gerçekleşir."
+  },
+  {
+   "q": "4 sayının aritmetik ortalaması 25'tir. Bu gruba 35 sayısı eklenirse yeni ortalama kaç olur?",
+   "opts": [
+    "26",
+    "27",
+    "28",
+    "30"
+   ],
+   "a": 1,
+   "sol": "Toplam 100, yeni toplam 135; 135 ÷ 5 = 27."
+  },
+  {
+   "q": "Bir işi Ali tek başına 6 günde, Veli 12 günde bitiriyor. Birlikte çalışırlarsa iş kaç günde biter?",
+   "opts": [
+    "3",
+    "4",
+    "5",
+    "9"
+   ],
+   "a": 1,
+   "sol": "1/6 + 1/12 = 1/4 → iş 4 günde biter."
+  },
+  {
+   "q": "Bir mal %20 kârla 240 TL'ye satılmaktadır. Malın maliyeti kaç TL'dir?",
+   "opts": [
+    "180",
+    "192",
+    "200",
+    "220"
+   ],
+   "a": 2,
+   "sol": "240 ÷ 1,2 = 200 TL."
+  },
+  {
+   "q": "Ardışık üç çift sayının toplamı 42 ise en büyük sayı kaçtır?",
+   "opts": [
+    "12",
+    "14",
+    "16",
+    "18"
+   ],
+   "a": 2,
+   "sol": "12 + 14 + 16 = 42; en büyüğü 16'dır."
+  },
+  {
+   "q": "Saat 15.40'tan 2 saat 35 dakika sonra saat kaç olur?",
+   "opts": [
+    "17.75",
+    "18.05",
+    "18.15",
+    "18.25"
+   ],
+   "a": 2,
+   "sol": "15.40 + 2.35 = 18.15."
+  },
+  {
+   "q": "240 km'lik yolu 3 saatte alan aracın ortalama hızı kaç km/saattir?",
+   "opts": [
+    "60",
+    "70",
+    "80",
+    "90"
+   ],
+   "a": 2,
+   "sol": "240 ÷ 3 = 80 km/saat."
+  },
+  {
+   "q": "2, 5, 11, 23, ? dizisinde soru işareti yerine hangi sayı gelmelidir?",
+   "opts": [
+    "35",
+    "41",
+    "45",
+    "47"
+   ],
+   "a": 3,
+   "sol": "Kural: her terim ×2 + 1 → 23 × 2 + 1 = 47."
+  },
+  {
+   "q": "3, 7, 15, 31, ? dizisinde soru işareti yerine hangi sayı gelmelidir?",
+   "opts": [
+    "47",
+    "55",
+    "63",
+    "65"
+   ],
+   "a": 2,
+   "sol": "Kural: ×2 + 1 → 31 × 2 + 1 = 63."
+  },
+  {
+   "q": "Bir baba 42, oğlu 12 yaşındadır. Kaç yıl sonra babanın yaşı oğlunun yaşının 3 katı olur?",
+   "opts": [
+    "2",
+    "3",
+    "4",
+    "6"
+   ],
+   "a": 1,
+   "sol": "42 + x = 3(12 + x) → x = 3."
+  },
+  {
+   "q": "%25'i 80 olan sayı kaçtır?",
+   "opts": [
+    "240",
+    "300",
+    "320",
+    "400"
+   ],
+   "a": 2,
+   "sol": "80 × 4 = 320."
+  },
+  {
+   "q": "Bir sayının 3 katının 12 fazlası 45 ise bu sayı kaçtır?",
+   "opts": [
+    "9",
+    "11",
+    "13",
+    "15"
+   ],
+   "a": 1,
+   "sol": "3x + 12 = 45 → x = 11."
+  },
+  {
+   "q": "\"LİMON\" sözcüğünün harfleri tersten yazılırsa hangi dizilim elde edilir?",
+   "opts": [
+    "NOMİL",
+    "NOMLİ",
+    "NİMOL",
+    "MONİL"
+   ],
+   "a": 0,
+   "sol": "L-İ-M-O-N tersten N-O-M-İ-L olur."
+  },
+  {
+   "q": "Elma, armut, kiraz, lahana sözcüklerinden hangisi diğerlerinden farklıdır?",
+   "opts": [
+    "Elma",
+    "Armut",
+    "Kiraz",
+    "Lahana"
+   ],
+   "a": 3,
+   "sol": "Lahana sebzedir; diğerleri meyvedir."
+  },
+  {
+   "q": "Bugün çarşamba ise 100 gün sonra hangi gündür?",
+   "opts": [
+    "Perşembe",
+    "Cuma",
+    "Cumartesi",
+    "Pazar"
+   ],
+   "a": 1,
+   "sol": "100 ÷ 7 = 14 hafta, kalan 2 → çarşamba + 2 = cuma."
+  },
+  {
+   "q": "Kumbarada 50 kuruşluk ve 1 TL'lik toplam 20 para vardır; tutar 14 TL'dir. Kaç tane 1 TL vardır?",
+   "opts": [
+    "6",
+    "8",
+    "10",
+    "12"
+   ],
+   "a": 1,
+   "sol": "x + 0,5(20 − x) = 14 → x = 8."
+  },
+  {
+   "q": "3 işçi bir işi 8 günde bitiriyorsa aynı güçteki 4 işçi kaç günde bitirir?",
+   "opts": [
+    "5",
+    "6",
+    "7",
+    "12"
+   ],
+   "a": 1,
+   "sol": "İş 24 işçi-gün; 24 ÷ 4 = 6 gün."
+  },
+  {
+   "q": "80 soruluk bir sınavda soruların %85'i doğru yanıtlanmıştır. Kaç soru doğrudur?",
+   "opts": [
+    "64",
+    "66",
+    "68",
+    "72"
+   ],
+   "a": 2,
+   "sol": "80 × 0,85 = 68."
+  },
+  {
+   "q": "İki basamaklı en büyük asal sayı kaçtır?",
+   "opts": [
+    "91",
+    "93",
+    "97",
+    "99"
+   ],
+   "a": 2,
+   "sol": "97 asaldır; 99 = 9×11, 91 = 7×13'tür."
+  },
+  {
+   "q": "1'den 100'e kadar olan doğal sayıların toplamı kaçtır?",
+   "opts": [
+    "4950",
+    "5000",
+    "5050",
+    "5100"
+   ],
+   "a": 2,
+   "sol": "n(n+1)/2 = 100 × 101 / 2 = 5050."
+  },
+  {
+   "q": "Bir çiftlikte tavuk ve koyunların baş sayısı 30, ayak sayısı 80'dir. Kaç koyun vardır?",
+   "opts": [
+    "8",
+    "10",
+    "12",
+    "15"
+   ],
+   "a": 1,
+   "sol": "2t + 4k = 80, t + k = 30 → k = 10."
+  },
+  {
+   "q": "Osmanlı Devleti'nin kurucusu kimdir?",
+   "opts": [
+    "Orhan Bey",
+    "Osman Bey",
+    "Ertuğrul Gazi",
+    "I. Murat"
+   ],
+   "a": 1,
+   "sol": "Osmanlı Devleti 1299'da Osman Bey tarafından kurulmuştur."
+  },
+  {
+   "q": "İstanbul'u fethederek Orta Çağ'ı kapatan padişah kimdir?",
+   "opts": [
+    "Yavuz Sultan Selim",
+    "II. Murat",
+    "Fatih Sultan Mehmet",
+    "Kanuni Sultan Süleyman"
+   ],
+   "a": 2,
+   "sol": "II. Mehmet (Fatih) 1453'te İstanbul'u fethetti."
+  },
+  {
+   "q": "Osmanlı Devleti'nin ilk anayasası hangisidir?",
+   "opts": [
+    "Sened-i İttifak",
+    "Kanun-i Esasi",
+    "Tanzimat Fermanı",
+    "Islahat Fermanı"
+   ],
+   "a": 1,
+   "sol": "Kanun-i Esasi 1876'da ilan edilmiştir."
+  },
+  {
+   "q": "Milli Mücadele'nin başlangıcı kabul edilen olay hangisidir?",
+   "opts": [
+    "TBMM'nin açılması",
+    "Erzurum Kongresi",
+    "Mustafa Kemal'in Samsun'a çıkışı",
+    "Amasya Genelgesi"
+   ],
+   "a": 2,
+   "sol": "19 Mayıs 1919'da Samsun'a çıkış Milli Mücadele'nin başlangıcıdır."
+  },
+  {
+   "q": "Kurtuluş Savaşı'nın gerekçesi, amacı ve yöntemi ilk kez nerede açıklanmıştır?",
+   "opts": [
+    "Amasya Genelgesi",
+    "Sivas Kongresi",
+    "Misak-ı Milli",
+    "Havza Genelgesi"
+   ],
+   "a": 0,
+   "sol": "Amasya Genelgesi (22 Haziran 1919) savaşın gerekçe, amaç ve yöntemini duyurdu."
+  },
+  {
+   "q": "\"Manda ve himaye kabul olunamaz\" kararı ilk kez nerede alınmıştır?",
+   "opts": [
+    "Sivas Kongresi",
+    "Erzurum Kongresi",
+    "Amasya Görüşmeleri",
+    "Son Osmanlı Mebusan Meclisi"
+   ],
+   "a": 1,
+   "sol": "Bu karar ilk kez Erzurum Kongresi'nde (Temmuz-Ağustos 1919) alındı."
+  },
+  {
+   "q": "Sivas Kongresi hangi tarihte toplanmıştır?",
+   "opts": [
+    "4-11 Eylül 1919",
+    "23 Temmuz 1919",
+    "19 Mayıs 1919",
+    "28 Ocak 1920"
+   ],
+   "a": 0,
+   "sol": "Sivas Kongresi 4-11 Eylül 1919'da toplandı."
+  },
+  {
+   "q": "Türkiye Büyük Millet Meclisi hangi tarihte açılmıştır?",
+   "opts": [
+    "19 Mayıs 1919",
+    "23 Nisan 1920",
+    "29 Ekim 1923",
+    "1 Kasım 1922"
+   ],
+   "a": 1,
+   "sol": "TBMM 23 Nisan 1920'de Ankara'da açıldı."
+  },
+  {
+   "q": "Sakarya Meydan Muharebesi'nden sonra Mustafa Kemal'e hangi unvanlar verilmiştir?",
+   "opts": [
+    "Başkomutanlık",
+    "Gazilik ve Mareşallik",
+    "Cumhurbaşkanlığı",
+    "Müşirlik ve Fahri Doktora"
+   ],
+   "a": 1,
+   "sol": "TBMM, Sakarya zaferi sonrası Gazilik unvanı ve Mareşallik rütbesi verdi."
+  },
+  {
+   "q": "Büyük Taarruz hangi tarihte başlamıştır?",
+   "opts": [
+    "26 Ağustos 1922",
+    "30 Ağustos 1922",
+    "9 Eylül 1922",
+    "24 Temmuz 1923"
+   ],
+   "a": 0,
+   "sol": "Büyük Taarruz 26 Ağustos 1922'de başladı; 30 Ağustos'ta zaferle sonuçlandı."
+  },
+  {
+   "q": "Kurtuluş Savaşı'nın askeri safhasını sona erdiren ateşkes hangisidir?",
+   "opts": [
+    "Mondros",
+    "Mudanya",
+    "Lozan",
+    "Ankara"
+   ],
+   "a": 1,
+   "sol": "Mudanya Ateşkes Antlaşması (11 Ekim 1922) askeri dönemi kapattı."
+  },
+  {
+   "q": "Saltanat hangi tarihte kaldırılmıştır?",
+   "opts": [
+    "1 Kasım 1922",
+    "29 Ekim 1923",
+    "3 Mart 1924",
+    "17 Şubat 1923"
+   ],
+   "a": 0,
+   "sol": "Saltanat 1 Kasım 1922'de kaldırıldı."
+  },
+  {
+   "q": "Yeni Türk Devleti'nin bağımsızlığını tüm dünyaya kabul ettiren antlaşma hangisidir?",
+   "opts": [
+    "Sevr",
+    "Mudanya",
+    "Lozan",
+    "Montrö"
+   ],
+   "a": 2,
+   "sol": "Lozan Barış Antlaşması 24 Temmuz 1923'te imzalandı."
+  },
+  {
+   "q": "Halifelik hangi tarihte kaldırılmıştır?",
+   "opts": [
+    "1 Kasım 1922",
+    "3 Mart 1924",
+    "29 Ekim 1923",
+    "17 Kasım 1924"
+   ],
+   "a": 1,
+   "sol": "Halifelik 3 Mart 1924'te kaldırıldı; aynı gün Tevhid-i Tedrisat kabul edildi."
+  },
+  {
+   "q": "Türk Medeni Kanunu hangi ülkeden uyarlanmıştır?",
+   "opts": [
+    "Fransa",
+    "Almanya",
+    "İsviçre",
+    "İtalya"
+   ],
+   "a": 2,
+   "sol": "1926'da kabul edilen Medeni Kanun İsviçre'den uyarlandı."
+  },
+  {
+   "q": "Harf İnkılabı hangi yıl gerçekleştirilmiştir?",
+   "opts": [
+    "1924",
+    "1926",
+    "1928",
+    "1934"
+   ],
+   "a": 2,
+   "sol": "Yeni Türk harfleri 1 Kasım 1928'de kabul edildi."
+  },
+  {
+   "q": "Kadınlara milletvekili seçme ve seçilme hakkı hangi yıl tanınmıştır?",
+   "opts": [
+    "1930",
+    "1933",
+    "1934",
+    "1938"
+   ],
+   "a": 2,
+   "sol": "Bu hak 1934'te tanındı; 1935 seçimlerinde 18 kadın milletvekili seçildi."
+  },
+  {
+   "q": "Boğazların yönetimini tamamen Türkiye'ye bırakan sözleşme hangisidir?",
+   "opts": [
+    "Lozan Antlaşması",
+    "Montrö Boğazlar Sözleşmesi",
+    "Ankara Antlaşması",
+    "Balta Limanı"
+   ],
+   "a": 1,
+   "sol": "Montrö Boğazlar Sözleşmesi 1936'da imzalandı."
+  },
+  {
+   "q": "Hatay hangi yıl anavatana katılmıştır?",
+   "opts": [
+    "1936",
+    "1938",
+    "1939",
+    "1945"
+   ],
+   "a": 2,
+   "sol": "Hatay 1939'da Türkiye'ye katıldı."
+  },
+  {
+   "q": "Kurtuluş Savaşı'nda Güney Cephesi'nde hangi devlete karşı savaşılmıştır?",
+   "opts": [
+    "İngiltere",
+    "Yunanistan",
+    "Fransa",
+    "İtalya"
+   ],
+   "a": 2,
+   "sol": "Güney Cephesi'nde Fransızlara ve Ermeni birliklerine karşı halk direnişi yapıldı."
+  },
+  {
+   "q": "Kurtuluş Savaşı'nda Doğu Cephesi komutanı kimdir?",
+   "opts": [
+    "İsmet İnönü",
+    "Kâzım Karabekir",
+    "Fevzi Çakmak",
+    "Ali Fuat Cebesoy"
+   ],
+   "a": 1,
+   "sol": "Doğu Cephesi'nde Kâzım Karabekir Ermenistan'a karşı başarı kazandı."
+  },
+  {
+   "q": "I. İnönü Zaferi'nin ardından İtilaf Devletleri TBMM'yi hangi konferansa davet etmiştir?",
+   "opts": [
+    "Londra Konferansı",
+    "Paris Konferansı",
+    "San Remo",
+    "Lozan"
+   ],
+   "a": 0,
+   "sol": "I. İnönü sonrası TBMM Londra Konferansı'na (Şubat 1921) davet edildi."
+  },
+  {
+   "q": "Tekalif-i Milliye Emirleri hangi savaştan önce yayımlanmıştır?",
+   "opts": [
+    "I. İnönü",
+    "II. İnönü",
+    "Sakarya",
+    "Büyük Taarruz"
+   ],
+   "a": 2,
+   "sol": "Ordunun ihtiyaçları için Sakarya Savaşı öncesinde yayımlandı."
+  },
+  {
+   "q": "Mustafa Kemal'e \"Atatürk\" soyadı ne zaman verilmiştir?",
+   "opts": [
+    "1930",
+    "1932",
+    "1934",
+    "1936"
+   ],
+   "a": 2,
+   "sol": "Soyadı Kanunu'nun ardından 24 Kasım 1934'te TBMM tarafından verildi."
+  },
+  {
+   "q": "Osmanlı Devleti I. Dünya Savaşı'ndan hangi ateşkesle çekilmiştir?",
+   "opts": [
+    "Mudanya",
+    "Mondros",
+    "Brest-Litovsk",
+    "Rethondes"
+   ],
+   "a": 1,
+   "sol": "Mondros Ateşkes Antlaşması 30 Ekim 1918'de imzalandı."
+  },
+  {
+   "q": "Sevr Antlaşması'nın hukuken geçersiz sayılmasının nedeni nedir?",
+   "opts": [
+    "Padişahın imzalamaması",
+    "Mebusan Meclisi'nce onaylanmaması",
+    "İtilaf Devletleri'nin vazgeçmesi",
+    "Yunanistan'ın imzalamaması"
+   ],
+   "a": 1,
+   "sol": "Sevr, kapatılmış Mebusan Meclisi'nce onaylanamadığı için hukuken geçersizdir."
+  },
+  {
+   "q": "Kapitülasyonlar hangi antlaşma ile tamamen kaldırılmıştır?",
+   "opts": [
+    "Mudanya",
+    "Lozan",
+    "Montrö",
+    "Ankara"
+   ],
+   "a": 1,
+   "sol": "Kapitülasyonlar Lozan Antlaşması ile kesin olarak kaldırıldı."
+  },
+  {
+   "q": "Türk Dil Kurumu hangi yıl kurulmuştur?",
+   "opts": [
+    "1928",
+    "1931",
+    "1932",
+    "1936"
+   ],
+   "a": 2,
+   "sol": "TDK 1932'de, Türk Tarih Kurumu ise 1931'de kuruldu."
+  },
+  {
+   "q": "Anadolu Selçuklu Devleti'nin başkenti neresidir?",
+   "opts": [
+    "Bursa",
+    "İznik",
+    "Konya",
+    "Sivas"
+   ],
+   "a": 2,
+   "sol": "Anadolu Selçuklu Devleti'nin başkenti Konya'dır."
+  },
+  {
+   "q": "1071 Malazgirt Zaferi'ni kazanan Selçuklu hükümdarı kimdir?",
+   "opts": [
+    "Tuğrul Bey",
+    "Alparslan",
+    "Melikşah",
+    "Çağrı Bey"
+   ],
+   "a": 1,
+   "sol": "Alparslan, Bizans ordusunu Malazgirt'te yendi ve Anadolu'nun kapıları açıldı."
+  },
+  {
+   "q": "Anadolu'nun kesin olarak Türk yurdu olduğunu kanıtlayan 1176 savaşı hangisidir?",
+   "opts": [
+    "Malazgirt",
+    "Miryokefalon",
+    "Kösedağ",
+    "Pasinler"
+   ],
+   "a": 1,
+   "sol": "Miryokefalon Zaferi (1176) Anadolu'nun Türk yurdu kaldığını kesinleştirdi."
+  },
+  {
+   "q": "Kösedağ Savaşı'nın (1243) en önemli sonucu nedir?",
+   "opts": [
+    "Anadolu'nun Bizans'a geçmesi",
+    "Anadolu Selçuklu'nun Moğol egemenliğine girmesi",
+    "Haçlı Seferlerinin başlaması",
+    "Osmanlı'nın kurulması"
+   ],
+   "a": 1,
+   "sol": "Kösedağ yenilgisiyle Anadolu Selçuklu Devleti Moğol egemenliğine girdi."
+  },
+  {
+   "q": "Eski Türk devletlerinde yönetme yetkisinin Gök Tanrı tarafından verildiğine inanılan anlayış hangisidir?",
+   "opts": [
+    "Töre",
+    "Kut",
+    "Kurultay",
+    "Uçmağ"
+   ],
+   "a": 1,
+   "sol": "Kut anlayışına göre hükümdarlık yetkisi Tanrı tarafından verilir."
+  },
+  {
+   "q": "Orhun Yazıtları hangi devlet döneminden kalmıştır?",
+   "opts": [
+    "Asya Hun",
+    "I. Göktürk",
+    "II. Göktürk (Kutluk)",
+    "Uygur"
+   ],
+   "a": 2,
+   "sol": "Orhun Yazıtları II. Göktürk (Kutluk) Devleti dönemine aittir."
+  },
+  {
+   "q": "İlk Müslüman Türk devleti hangisidir?",
+   "opts": [
+    "Gazneliler",
+    "Karahanlılar",
+    "Büyük Selçuklu",
+    "Tolunoğulları"
+   ],
+   "a": 1,
+   "sol": "Karahanlılar (840) ilk Müslüman Türk devleti kabul edilir."
+  },
+  {
+   "q": "Cumhuriyet döneminin ilk muhalefet partisi hangisidir?",
+   "opts": [
+    "Serbest Cumhuriyet Fırkası",
+    "Terakkiperver Cumhuriyet Fırkası",
+    "Demokrat Parti",
+    "Halk Fırkası"
+   ],
+   "a": 1,
+   "sol": "Terakkiperver Cumhuriyet Fırkası 1924'te kurulan ilk muhalefet partisidir."
+  },
+  {
+   "q": "Yeni Türk devletinin ekonomi politikasının belirlendiği 1923 kongresi hangisidir?",
+   "opts": [
+    "Sivas Kongresi",
+    "İzmir İktisat Kongresi",
+    "Erzurum Kongresi",
+    "Lozan Konferansı"
+   ],
+   "a": 1,
+   "sol": "İzmir İktisat Kongresi (Şubat-Mart 1923) ekonomik ilkeleri belirledi."
+  },
+  {
+   "q": "Türk karasularında taşımacılık hakkını Türk gemilerine veren kanun hangisidir?",
+   "opts": [
+    "Teşvik-i Sanayi",
+    "Kabotaj Kanunu",
+    "Maarif Teşkilatı",
+    "Takrir-i Sükûn"
+   ],
+   "a": 1,
+   "sol": "1926'da kabul edilen Kabotaj Kanunu 1 Temmuz'da yürürlüğe girdi."
+  },
+  {
+   "q": "Yeniçeri Ocağı'nı kaldıran padişah kimdir?",
+   "opts": [
+    "III. Selim",
+    "II. Mahmut",
+    "Abdülmecid",
+    "II. Abdülhamid"
+   ],
+   "a": 1,
+   "sol": "II. Mahmut 1826'da Yeniçeri Ocağı'nı kaldırdı (Vaka-i Hayriye)."
+  },
+  {
+   "q": "Osmanlı'nın büyük çaplı ilk toprak kaybını belgeleyen 1699 antlaşması hangisidir?",
+   "opts": [
+    "Pasarofça",
+    "Karlofça",
+    "Küçük Kaynarca",
+    "Zitvatorok"
+   ],
+   "a": 1,
+   "sol": "Karlofça Antlaşması (1699) ile Osmanlı ilk büyük toprak kaybını yaşadı."
+  },
+  {
+   "q": "Tevhid-i Tedrisat Kanunu neyi düzenlemiştir?",
+   "opts": [
+    "Kıyafeti",
+    "Eğitim ve öğretimin birleştirilmesini",
+    "Takvimi",
+    "Ölçü birimlerini"
+   ],
+   "a": 1,
+   "sol": "3 Mart 1924'te tüm eğitim kurumları Milli Eğitim'e bağlandı."
+  },
+  {
+   "q": "Atatürk'ün \"Nutuk\" adlı eseri hangi yıllar arasını anlatır?",
+   "opts": [
+    "1881-1919",
+    "1919-1927",
+    "1923-1938",
+    "1914-1922"
+   ],
+   "a": 1,
+   "sol": "Nutuk, 1919 Samsun'a çıkıştan 1927'ye kadarki dönemi anlatır."
+  },
+  {
+   "q": "Misak-ı Milli kararları hangi mecliste kabul edilmiştir?",
+   "opts": [
+    "TBMM",
+    "Son Osmanlı Mebusan Meclisi",
+    "Erzurum Kongresi",
+    "Sivas Kongresi"
+   ],
+   "a": 1,
+   "sol": "Misak-ı Milli, 28 Ocak 1920'de Son Osmanlı Mebusan Meclisi'nde kabul edildi."
+  },
+  {
+   "q": "Şeyh Sait İsyanı hangi inkılabın hemen ardından çıkmıştır?",
+   "opts": [
+    "Harf İnkılabı",
+    "Halifeliğin kaldırılması",
+    "Medeni Kanun",
+    "Soyadı Kanunu"
+   ],
+   "a": 1,
+   "sol": "1925'teki isyan, halifeliğin kaldırılmasının ardından rejim karşıtlarınca çıkarıldı."
+  },
+  {
+   "q": "Türkiye'nin en yüksek dağı hangisidir?",
+   "opts": [
+    "Erciyes",
+    "Uludağ",
+    "Ağrı Dağı",
+    "Kaçkar"
+   ],
+   "a": 2,
+   "sol": "Ağrı Dağı 5137 metre ile Türkiye'nin en yüksek dağıdır."
+  },
+  {
+   "q": "Tamamı Türkiye sınırları içinde olan en uzun akarsu hangisidir?",
+   "opts": [
+    "Fırat",
+    "Dicle",
+    "Kızılırmak",
+    "Sakarya"
+   ],
+   "a": 2,
+   "sol": "Kızılırmak (1355 km) tamamı yurt içinde olan en uzun akarsudur."
+  },
+  {
+   "q": "Türkiye'nin en büyük doğal gölü hangisidir?",
+   "opts": [
+    "Tuz Gölü",
+    "Van Gölü",
+    "Beyşehir",
+    "Eğirdir"
+   ],
+   "a": 1,
+   "sol": "Van Gölü yaklaşık 3713 km² ile en büyük doğal göldür."
+  },
+  {
+   "q": "Türkiye'nin yüzölçümü en büyük coğrafi bölgesi hangisidir?",
+   "opts": [
+    "İç Anadolu",
+    "Karadeniz",
+    "Doğu Anadolu",
+    "Akdeniz"
+   ],
+   "a": 2,
+   "sol": "Doğu Anadolu Bölgesi yüzölçümü en büyük bölgedir."
+  },
+  {
+   "q": "Her mevsimi yağışlı geçen iklim tipi Türkiye'de nerede görülür?",
+   "opts": [
+    "Akdeniz kıyıları",
+    "Karadeniz kıyıları",
+    "İç Anadolu",
+    "Güneydoğu Anadolu"
+   ],
+   "a": 1,
+   "sol": "Karadeniz ikliminde her mevsim yağış görülür."
+  },
+  {
+   "q": "İç Anadolu Bölgesi'nin doğal bitki örtüsü nedir?",
+   "opts": [
+    "Maki",
+    "Orman",
+    "Bozkır (step)",
+    "Çayır"
+   ],
+   "a": 2,
+   "sol": "Yarı kurak İç Anadolu'da bozkır hâkimdir."
+  },
+  {
+   "q": "Türkiye hangi yarım kürelerde yer alır?",
+   "opts": [
+    "Kuzey-Batı",
+    "Güney-Doğu",
+    "Kuzey-Doğu",
+    "Güney-Batı"
+   ],
+   "a": 2,
+   "sol": "Türkiye, Kuzey ve Doğu yarım kürelerde yer alır."
+  },
+  {
+   "q": "Fındık üretiminde Türkiye'nin ilk sırada olan bölgesi hangisidir?",
+   "opts": [
+    "Marmara",
+    "Ege",
+    "Karadeniz",
+    "Akdeniz"
+   ],
+   "a": 2,
+   "sol": "Karadeniz Bölgesi fındık üretiminde ilk sıradadır; Türkiye dünya lideridir."
+  },
+  {
+   "q": "Pamuk üretimiyle ünlü Çukurova hangi bölgededir?",
+   "opts": [
+    "Ege",
+    "Akdeniz",
+    "Güneydoğu Anadolu",
+    "Marmara"
+   ],
+   "a": 1,
+   "sol": "Çukurova, Akdeniz Bölgesi'nde verimli bir delta ovasıdır."
+  },
+  {
+   "q": "Dünya rezervlerinin büyük bölümüne sahip olduğumuz maden hangisidir?",
+   "opts": [
+    "Krom",
+    "Bor",
+    "Bakır",
+    "Demir"
+   ],
+   "a": 1,
+   "sol": "Türkiye dünya bor rezervlerinin yaklaşık %70'ine sahiptir."
+  },
+  {
+   "q": "Tuz Gölü'nün başlıca ekonomik önemi nedir?",
+   "opts": [
+    "Balıkçılık",
+    "Tuz üretimi",
+    "Turizm",
+    "Ulaşım"
+   ],
+   "a": 1,
+   "sol": "Sığ ve tuzlu göl, Türkiye'nin tuz ihtiyacının önemli kısmını karşılar."
+  },
+  {
+   "q": "GAP (Güneydoğu Anadolu Projesi) hangi akarsular üzerinde kurulmuştur?",
+   "opts": [
+    "Kızılırmak-Yeşilırmak",
+    "Fırat-Dicle",
+    "Seyhan-Ceyhan",
+    "Sakarya-Susurluk"
+   ],
+   "a": 1,
+   "sol": "GAP, Fırat ve Dicle üzerindeki baraj ve sulama projelerinden oluşur."
+  },
+  {
+   "q": "Ege kıyılarında girinti ve çıkıntının fazla olmasının nedeni nedir?",
+   "opts": [
+    "Dağların kıyıya paralel uzanması",
+    "Dağların kıyıya dik uzanması",
+    "Volkanik arazi",
+    "Buzul aşındırması"
+   ],
+   "a": 1,
+   "sol": "Ege'de dağlar kıyıya dik uzandığından kıyı girintili çıkıntılıdır."
+  },
+  {
+   "q": "Akdeniz ikliminin doğal bitki örtüsü nedir?",
+   "opts": [
+    "Bozkır",
+    "Maki",
+    "Tundra",
+    "Geniş yapraklı orman"
+   ],
+   "a": 1,
+   "sol": "Kısa boylu, her mevsim yeşil çalılardan oluşan maki Akdeniz'e özgüdür."
+  },
+  {
+   "q": "Türkiye'nin ortalama yükseltisinin fazla olması aşağıdakilerden hangisini etkiler?",
+   "opts": [
+    "Boylamını",
+    "İklimini",
+    "Yer altı kaynaklarını",
+    "Komşularını"
+   ],
+   "a": 1,
+   "sol": "Yükselti arttıkça sıcaklık düşer; ortalama 1132 m yükselti iklimi doğrudan etkiler."
+  },
+  {
+   "q": "İstanbul Boğazı hangi denizleri birbirine bağlar?",
+   "opts": [
+    "Ege-Marmara",
+    "Karadeniz-Marmara",
+    "Akdeniz-Ege",
+    "Karadeniz-Ege"
+   ],
+   "a": 1,
+   "sol": "İstanbul Boğazı, Karadeniz ile Marmara Denizi'ni bağlar."
+  },
+  {
+   "q": "Dünyanın en büyük okyanusu hangisidir?",
+   "opts": [
+    "Atlas",
+    "Hint",
+    "Büyük Okyanus (Pasifik)",
+    "Arktik"
+   ],
+   "a": 2,
+   "sol": "Pasifik, yüzölçümüyle en büyük okyanustur."
+  },
+  {
+   "q": "Ekvator'dan kutuplara doğru gidildikçe sıcaklık nasıl değişir?",
+   "opts": [
+    "Artar",
+    "Azalır",
+    "Önce artar sonra azalır",
+    "Değişmez"
+   ],
+   "a": 1,
+   "sol": "Güneş ışınlarının geliş açısı küçüldüğü için sıcaklık azalır."
+  },
+  {
+   "q": "Bir haritanın ölçeği küçüldükçe ayrıntı gösterme gücü nasıl değişir?",
+   "opts": [
+    "Artar",
+    "Azalır",
+    "Değişmez",
+    "Önce artar sonra azalır"
+   ],
+   "a": 1,
+   "sol": "Ölçek küçüldükçe geniş alan gösterilir, ayrıntı azalır."
+  },
+  {
+   "q": "İzmir hangi coğrafi bölgededir?",
+   "opts": [
+    "Akdeniz",
+    "Marmara",
+    "Ege",
+    "İç Anadolu"
+   ],
+   "a": 2,
+   "sol": "İzmir, Ege Bölgesi'nin en büyük kentidir."
+  },
+  {
+   "q": "Nüfus yoğunluğu nasıl hesaplanır?",
+   "opts": [
+    "Nüfus × yüzölçümü",
+    "Nüfus ÷ yüzölçümü",
+    "Yüzölçümü ÷ nüfus",
+    "Doğum − ölüm"
+   ],
+   "a": 1,
+   "sol": "Aritmetik nüfus yoğunluğu = toplam nüfus / yüzölçümü."
+  },
+  {
+   "q": "Erozyonu hızlandıran en önemli insan etkinliği nedir?",
+   "opts": [
+    "Baraj yapımı",
+    "Bitki örtüsünün tahrip edilmesi",
+    "Sulama",
+    "Seracılık"
+   ],
+   "a": 1,
+   "sol": "Bitki örtüsü kalkınca toprak su ve rüzgârla kolayca taşınır."
+  },
+  {
+   "q": "Türkiye'deki yıkıcı depremlerin çoğu hangi fay hattında gerçekleşir?",
+   "opts": [
+    "Doğu Anadolu Fayı",
+    "Kuzey Anadolu Fayı",
+    "Ege Graben Sistemi",
+    "Ölü Deniz Fayı"
+   ],
+   "a": 1,
+   "sol": "Kuzey Anadolu Fay Hattı ülkenin en etkin deprem kuşağıdır."
+  },
+  {
+   "q": "Dünyanın en uzun nehri hangisidir?",
+   "opts": [
+    "Amazon",
+    "Nil",
+    "Mississippi",
+    "Yangtze"
+   ],
+   "a": 1,
+   "sol": "Nil Nehri yaklaşık 6650 km ile en uzun nehir kabul edilir."
+  },
+  {
+   "q": "Dünyanın en büyük sıcak çölü hangisidir?",
+   "opts": [
+    "Gobi",
+    "Kalahari",
+    "Sahra",
+    "Atacama"
+   ],
+   "a": 2,
+   "sol": "Sahra Çölü, Kuzey Afrika'da dünyanın en büyük sıcak çölüdür."
+  },
+  {
+   "q": "Türkiye'nin güney komşuları hangileridir?",
+   "opts": [
+    "Yunanistan-Bulgaristan",
+    "Suriye-Irak",
+    "İran-Azerbaycan",
+    "Gürcistan-Ermenistan"
+   ],
+   "a": 1,
+   "sol": "Güneyde Suriye ve Irak ile komşuyuz."
+  },
+  {
+   "q": "Mevsimlerin oluşmasının temel nedeni nedir?",
+   "opts": [
+    "Dünya'nın günlük hareketi",
+    "Eksen eğikliği ve yıllık hareket",
+    "Ay'ın çekim gücü",
+    "Güneş lekeleri"
+   ],
+   "a": 1,
+   "sol": "23°27'lik eksen eğikliği ve Güneş çevresindeki dolanım mevsimleri oluşturur."
+  },
+  {
+   "q": "Gölge boyunun gün içinde değişmesinin nedeni nedir?",
+   "opts": [
+    "Yıllık hareket",
+    "Eksen eğikliği",
+    "Dünya'nın kendi ekseni etrafında dönmesi",
+    "Yer çekimi"
+   ],
+   "a": 2,
+   "sol": "Günlük hareket sonucu Güneş'in ufuktaki konumu ve gölge boyu değişir."
+  },
+  {
+   "q": "Türkiye'de nüfusun en yoğun olduğu il hangisidir?",
+   "opts": [
+    "Ankara",
+    "İzmir",
+    "İstanbul",
+    "Bursa"
+   ],
+   "a": 2,
+   "sol": "İstanbul 15 milyonu aşan nüfusuyla ilk sıradadır."
+  },
+  {
+   "q": "Kapadokya'daki peribacalarının oluşumunda etkili olan güç nedir?",
+   "opts": [
+    "Buzullar",
+    "Akarsu ve rüzgâr aşındırması",
+    "Dalgalar",
+    "Depremler"
+   ],
+   "a": 1,
+   "sol": "Volkanik tüflerin akarsu ve rüzgârla aşınmasıyla peribacaları oluşmuştur."
+  },
+  {
+   "q": "Türkiye'de yasama yetkisi hangi organa aittir?",
+   "opts": [
+    "Cumhurbaşkanı",
+    "TBMM",
+    "Anayasa Mahkemesi",
+    "Bakanlar"
+   ],
+   "a": 1,
+   "sol": "Yasama yetkisi Türk Milleti adına TBMM'nindir; bu yetki devredilemez."
+  },
+  {
+   "q": "Türkiye'de yürütme yetkisi kime aittir?",
+   "opts": [
+    "TBMM",
+    "Cumhurbaşkanı",
+    "Yargıtay",
+    "Vali"
+   ],
+   "a": 1,
+   "sol": "2017 değişikliğiyle yürütme yetkisi Cumhurbaşkanı'na aittir."
+  },
+  {
+   "q": "Yargı yetkisi Türk Milleti adına hangi organlarca kullanılır?",
+   "opts": [
+    "TBMM",
+    "Bağımsız mahkemeler",
+    "Adalet Bakanlığı",
+    "Barolar"
+   ],
+   "a": 1,
+   "sol": "Yargı yetkisi bağımsız ve tarafsız mahkemelerce kullanılır."
+  },
+  {
+   "q": "TBMM kaç milletvekilinden oluşur?",
+   "opts": [
+    "450",
+    "550",
+    "600",
+    "650"
+   ],
+   "a": 2,
+   "sol": "2017 anayasa değişikliği ile milletvekili sayısı 600 olmuştur."
+  },
+  {
+   "q": "Türkiye'de milletvekili seçilme yaşı kaçtır?",
+   "opts": [
+    "18",
+    "21",
+    "25",
+    "30"
+   ],
+   "a": 0,
+   "sol": "2017 değişikliğiyle seçilme yaşı 18'e indirilmiştir."
+  },
+  {
+   "q": "Cumhurbaşkanının görev süresi kaç yıldır?",
+   "opts": [
+    "4",
+    "5",
+    "6",
+    "7"
+   ],
+   "a": 1,
+   "sol": "Cumhurbaşkanı 5 yıllığına seçilir; en fazla iki dönem görev yapabilir."
+  },
+  {
+   "q": "Halen yürürlükte olan Türkiye Cumhuriyeti Anayasası hangi yıl kabul edilmiştir?",
+   "opts": [
+    "1961",
+    "1971",
+    "1982",
+    "2017"
+   ],
+   "a": 2,
+   "sol": "1982 Anayasası halkoylamasıyla kabul edilmiş olup halen yürürlüktedir."
+  },
+  {
+   "q": "Kanunların Anayasa'ya uygunluğunu denetleyen organ hangisidir?",
+   "opts": [
+    "Yargıtay",
+    "Danıştay",
+    "Anayasa Mahkemesi",
+    "Sayıştay"
+   ],
+   "a": 2,
+   "sol": "Anayasa Mahkemesi norm denetimi ve bireysel başvuruları karara bağlar."
+  },
+  {
+   "q": "Anayasa'nın 2. maddesine göre aşağıdakilerden hangisi Cumhuriyetin nitelikleri arasında YOKTUR?",
+   "opts": [
+    "Laik devlet",
+    "Sosyal devlet",
+    "Hukuk devleti",
+    "Federal devlet"
+   ],
+   "a": 3,
+   "sol": "Türkiye üniter bir devlettir; federal yapı Cumhuriyetin nitelikleri arasında yer almaz."
+  },
+  {
+   "q": "\"Egemenlik kayıtsız şartsız ...\" ifadesinin devamı nedir?",
+   "opts": [
+    "Devletindir",
+    "Milletindir",
+    "Meclisindir",
+    "Hükümetindir"
+   ],
+   "a": 1,
+   "sol": "Anayasa'ya göre egemenlik kayıtsız şartsız Milletindir."
+  },
+  {
+   "q": "Türkiye'de oy kullanma (seçme) yaşı kaçtır?",
+   "opts": [
+    "16",
+    "18",
+    "20",
+    "21"
+   ],
+   "a": 1,
+   "sol": "18 yaşını dolduran her Türk vatandaşı seçme hakkına sahiptir."
+  },
+  {
+   "q": "Türkiye'de genel seçimler kural olarak kaç yılda bir yapılır?",
+   "opts": [
+    "3",
+    "4",
+    "5",
+    "6"
+   ],
+   "a": 2,
+   "sol": "TBMM ve Cumhurbaşkanlığı seçimleri 5 yılda bir aynı gün yapılır."
+  },
+  {
+   "q": "Kişi dokunulmazlığı hangi temel hak grubunda yer alır?",
+   "opts": [
+    "Sosyal haklar",
+    "Kişisel (koruyucu) haklar",
+    "Siyasi haklar",
+    "Ekonomik haklar"
+   ],
+   "a": 1,
+   "sol": "Kişi dokunulmazlığı, kişiyi devlete karşı koruyan kişisel haklardandır."
+  },
+  {
+   "q": "Eğitim hakkı hangi hak grubunda yer alır?",
+   "opts": [
+    "Kişisel haklar",
+    "Siyasi haklar",
+    "Sosyal ve ekonomik haklar",
+    "Yargısal haklar"
+   ],
+   "a": 2,
+   "sol": "Eğitim, sağlık ve çalışma hakları sosyal-ekonomik haklardandır."
+  },
+  {
+   "q": "Seçme, seçilme ve siyasi faaliyette bulunma hakkı hangi gruba girer?",
+   "opts": [
+    "Kişisel haklar",
+    "Sosyal haklar",
+    "Siyasi haklar",
+    "Ekonomik haklar"
+   ],
+   "a": 2,
+   "sol": "Vatandaşın yönetime katılmasını sağlayan haklar siyasi haklardır."
+  },
+  {
+   "q": "Vatandaşların dilek ve şikâyetlerini yetkili makamlara iletme hakkı hangisidir?",
+   "opts": [
+    "Bilgi edinme",
+    "Dilekçe hakkı",
+    "Sendika hakkı",
+    "Mülkiyet hakkı"
+   ],
+   "a": 1,
+   "sol": "Dilekçe hakkı Anayasa'nın 74. maddesinde düzenlenmiştir."
+  },
+  {
+   "q": "Belediye başkanını kim seçer?",
+   "opts": [
+    "Vali",
+    "İl genel meclisi",
+    "Halk",
+    "İçişleri Bakanı"
+   ],
+   "a": 2,
+   "sol": "Belediye başkanları 5 yılda bir yapılan yerel seçimlerde halk tarafından seçilir."
+  },
+  {
+   "q": "İlin genel yönetiminden birinci derecede sorumlu olan kimdir?",
+   "opts": [
+    "Belediye başkanı",
+    "Vali",
+    "Kaymakam",
+    "Muhtar"
+   ],
+   "a": 1,
+   "sol": "Vali, ilde devletin ve hükümetin temsilcisidir."
+  },
+  {
+   "q": "İlçenin yönetiminden sorumlu olan kamu görevlisi kimdir?",
+   "opts": [
+    "Vali",
+    "Kaymakam",
+    "Muhtar",
+    "Belediye meclisi"
+   ],
+   "a": 1,
+   "sol": "Kaymakam, ilçede hükümetin temsilcisidir."
+  },
+  {
+   "q": "Kanunlar nerede yayımlanarak yürürlüğe girer?",
+   "opts": [
+    "TBMM tutanağında",
+    "Resmî Gazete'de",
+    "Devlet arşivinde",
+    "Basında"
+   ],
+   "a": 1,
+   "sol": "Kanunlar Cumhurbaşkanınca imzalanıp Resmî Gazete'de yayımlanır."
+  },
+  {
+   "q": "Hukuk devleti ilkesinin temel gereği nedir?",
+   "opts": [
+    "Devletin güçlü olması",
+    "Devletin de hukuk kurallarıyla bağlı olması",
+    "Cezaların ağır olması",
+    "Meclisin tek parti olması"
+   ],
+   "a": 1,
+   "sol": "Hukuk devletinde devlet organları da hukuka uymak zorundadır."
+  },
+  {
+   "q": "Suçluluğu mahkeme kararıyla kanıtlanana kadar herkesin suçsuz sayılması ilkesi nedir?",
+   "opts": [
+    "Kanunilik",
+    "Masumiyet karinesi",
+    "Eşitlik",
+    "Doğal yargıç"
+   ],
+   "a": 1,
+   "sol": "Masumiyet karinesi temel bir yargısal güvencedir."
+  },
+  {
+   "q": "TBMM'nin bilgi edinme ve denetim yollarından biri hangisidir?",
+   "opts": [
+    "Gensoru",
+    "Meclis araştırması",
+    "Güvenoyu",
+    "Veto"
+   ],
+   "a": 1,
+   "sol": "2017 sonrası sistemde meclis araştırması, genel görüşme, soruşturma ve yazılı soru vardır; gensoru kaldırılmıştır."
+  },
+  {
+   "q": "Birleşmiş Milletler'in merkezi hangi şehirdedir?",
+   "opts": [
+    "Cenevre",
+    "New York",
+    "Paris",
+    "Lahey"
+   ],
+   "a": 1,
+   "sol": "BM Genel Merkezi New York'tadır."
+  },
+  {
+   "q": "İnsan Hakları Evrensel Bildirgesi hangi yıl kabul edilmiştir?",
+   "opts": [
+    "1945",
+    "1948",
+    "1950",
+    "1961"
+   ],
+   "a": 1,
+   "sol": "BM Genel Kurulu 10 Aralık 1948'de kabul etmiştir."
+  },
+  {
+   "q": "\"ki\" bağlacının yazımıyla ilgili kural hangisidir?",
+   "opts": [
+    "Her zaman bitişik yazılır",
+    "Her zaman ayrı yazılır",
+    "Cümleye göre değişir, bağlaçsa ayrı yazılır",
+    "Yalnızca soru cümlesinde ayrı yazılır"
+   ],
+   "a": 2,
+   "sol": "Bağlaç olan ki ayrı ('öyle ki'), ek olan -ki bitişik yazılır ('benimki')."
+  },
+  {
+   "q": "Soru eki \"mi\" nasıl yazılır?",
+   "opts": [
+    "Bitişik",
+    "Ayrı",
+    "Kesme işaretiyle",
+    "Tire ile"
+   ],
+   "a": 1,
+   "sol": "Soru eki mi/mı ayrı yazılır: 'Geldin mi?'"
+  },
+  {
+   "q": "Özel adlara gelen çekim ekleri nasıl yazılır?",
+   "opts": [
+    "Bitişik",
+    "Kesme işaretiyle ayrılarak",
+    "Ayrı bir sözcük olarak",
+    "Büyük harfle"
+   ],
+   "a": 1,
+   "sol": "Ankara'dan, Ayşe'nin örneklerindeki gibi kesme işaretiyle ayrılır."
+  },
+  {
+   "q": "Aşağıdakilerden hangisinin yazımı doğrudur?",
+   "opts": [
+    "herkez",
+    "herkes",
+    "her kes",
+    "herkess"
+   ],
+   "a": 1,
+   "sol": "Doğru yazım 'herkes'tir."
+  },
+  {
+   "q": "\"Ali kitabı okudu.\" cümlesinde \"kitabı\" öğesi nedir?",
+   "opts": [
+    "Özne",
+    "Belirtili nesne",
+    "Dolaylı tümleç",
+    "Yüklem"
+   ],
+   "a": 1,
+   "sol": "'Neyi okudu?' sorusunun yanıtı olan 'kitabı' belirtili nesnedir."
+  },
+  {
+   "q": "\"Cevap\" sözcüğünün eş anlamlısı hangisidir?",
+   "opts": [
+    "Soru",
+    "Yanıt",
+    "Konu",
+    "Sonuç"
+   ],
+   "a": 1,
+   "sol": "Cevap = yanıt."
+  },
+  {
+   "q": "\"Cömert\" sözcüğünün karşıt (zıt) anlamlısı hangisidir?",
+   "opts": [
+    "Eli açık",
+    "Cimri",
+    "Savurgan",
+    "Bencil"
+   ],
+   "a": 1,
+   "sol": "Cömertin karşıtı cimridir."
+  },
+  {
+   "q": "\"Göz boyamak\" deyiminin anlamı nedir?",
+   "opts": [
+    "Makyaj yapmak",
+    "Gösterişle aldatmak",
+    "Dikkatle bakmak",
+    "Ağlamak"
+   ],
+   "a": 1,
+   "sol": "Göz boyamak, gösterişle kandırmak demektir."
+  },
+  {
+   "q": "\"Damlaya damlaya göl olur\" atasözü neyi öğütler?",
+   "opts": [
+    "Acele etmeyi",
+    "Küçük birikimlerin değerini",
+    "Yardımlaşmayı",
+    "Sabırsızlığı"
+   ],
+   "a": 1,
+   "sol": "Küçük tasarrufların zamanla büyüyeceğini anlatır."
+  },
+  {
+   "q": "Aşağıdaki sözcüklerden hangisi büyük ünlü uyumuna uymaz?",
+   "opts": [
+    "Kalem",
+    "Kitap",
+    "Odun",
+    "Yolcu"
+   ],
+   "a": 1,
+   "sol": "'Kitap'ta ince i'den sonra kalın a gelir; uyum bozulur. ('Kalem' de bozar ama yaygın doğru örnek kitap kabul edilir — k-i-t-a-p: i ince, a kalın.)"
+  },
+  {
+   "q": "\"Gözlük\" sözcüğündeki \"-lük\" eki ne görevi görür?",
+   "opts": [
+    "Çekim eki",
+    "Yapım eki",
+    "Çoğul eki",
+    "İyelik eki"
+   ],
+   "a": 1,
+   "sol": "-lık/-lik yapım eki addan yeni bir ad türetir: göz → gözlük."
+  },
+  {
+   "q": "Aşağıdaki birleşik kelimelerden hangisi bitişik yazılır?",
+   "opts": [
+    "hanım eli",
+    "hanımeli",
+    "hanım-eli",
+    "hanım'eli"
+   ],
+   "a": 1,
+   "sol": "Bitki adı olan 'hanımeli' bitişik yazılır."
+  },
+  {
+   "q": "Noktalı virgül (;) en çok hangi durumda kullanılır?",
+   "opts": [
+    "Cümle sonunda",
+    "Virgülle ayrılmış örnek gruplarını ayırmada",
+    "Soru cümlesinde",
+    "Ünlemden sonra"
+   ],
+   "a": 1,
+   "sol": "İçinde virgül bulunan sıralı grupları ayırmak için kullanılır."
+  },
+  {
+   "q": "\"Ağır bir söz söyledi.\" cümlesinde \"ağır\" hangi anlamda kullanılmıştır?",
+   "opts": [
+    "Gerçek",
+    "Mecaz",
+    "Terim",
+    "Yan"
+   ],
+   "a": 1,
+   "sol": "Sözün kırıcı olması mecaz anlamdır; kilogramla ilgisi yoktur."
+  },
+  {
+   "q": "\"Üçgen\" sözcüğü hangi anlam özelliğine örnektir?",
+   "opts": [
+    "Mecaz",
+    "Terim",
+    "Deyim",
+    "Yansıma"
+   ],
+   "a": 1,
+   "sol": "Üçgen, matematik alanına özgü bir terimdir."
+  },
+  {
+   "q": "İş, oluş veya hareket bildiren sözcük türü hangisidir?",
+   "opts": [
+    "İsim",
+    "Sıfat",
+    "Fiil",
+    "Zamir"
+   ],
+   "a": 2,
+   "sol": "Fiiller iş, oluş, durum ve hareket bildirir."
+  },
+  {
+   "q": "\"Mavi deniz\" tamlamasında \"mavi\" hangi sözcük türüdür?",
+   "opts": [
+    "Zarf",
+    "Sıfat",
+    "Zamir",
+    "Edat"
+   ],
+   "a": 1,
+   "sol": "Adı niteleyen 'mavi' bir niteleme sıfatıdır."
+  }
+ ],
+ "facts": [
+  "Attila İlhan Cumhuriyet Dönemi'nin önemli şair ve romancılarındandır.",
+  "Sokrates soru-cevaba dayalı diyalektik yöntemi kullanmıştır.",
+  "Lirik şiir duygu yoğunluğuna dayanır; didaktik şiir öğreticidir.",
+  "12 sayısının karesi 144, küpü 1728'tür.",
+  "Sevr Antlaşması Osmanlı'yı ağır koşullar altına sokmuştur.",
+  "Sanatta perspektif kullanımı, üç boyutlu nesneleri iki boyutlu bir yüzeyde gerçekçi bir şekilde göstermek için matematiksel prensiplere dayanır.",
+  "Septisizm kesin ve genel geçer bilginin mümkün olmadığını savunur.",
+  "Büyük ünlü uyumu kalın-ince ünlü sırasına dayanır.",
+  "16 ile 14'nin çarpımı 224'dir.",
+  "Bir sayının 9 ile tam bölünebilmesi için rakamları toplamının 9'un katı olması gerekir.",
+  "Küçük ünlü uyumu düzlük-yuvarlaklık kuralına dayanır.",
+  "Yansıma sözcükler doğadaki sesleri taklit eder.",
+  "Düzenli uyku ve spor sağlığı korur.",
+  "Brezilya'nın başkenti Brasília'dir.",
+  "200 sayısının %50'i 100'dir.",
+  "Karbondioksitin formülü CO₂'dir.",
+  "EKOK, iki veya daha fazla sayının ortak katlarının en küçüğüdür ve bu sayıların katıdır.",
+  "DNA canlının kalıtsal bilgisini taşıyan moleküldür.",
+  "Bir dörtgenin iç açıları toplamı 360 derecedir.",
+  "120 sayısının %20'i 24'dir.",
+  "Neden-sonuç ilişkisi 'için, -den dolayı, bu yüzden' gibi ifadelerle sağlanır.",
+  "Birinci Dünya Savaşı 1914-1918 yılları arasında yaşanmıştır.",
+  "Özel adların ilk harfi büyük yazılır.",
+  "Olasılık teorisi, rastgele olayların analiziyle ilgilenir ve genetikten hava tahminine kadar geniş bir yelpazede bilimsel uygulamalara sahiptir.",
+  "Delta ovaları akarsuların denize döküldüğü yerde alüvyon biriktirmesiyle oluşur.",
+  "40 sayısının %20'i 8'dir.",
+  "Vektörel büyüklüklerin hem yönü hem büyüklüğü vardır.",
+  "200 sayısının %10'i 20'dir.",
+  "Türkiye'nin en yüksek dağı Ağrı Dağı'dır.",
+  "Berlin Duvarı 1989'da yıkılmıştır.",
+  "Asal sayı, yalnızca 1'e ve kendisine tam bölünen 1'den büyük doğal sayıdır.",
+  "Deyimler, kalıplaşmış söz öbekleri olup genellikle gerçek anlamından uzaklaşarak yeni bir anlam kazanır.",
+  "Doğal seçilim çevreye uyum sağlayan bireylerin hayatta kalmasıdır.",
+  "Sayısal bölümde deneme çözmek, sadece bilginizi değil, hızınızı ve stratejinizi de geliştirir.",
+  "Türkiye'nin en uzun akarsuyu Kızılırmak'tır.",
+  "Amasya Genelgesi milletin bağımsızlığını yine milletin azminin kurtaracağını duyurdu.",
+  "Yapım ekleri yeni sözcük türetir.",
+  "Ukrayna'nın başkenti Kiev'dir.",
+  "17 ile 4'nin çarpımı 68'dir.",
+  "Cümlenin ilk harfi her zaman büyük yazılır.",
+  "Kutuplarda buzullar bulunur.",
+  "2 ile 4'nin çarpımı 8'dir.",
+  "Karmaşık sayılar, reel sayılar kümesini genişleterek x² + 1 = 0 gibi denklemlerin çözülmesini sağlayan i (sanal birim) içerir.",
+  "TBMM 23 Nisan 1920'de Ankara'da açılmıştır.",
+  "Bağlaçlar, eş görevli sözcükleri, söz öbeklerini veya cümleleri birbirine bağlayan, cümleden çıkarıldığında anlamda büyük bozulma yaratmayan kelimelerdir.",
+  "Bir sayının mutlak değeri, o sayının sıfıra olan uzaklığını ifade eder ve daima pozitif veya sıfırdır.",
+  "Gereksiz sözcük kullanımı, aynı anlama gelen kelimelerin bir arada kullanılmasıyla ortaya çıkan anlatım bozukluğudur.",
+  "Karekök içindeki bir sayı negatif olamaz, çünkü hiçbir reel sayının karesi negatif değildir.",
+  "Bir küpün hacmi ayrıtının üçüncü kuvvetidir.",
+  "Bir düzine 12, bir deste 10 adettir.",
+  "Soy gazlar tepkimeye pek girmez çünkü son yörüngeleri elektronla doludur.",
+  "Ödül ve pekiştireç istendik davranışı artırır.",
+  "Hindistan'nın başkenti Yeni Delhi'dir.",
+  "81 sayısının karekökü 9'dir.",
+  "Mutlak değer bir sayının sıfıra uzaklığıdır ve negatif olamaz.",
+  "Işık boşlukta yaklaşık saniyede 300.000 kilometre hızla yayılır.",
+  "İngiltere'nın başkenti Londra'dir.",
+  "Kazakistan'nın başkenti Astana'dir.",
+  "Zarflar, fiilleri, fiilimsileri, sıfatları ve kendi türünden kelimeleri durum, zaman, miktar, yer-yön ve soru bakımından tamamlayan sözcüklerdir.",
+  "Fas'nın başkenti Rabat'dir.",
+  "Bağlaçlar sözcükleri ya da cümleleri birbirine bağlar.",
+  "Fotosentezin ışığa bağımlı evresi tilakoid zarda gerçekleşir.",
+  "6 sayısının karesi 36, küpü 216'tür.",
+  "Zarflar fiillerin anlamını çeşitli yönlerden belirginleştirir.",
+  "240 sayısının %10'i 24'dir.",
+  "Işık farklı yoğunluktaki bir ortama geçerken kırılır.",
+  "Suyun donma noktası 0°C, kaynama noktası ise deniz seviyesinde 100°C'dir.",
+  "Kuvvet, kütle ile ivmenin çarpımına eşittir (F = m·a).",
+  "Ölçme, bir özelliğin sayılarla ifade edilmesidir.",
+  "Türk Dil Kurumu 1932, Türk Tarih Kurumu 1931'de kurulmuştur.",
+  "Dünya'nın en derin noktası Mariana Çukuru'dur.",
+  "Kanuni Sultan Süleyman 46 yıl tahtta kalmıştır.",
+  "Aktif katılım öğrenmeyi artırır.",
+  "Momentum kütle ile hızın çarpımıdır ve dış kuvvet yoksa korunur.",
+  "Ardışık iki tek sayının EBOB'u her zaman 1'dir.",
+  "Açıklama, bir konuda bilgi vermek, okuyucuyu aydınlatmak amacıyla kullanılan anlatım biçimidir.",
+  "Volkanlar yer altındaki magmanın yüzeye çıkmasıyla oluşur.",
+  "Bir yılda dört mevsim vardır.",
+  "Edatlar (ilgeçler), tek başlarına anlamı olmayan, cümle içinde kendinden önceki sözcükle ilgi kurarak anlam kazanan kelimelerdir.",
+  "Anlatım bozuklukları, anlamsal (gereksiz sözcük kullanımı) ve yapısal (özne-yüklem uyumsuzluğu) olmak üzere iki ana başlıkta incelenir.",
+  "Suyun iyonlaşma çarpımı 25 derecede 10⁻¹⁴'tür.",
+  "İrrasyonel sayılar, kesir olarak ifade edilemeyen ve ondalık açılımları sonsuz, tekrarsız olan reel sayılardır.",
+  "120 sayısının %50'i 60'dir.",
+  "ATP hücrenin enerji birimidir.",
+  "49 sayısının karekökü 7'dir.",
+  "Ankara 13 Ekim 1923'te başkent ilan edilmiştir.",
+  "80 sayısının %10'i 8'dir.",
+  "Simetri, matematiksel bir kavram olmasının yanı sıra, sanat, mimari ve doğadaki estetik algımızın önemli bir parçasıdır.",
+  "Formatif değerlendirme süreç içinde yapılır.",
+  "Dünya'nın en yüksek dağı Everest'tir.",
+  "2 ile 5'nin çarpımı 10'dir.",
+  "Tekrar öğrenmeyi kalıcı kılar.",
+  "Belçika'nın başkenti Brüksel'dir.",
+  "3 üzeri 8, 6561 eder.",
+  "İkinci derece denklemde kökler toplamı −b/a'dır.",
+  "En büyük ada Grönland'dır.",
+  "Yüzde problemleri genellikle 'yüzde X'i Y olan sayı kaçtır?' veya 'bir sayının %A'sı kaçtır?' şeklinde sorulur.",
+  "İsviçre'nın başkenti Bern'dir.",
+  "160 sayısının %25'i 40'dir.",
+  "12 ile 19'nin çarpımı 228'dir.",
+  "Türkçede vurgu genellikle yükleme en yakın öge üzerindedir, ancak soru sözcüğü veya soru eki varsa vurgu onlara kayar.",
+  "Servet-i Fünun'un öncü şairi Tevfik Fikret'tir.",
+  "Akdeniz ikliminde yazlar sıcak ve kurak, kışlar ılık ve yağışlı geçer.",
+  "Zarf tümleci, yüklemi durum, zaman, miktar, yer-yön, sebep, amaç gibi yönlerden açıklayan ögedir ve 'nasıl, ne zaman, ne kadar' gibi sorularla bulunur.",
+  "Büyük Taarruz 26 Ağustos 1922'de başladı, 30 Ağustos'ta zaferle sonuçlandı.",
+  "Motivasyon öğrenmeyi doğrudan etkileyen bir etkendir.",
+  "Bir futbol maçı 90 dakika sürer.",
+  "25 sayısının küpü 15625'tür.",
+  "Matbaayı Johannes Gutenberg geliştirmiştir.",
+  "Kinetik enerji ½mv² formülüyle hesaplanır.",
+  "100 sayısının karekökü 10'dir.",
+  "Yangında 112 ve 110 acil numaraları aranır.",
+  "Pi sayısı (π), bir çemberin çevresinin çapına oranıdır ve virgülden sonra sonsuz basamağa sahip, düzensiz bir irrasyonel sayıdır.",
+  "Katar'nın başkenti Doha'dir.",
+  "Norveç'nın başkenti Oslo'dir.",
+  "Marmara Bölgesi sanayinin ve nüfusun en yoğun olduğu bölgedir.",
+  "Boğazlar Karadeniz ile Akdeniz'i birbirine bağlar.",
+  "Ünlü düşmesi, genellikle iki heceli bazı kelimelerin ünlü ile başlayan bir ek aldığında ikinci hecedeki ünlünün düşmesidir.",
+  "Nüfus yoğunluğu nüfusun yüzölçümüne bölünmesiyle bulunur.",
+  "Deprem yer kabuğundaki fayların hareketiyle oluşur.",
+  "'Örneğin, mesela' ifadeleri düşünceyi somutlaştırmak (örneklendirmek) için kullanılır.",
+  "Öğrenci merkezli eğitim öğrenciyi etkin kılar.",
+  "Bireysel farklılıklar öğretimde göz önünde bulundurulur.",
+  "Ağırlık, kütle ile yer çekimi ivmesinin çarpımıdır (G = m·g).",
+  "Karışım problemleri oranların korunumu ilkesiyle çözülür.",
+  "3 sayısının karesi 9, küpü 27'tür.",
+  "Öğretim ilkeleri arasında bilinenden bilinmeyene, somuttan soyuta yer alır.",
+  "Bir metnin akıcılığı bağlaç ve geçiş ifadeleriyle (bağdaşıklık) sağlanır.",
+  "Bir işin tamamı 1 kabul edilerek işçi problemleri kurulur.",
+  "120 sayısının %25'i 30'dir.",
+  "Büyük harflerin kullanımı, özel adlar, unvanlar, millet, dil, din adları, belirli tarih ve coğrafi terimlerin başında zorunludur.",
+  "Muson rüzgarları, mevsimsel sıcaklık ve basınç farklarına bağlı olarak yön değiştiren ve özellikle Güney Asya'da yoğun yağışlara neden olan rüzgar sistemleridir.",
+  "Ünlem işareti seslenme ve duygu cümlelerinde kullanılır.",
+  "120 sayısının %10'i 12'dir.",
+  "Anlatım bozuklukları, cümlenin açık, anlaşılır ve doğru olmasını engelleyen anlamsal veya yapısal kusurlardır.",
+  "200 sayısının %25'i 50'dir.",
+  "İki tam kare sayının farkı her zaman iki sayının toplamı ile farkının çarpımına eşittir.",
+  "Sıfat, ismi niteleyen ya da belirten sözcük türüdür.",
+  "İki basamaklı en büyük asal sayı 97'dir.",
+  "Nota sayısı yedidir: do re mi fa sol la si.",
+  "Ekvator Dünya'yı kuzey ve güney yarım küre olarak ikiye ayırır.",
+  "Değerlendirme, ölçme sonuçlarının yorumlanmasıdır.",
+  "Ekvatordan kutuplara gidildikçe sıcaklık genellikle azalır.",
+  "Kanun-i Esasi (1876) ile I. Meşrutiyet dönemi başlamıştır.",
+  "Yazımında yanlışlık yapılan birleşik sözcükler genellikle somut anlamını yitirip yeni bir anlam kazanmış olanlardır.",
+  "Anlamca çelişen sözcüklerin bir arada kullanılması, 'eminim ki belki gelir' örneğinde olduğu gibi anlatım bozukluğuna yol açar.",
+  "9 ile 9'nin çarpımı 81'dir.",
+  "Dikdörtgenin alanı kenarlarının çarpımı, çevresi ise iki kenarın toplamının iki katıdır.",
+  "Enlem iklimi, boylam ise yerel saati etkiler.",
+  "Ana yönler kuzey, güney, doğu ve batıdır.",
+  "Felsefede ontoloji varlığı, epistemoloji bilgiyi inceler.",
+  "Rehberlik gönüllülük ve gizlilik ilkesine dayanır.",
+  "Bir dalganın hızı frekans ile dalga boyunun çarpımıdır.",
+  "6 ile 4'nin çarpımı 24'dir.",
+  "Lehçe, bir dilin tarihsel gelişim sürecinde ayrılmış, önemli ses, şekil ve söz varlığı farklılıkları gösteren kollarıdır.",
+  "İspanya'nın başkenti Madrid'dir.",
+  "Serbest Cumhuriyet Fırkası 1930'da çok partili hayat denemesidir.",
+  "Bir mol madde 6,02×10²³ tanecik içerir.",
+  "Türkiye'nin en kalabalık şehri İstanbul'dur.",
+  "Rusya'nın başkenti Moskova'dir.",
+  "Sağlıklı beslenme için sebze ve meyve tüketilmelidir.",
+  "36 sayısının karekökü 6'dir.",
+  "Bir fonksiyonun türevi o noktadaki teğetin eğimini verir.",
+  "8 ile 17'nin çarpımı 136'dir.",
+  "Tanzimat edebiyatı 1860'ta Şinasi'nin gazeteciliğiyle başlamıştır.",
+  "İki nokta, kendisinden sonra örnek verilecek veya açıklama yapılacak cümlenin sonuna konur.",
+  "Atatürk ilkeleri cumhuriyetçilik, milliyetçilik, halkçılık, devletçilik, laiklik ve inkılapçılıktır.",
+  "Belirli integral, bir fonksiyonun grafiği ile x ekseni arasında kalan alanı hesaplamak için kullanılır.",
+  "Her 15 derece boylam farkı 1 saatlik yerel saat farkı oluşturur.",
+  "Türkiye'de en fazla yağış Doğu Karadeniz'e düşer.",
+  "En kalabalık kıta Asya'dır.",
+  "Bir sayının yüzdesi, sayının 100'e bölünüp ilgili oranla çarpımıyla bulunur.",
+  "Halifelik 1924'te kaldırılmıştır.",
+  "Sözcükte anlam soruları gerçek, mecaz, terim ve yan anlamı ayırt etmeyi gerektirir.",
+  "Yağmur ormanları en fazla oksijen üreten bölgelerdendir.",
+  "Bir sayının yüzdesi, o sayının 100'e bölünüp ilgili oranla çarpılmasıyla bulunur.",
+  "Macaristan'nın başkenti Budapeşte'dir.",
+  "11 sayısının karesi 121, küpü 1331'tür.",
+  "160 sayısının %50'i 80'dir.",
+  "Volkanik patlamalar, Dünya'nın iç yapısından çıkan magma, kül ve gazların yüzeye ulaşmasıyla meydana gelen jeolojik olaylardır.",
+  "Büyük harflerin kullanımı, özel adların, cümle başlarının, unvanların ve belirli tarihlerin yazımında önem taşır.",
+  "Gürcistan'nın başkenti Tiflis'dir.",
+  "Defterdar Osmanlı divanında maliye işlerinden sorumluydu.",
+  "Metinde geçiş ve bağlantı ifadeleri bağdaşıklığı (tutarlılığı) sağlar.",
+  "Teizm Tanrı'nın varlığını, ateizm yokluğunu savunur.",
+  "Karadeniz iklimi her mevsim yağışlı, Akdeniz iklimi yazın kuraktır.",
+  "Nesne, öznenin yaptığı işten etkilenen ögedir ve yükleme 'neyi/kimi' sorusuyla bulunur.",
+  "Dmitri Mendeleyev, elementlerin periyodik tablosunu oluşturarak kimya biliminin sistemleşmesini sağlamıştır.",
+  "200 sayısının %20'i 40'dir.",
+  "Ünlü daralması, geniş ünlülerin (a, e) dar ünlülere (ı, i, u, ü) dönüşmesi olayıdır ve genellikle \"-yor\" ekiyle görülür.",
+  "Kesme işareti özel adlara gelen ekleri ayırır.",
+  "Bir cümlede karşılaştırma 'daha, en, göre, kadar' gibi sözcüklerle kurulur.",
+  "18 ile 10'nin çarpımı 180'dir.",
+  "Türkiye'de en az yağış İç Anadolu'ya düşer.",
+  "Problemlerde verilen bilgileri matematiksel denklemlere dönüştürmek, çözümün ilk ve en önemli adımıdır.",
+  "ABD'nın başkenti Washington'dir.",
+  "Yükseltinin artması sıcaklığı düşürür.",
+  "Fibonacci dizisi, her terimin kendinden önceki iki terimin toplamı olduğu bir sayı dizisidir ve doğada sıkça görülür.",
+  "Fiilimsiler (eylemsiler), fiil kök veya gövdelerinden türeyen ancak fiil özelliklerini yitirip isim, sıfat veya zarf görevi üstlenen sözcüklerdir.",
+  "Çanakkale Deniz Zaferi 18 Mart 1915'te kazanılmıştır.",
+  "Bir kümedeki eleman sayısı, o kümenin kardinalitesi olarak adlandırılır.",
+  "Enerji yoktan var edilemez, yalnızca biçim değiştirir.",
+  "Postmodern Türk romanının öncüsü Oğuz Atay'ın 'Tutunamayanlar'ıdır.",
+  "Bir çıkarımda öncüller doğruyken sonuç yanlışsa çıkarım geçersizdir.",
+  "Bir devrede seri dirençler toplanarak, paralel dirençler tersleri toplanarak hesaplanır.",
+  "Permütasyon, nesnelerin sıralanış biçimlerini incelerken, kombinasyon sıralama önemsiz olduğunda kullanılır.",
+  "25 sayısının karekökü 5'dir.",
+  "Bir gün 24 saat, bir saat 60 dakikadır.",
+  "Küme teorisi, matematiksel nesneleri gruplar halinde sınıflandırmanın temelini oluşturan bir kavramdır ve modern matematiğin ana yapılarından biridir.",
+  "Devletçilik, devletin ekonomiye gerektiğinde katılımını öngören Atatürk ilkesidir.",
+  "Silindirin hacmi taban alanı ile yüksekliğin çarpımıdır.",
+  "Bir problemde verileni ve isteneni ayırmak çözümü kolaylaştırır.",
+  "Türkiye'de saltanat 1922'de, halifelik 1924'te kaldırılmıştır.",
+  "Oyun teorisi, stratejik karar alma durumlarını matematiksel olarak analiz eden bir dal olup, ekonomi ve sosyal bilimlerde uygulamaları bulunur.",
+  "Güdülenme (motivasyon) öğrenmeyi kolaylaştırır.",
+  "Mitoz bölünmede bir hücreden birbirinin aynısı iki hücre oluşur.",
+  "Yeterlilik fiili (-ebilmek), birleşik fiil olup her zaman bitişik yazılır ve olumsuzu 'gelemedi' gibi farklı bir yapıdadır.",
+  "Periyodik tabloda düşey sütunlara grup, yatay sıralara periyot denir.",
+  "Türkiye 1952'de NATO'ya üye olmuştur.",
+  "Elektrik akımının birimi amper, gerilimin birimi volttur.",
+  "14 ile 7'nin çarpımı 98'dir.",
+  "Antik Mısır'daki piramitlerin inşasında kullanılan ileri geometri bilgisi, o dönemin matematiksel yeteneklerini gözler önüne serer.",
+  "pH değeri 7'den küçükse asidik, büyükse baziktir.",
+  "Yunanistan'nın başkenti Atina'dir.",
+  "Paragraf, bir ana düşünce çevresinde toplanan cümleler bütünüdür.",
+  "Gazel çoğunlukla aşk, kaside ise övgü konulu divan şiiri biçimidir.",
+  "Zarf tümleci, yüklemin zamanını, durumunu, miktarını, yönünü veya sebebini belirten ögedir.",
+  "8 ile 11'nin çarpımı 88'dir.",
+  "Benzetme (teşbih) iki varlık arasında ortak yön kurarak yapılan söz sanatıdır.",
+  "İran'nın başkenti Tahran'dir.",
+  "80 sayısının %50'i 40'dir.",
+  "Amerika kıtası 1492'de Kristof Kolomb tarafından keşfedilmiştir.",
+  "Bir yerin mutlak konumu enlem ve boylam değerleriyle belirlenir.",
+  "Almanya'nın başkenti Berlin'dir.",
+  "Bir haftada beş iş günü bulunur.",
+  "Mısır'nın başkenti Kahire'dir.",
+  "Kanada'nın başkenti Ottava'dir.",
+  "Milli Edebiyat sade Türkçeyi ve hece ölçüsünü benimsemiştir.",
+  "12 ile 12'nin çarpımı 144'dir.",
+  "Birleşmiş Milletler 1945'te kurulmuştur.",
+  "Amazon dünyanın en geniş havzalı nehridir.",
+  "Büyük Selçuklu Devleti Tuğrul Bey tarafından kurulmuştur.",
+  "Betimleyici anlatımda varlıkların ayırt edici özellikleri sözcüklerle resmedilir.",
+  "Divan edebiyatı beyit temeline dayanır.",
+  "Glikozun molekül formülü C₆H₁₂O₆'dır.",
+  "Eş sesli (sesteş) sözcükler yazılışı aynı, anlamı farklıdır.",
+  "Rüzgar, hava basıncı farkından doğar.",
+  "Periyodik tabloda soldan sağa atom yarıçapı azalır.",
+  "Rehberlik öğrencinin kendini tanımasına yardımcı olur.",
+  "Sıfır, ne pozitif ne de negatif bir tam sayıdır.",
+  "Sayısal mantık soruları örüntü, sıralama ve akıl yürütme becerisini ölçer.",
+  "Grafik okuma ve tablo yorumlama sorularında, verilen verileri dikkatlice analiz etmek ve doğru çıkarımlar yapmak esastır.",
+  "İlk Türk devletlerinden Göktürkler kendi alfabelerini kullanmıştır.",
+  "4 ile 15'nin çarpımı 60'dir.",
+  "Edatlar tek başına anlamı olmayan görevli sözcüklerdir.",
+  "Zamirler isimlerin yerini tutar.",
+  "Çekya'nın başkenti Prag'dir.",
+  "7 ile 16'nin çarpımı 112'dir.",
+  "121 sayısının karekökü 11'dir.",
+  "Fırat ve Dicle nehirleri Güneydoğu Anadolu'dan doğar.",
+  "Laiklik din ve devlet işlerinin birbirinden ayrılmasıdır.",
+  "60 sayısının %25'i 15'dir.",
+  "Çekim ekleri sözcüğü cümleye bağlar.",
+  "Geometrik dizide her terim bir öncekinin ortak çarpanla çarpımıdır.",
+  "Dünya Sağlık Örgütü'nün kısaltması DSÖ (WHO)'dur.",
+  "Bulgaristan'nın başkenti Sofya'dir.",
+  "Basketbolda bir takım sahada 5 oyuncuyla oynar.",
+  "İki basamaklı en küçük asal sayı 11'dir.",
+  "İsveç'nın başkenti Stockholm'dir.",
+  "Newton'un ikinci yasasına göre kuvvet, kütle ile ivmenin çarpımına eşittir (F=m·a).",
+  "Meksika'nın başkenti Meksiko'dir.",
+  "4 sayısının karesi 16, küpü 64'tür.",
+  "200 sayısının %40'i 80'dir.",
+  "Azerbaycan'nın başkenti Bakü'dir.",
+  "Yüklem, cümlenin yargısını bildiren temel öge olup, çekimli bir fiil veya ek fiil almış bir isim soylu sözcük olabilir.",
+  "Türkiye'nin en sıcak bölgesi Güneydoğu Anadolu'dur.",
+  "64 sayısının karekökü 8'dir.",
+  "Kinaye, bir sözü hem gerçek hem de mecaz anlamıyla düşündürecek şekilde kullanmak olup, asıl kastedilen genellikle mecaz anlamdır.",
+  "'Ki' bağlacı çoğunlukla ayrı yazılır; 'oysaki, mademki, halbuki' gibi kalıplaşmış birkaç sözcükte bitişik yazılır.",
+  "Satranç 64 kareli bir tahtada oynanır.",
+  "Sırbistan'nın başkenti Belgrad'dir.",
+  "Pusula yön bulmaya yarar.",
+  "Karadeniz'in en yüksek dağı Kaçkar Dağı'dır.",
+  "Mantık, doğru akıl yürütme ilkelerini inceleyen bir disiplin olup, matematiğin ve felsefenin temel taşlarından biridir.",
+  "Yüzölçümü en büyük ülke Rusya'dır.",
+  "Ardışık iki çift sayının EBOB'u her zaman 2'dir.",
+  "Fiilimsiler (isim-fiil, sıfat-fiil, zarf-fiil) cümlede genellikle yan cümlecik kurarak temel cümlenin bir ögesi olur, ancak ek eylem alarak yüklem de olabilirler.",
+  "Portekiz'nın başkenti Lizbon'dir.",
+  "Alexander Fleming'in penisilini keşfetmesi, antibiyotik çağını başlatarak enfeksiyon hastalıklarıyla mücadelede devrim yaratmıştır.",
+  "Garip akımı Orhan Veli öncülüğünde doğmuştur.",
+  "80 sayısının %5'i 4'dir.",
+  "Kütleçekimi, cisimlerin birbirini çekme kuvveti olup evrendeki dört temel kuvvetten biridir.",
+  "40 sayısının %10'i 4'dir.",
+  "6 ile 13'nin çarpımı 78'dir.",
+  "19 ile 17'nin çarpımı 323'dir.",
+  "2 ile 19'nin çarpımı 38'dir.",
+  "İnternet dünya çapında bir bilgi ağıdır.",
+  "Finlandiya'nın başkenti Helsinki'dir.",
+  "Doğu Karadeniz kıyıları Türkiye'de en çok yağış alan yöredir.",
+  "Noktalama işaretleri anlamı ve okuma akışını düzenler.",
+  "Virgül, sıralı cümleleri ayırmanın yanı sıra eş görevli sözcük ve söz öbeklerini ayırmak için de kullanılır.",
+  "Zamirler, isimlerin yerini tutan kelimeler olup işaret, kişi, dönüşlülük, soru ve belirsizlik zamirleri olarak ayrılır.",
+  "İstanbul'un fethi Orta Çağ'ı bitirip Yeni Çağ'ı başlatmıştır.",
+  "Saf su 1 atmosfer basınçta 100 derecede kaynar, 0 derecede donar.",
+  "Türkiye aktif fay hatları üzerinde bulunduğu için deprem riski yüksektir.",
+  "8 ile 19'nin çarpımı 152'dir.",
+  "Orhan Pamuk 2006'da Nobel Edebiyat Ödülü'nü kazanmıştır.",
+  "En büyük okyanus Pasifik Okyanusu'dur.",
+  "Karmaşık sayılarda i²=−1'dir.",
+  "Dünya'nın en uzun nehri Nil olarak kabul edilir.",
+  "Vitaminler vücudun düzenli çalışması için az miktarda gereken besinlerdir.",
+  "Deyimlerin ve atasözlerinin yanlış kullanılması, onların kalıplaşmış yapısını bozarak veya farklı bir bağlamda kullanarak anlatım bozukluğuna yol açar.",
+  "Tuzlu su, homojen bir karışımdır ve çözücü ile çözünen içerir.",
+  "Polonya'nın başkenti Varşova'dir.",
+  "4 sayısının karekökü 2'dir.",
+  "Deyimler kalıplaşmış, çoğunlukla mecazlı söz gruplarıdır.",
+  "Akdeniz iklimi, yazları sıcak ve kurak, kışları ise ılık ve yağışlı geçmesiyle karakterize edilen bir iklim tipidir.",
+  "Noktalı virgül, ögeleri arasına virgül konmuş sıralı cümleleri ayırmada ve tür veya takımları ayırmada kullanılır.",
+  "Potansiyel enerji cismin konumundan kaynaklanır ve mgh ile bulunur.",
+  "Logaritma, bir sayının belirli bir tabana göre hangi kuvveti olduğunu bulma işlemidir.",
+  "Soru işareti soru cümlelerinin sonuna konur.",
+  "İkilemeler anlatımı güçlendirmek için kullanılır.",
+  "Euler sabiti (e, yaklaşık 2.718), doğal logaritmanın tabanıdır ve sürekli bileşik faiz gibi büyüme modellerinde merkezi bir rol oynar.",
+  "Bağlaçlar, sözcükleri, söz öbeklerini veya cümleleri birbirine bağlayan, cümleden çıkarıldığında anlam bozulmayan kelimelerdir.",
+  "Avustralya'nın başkenti Canberra'dir.",
+  "Ahmet Hamdi Tanpınar 'Huzur' ve 'Saatleri Ayarlama Enstitüsü'nün yazarıdır.",
+  "Sıfatlar isimleri niteler ya da belirtir.",
+  "Tayland'nın başkenti Bangkok'dir.",
+  "Mayoz bölünmede kromozom sayısı yarıya iner.",
+  "Hırvatistan'nın başkenti Zagreb'dir.",
+  "Türkiye'nin yüzölçümü en büyük ili Konya'dır.",
+  "Türkiye Birleşmiş Milletler'in kurucu üyelerindendir.",
+  "Türk Medeni Kanunu 1926'da kabul edilmiştir.",
+  "Bir cümlede birden fazla yüklem varsa, o cümle yapısına göre sıralı veya bağlı cümle olarak adlandırılır.",
+  "Virgül eş görevli sözcükleri ayırır.",
+  "5 ile 17'nin çarpımı 85'dir.",
+  "İsimler varlıkları karşılayan sözcüklerdir.",
+  "Japonya'nın başkenti Tokyo'dir.",
+  "Kar-zarar problemlerinde maliyet, satış fiyatı ve kar/zarar yüzdesi arasındaki ilişkiyi iyi anlamak önemlidir.",
+  "10 ile 15'nin çarpımı 150'dir.",
+  "Cümlede kullanılan 'yalnız' ve 'ancak' sözcükleri, bağlaç, edat, zarf veya sıfat görevinde bulunabilir ve bu durum cümlenin anlamına göre belirlenir.",
+  "Mudanya Ateşkes Antlaşması 1922'de imzalanmıştır.",
+  "Bağlaçlar, sözcükleri, söz öbeklerini veya cümleleri birbirine bağlayarak anlam ilişkisi kurar.",
+  "Cumhuriyet 29 Ekim 1923'te ilan edilmiştir.",
+  "7 sayısının karesi 49, küpü 343'tür.",
+  "Gökkuşağının renkleri kırmızıdan mora doğru sıralanır.",
+  "Suudi Arabistan'nın başkenti Riyad'dir.",
+  "Öğrenme kalıcı davranış değişikliğidir.",
+  "Maslow ihtiyaçları bir piramitle sıralamıştır.",
+  "15 ile 10'nin çarpımı 150'dir.",
+  "Kalkülüs, değişim oranlarını ve birikmiş miktarları inceleyen matematik dalı olup fizik, mühendislik ve ekonomi gibi birçok bilimde temel araçtır.",
+  "Cumhuriyet 29 Ekim 1923'te ilan edildi; ilk cumhurbaşkanı Atatürk'tür.",
+  "Türkiye Cumhuriyeti demokratik, laik ve sosyal bir hukuk devletidir.",
+  "Drama ve oyun küçük yaşlarda etkili öğretim yöntemleridir.",
+  "Kurtuluş Savaşı 1919-1922 yılları arasında verilmiştir.",
+  "Ünlemler sevinç, korku gibi duyguları anlatır.",
+  "Görsel materyaller öğrenmeyi destekler.",
+  "İstiklal Marşı 12 Mart 1921'de kabul edilmiştir.",
+  "Mustafa Kemal'e 'Atatürk' soyadı 1934'te verilmiştir.",
+  "Türk alfabesinde 29 harf bulunur.",
+  "Öğretim yöntemleri konuya ve öğrenciye göre seçilir.",
+  "Yükselti arttıkça sıcaklık düşer.",
+  "Osmanlı'da Lale Devri bir kültür ve sanat dönemidir.",
+  "Bloom taksonomisi bilişsel hedefleri basamaklandırır.",
+  "Merkezi Limit Teoremi, yeterince büyük örneklemlerin ortalamalarının, ana kütle dağılımı ne olursa olsun, normal dağılıma yakınsadığını belirtir.",
+  "Halk edebiyatında mâni dört dizeli, koşma ise 11'li hece ölçüsüyle yazılır.",
+  "Altın Oran (Phi, yaklaşık 1.618), estetik ve denge sembolü olarak sanatta ve mimaride kullanılan irrasyonel bir sayıdır.",
+  "Türkçede 8 ünlü, 21 ünsüz harf vardır.",
+  "Türkiye'yi çevreleyen denizler Karadeniz, Marmara, Ege ve Akdeniz'dir.",
+  "160 sayısının %15'i 24'dir.",
+  "Sözcük türleri isim, sıfat, zarf, zamir, edat, bağlaç, ünlem ve fiildir.",
+  "Büyük Taarruz 26 Ağustos 1922'de başlamış, 30 Ağustos'ta zaferle sonuçlanmıştır.",
+  "Fransa'nın başkenti Paris'dir.",
+  "Mükemmel sayı, kendisi hariç pozitif tam bölenlerinin toplamına eşit olan pozitif tam sayıdır; örneğin 6 ve 28.",
+  "Çöllerde gece ile gündüz arası sıcaklık farkı fazladır.",
+  "Yapılandırmacı yaklaşım öğrencinin bilgiyi kendi oluşturmasını savunur.",
+  "8 sayısının karesi 64, küpü 512'tür.",
+  "Noktalama işaretleri, okumayı kolaylaştırmak, anlam karışıklığını önlemek ve duygu ile tonlamayı doğru aktarmak için kullanılır.",
+  "13 ile 8'nin çarpımı 104'dir.",
+  "4 ile 10'nin çarpımı 40'dir.",
+  "160 sayısının %20'i 32'dir.",
+  "Kovalent bağda atomlar elektron ortaklaşır.",
+  "sin²x + cos²x ifadesi her açı için 1'e eşittir.",
+  "İkilemeler anlatımı pekiştirmek için kullanılan sözcük yinelemeleridir.",
+  "240 sayısının %50'i 120'dir.",
+  "19 ile 15'nin çarpımı 285'dir.",
+  "Bir asır 100, bir çeyrek asır 25 yıldır.",
+  "Katalizör aktivasyon enerjisini düşürerek tepkimeyi hızlandırır.",
+  "Paragraf sorularında ana düşünce, yardımcı düşünce ve akış incelenir.",
+  "Sanayi Devrimi 18. yüzyılda İngiltere'de başlamıştır.",
+  "Divan edebiyatında \"kaside\", din veya devlet büyüklerini övmek amacıyla yazılan, belirli bir kafiye düzenine sahip uzun şiirlerdir.",
+  "Enzimler biyolojik tepkimeleri hızlandıran protein yapılı katalizörlerdir.",
+  "Tırnak işaretleri, başkasına ait sözleri doğrudan aktarmak, vurgulanmak istenen kelime veya eser adlarını belirtmek için kullanılır.",
+  "60 sayısının %20'i 12'dir.",
+  "Çift sayılarla herhangi bir sayının çarpımı her zaman çift bir sayı verir.",
+  "Osmanlı'da ilk başkent Bursa, sonra Edirne olmuştur.",
+  "5 ile 19'nin çarpımı 95'dir.",
+  "Noktalı virgül, ögeleri arasında virgül bulunan sıralı cümleleri ayırmak veya türleri farklı ögeleri birbirinden ayırmak için kullanılır.",
+  "Karadeniz iklimi her mevsim yağışlıdır.",
+  "40 sayısının %50'i 20'dir.",
+  "Somut örnekler soyut kavramların öğrenilmesini kolaylaştırır.",
+  "300 sayısının %50'i 150'dir.",
+  "Tümevarım özelden genele, tümdengelim genelden özele gider.",
+  "Mecazımürsel (ad aktarması), bir sözcüğün gerçek anlamının dışında, ilgili olduğu başka bir şeyin yerine kullanılmasıdır.",
+  "Alkanlar yalnızca tekli bağ içeren doymuş hidrokarbonlardır.",
+  "Zaman yönetimi öğretmenin önemli bir becerisidir.",
+  "Arjantin'nın başkenti Buenos Aires'dir.",
+  "Hareket problemlerinde yol = hız x zaman formülü temel prensiptir.",
+  "Orhun Yazıtları Türklerin ilk yazılı belgelerindendir.",
+  "Kesme işareti, özel adlara gelen çekim eklerini ayırmanın yanı sıra kısaltmalara gelen ekleri ayırmada da kullanılır.",
+  "Bir sayının bölen sayısı, asal çarpanların üslerinin bir fazlalarının çarpımıdır.",
+  "Isaac Newton'ın evrensel kütle çekim yasası, gök cisimlerinin hareketlerini açıklayarak fizik biliminde çığır açmıştır.",
+  "Aşk-ı Memnu, Halit Ziya Uşaklıgil'in ünlü romanıdır.",
+  "Halk edebiyatında koşma 11'li, mâni 7'li hece ölçüsüyle yazılır.",
+  "n kenarlı çokgenin iç açıları toplamı (n−2)·180 derecedir.",
+  "144 sayısının karekökü 12'dir.",
+  "Mantık doğru ve geçerli düşünmenin kurallarını inceler.",
+  "Trafik işaretleri sürücü ve yayaları uyarır.",
+  "Gereksiz sözcük kullanımı, bir cümlede aynı anlama gelen kelimelerin veya anlamı zaten bulunan bir ifadenin tekrar edilmesidir.",
+  "Deltalar akarsuyun denize döküldüğü yerde alüvyon biriktirmesiyle oluşur.",
+  "2 sayısının karesi 4, küpü 8'tür.",
+  "Bilgisayar algoritmalarının temelinde, problem çözme adımlarını matematiksel ve mantıksal bir sırayla ifade etme yeteneği yatar.",
+  "DNA'da adenin timinle, guanin sitozinle eşleşir.",
+  "Nokta cümlenin bittiğini gösterir.",
+  "13 ile 10'nin çarpımı 130'dir.",
+  "9 sayısının karesi 81, küpü 729'tür.",
+  "9 sayısının karekökü 3'dir.",
+  "İstanbul 1453'te Fatih Sultan Mehmet tarafından fethedilmiştir.",
+  "Ara yönler kuzeydoğu, güneydoğu, kuzeybatı ve güneybatıdır.",
+  "İkili sayı sistemi (binary), bilgisayarların çalışma prensibini oluşturan, sadece 0 ve 1 rakamlarını kullanan bir sayı sistemidir.",
+  "Dünya'nın en büyük sıcak çölü Sahra'dır.",
+  "Danimarka'nın başkenti Kopenhag'dir.",
+  "Baraj gölleri insan yapımı su birikintileridir.",
+  "İkinci Dünya Savaşı 1939-1945 yılları arasında yaşanmıştır.",
+  "Matematik, evrenin dili olarak kabul edilir ve doğadaki pek çok düzenliliğin ve fiziksel yasanın altında yatan prensipleri açıklar.",
+  "Ses boşlukta (vakumda) yayılamaz; katıda en hızlı yayılır.",
+  "Güney Kore'nın başkenti Seul'dir.",
+  "Kütle her yerde aynı kalır, ağırlık çekim ivmesine göre değişir.",
+  "Rasyonalizm bilginin kaynağı olarak aklı, empirizm deneyi görür.",
+  "Bir olayın olasılığı istenen durumun tüm durumlara oranıdır.",
+  "Aritmetik ortalama, bir veri grubundaki tüm sayıların toplamının veri sayısına bölünmesiyle bulunur.",
+  "240 sayısının %25'i 60'dir.",
+  "İntegral, türevin ters işlemidir.",
+  "Avusturya'nın başkenti Viyana'dir.",
+  "Olumlu geri bildirim öğrenmeyi pekiştirir.",
+  "Alyuvarlar oksijen taşır, akyuvarlar vücudu hastalıklara karşı korur.",
+  "İyi bir sınav geçerli, güvenilir ve kullanışlı olmalıdır.",
+  "Altın oran, Fibonacci dizisiyle yakından ilişkili olup doğada birçok bitki ve hayvan yapısında gözlemlenir.",
+  "Voleybolda bir takım sahada 6 oyuncuyla oynar.",
+  "17 ile 16'nin çarpımı 272'dir.",
+  "15 sayısının karesi 225, küpü 3375'tür.",
+  "Ohm yasasına göre gerilim, akım ile direncin çarpımına eşittir (V=I·R).",
+  "Lozan Antlaşması 1923'te yeni Türkiye'nin sınırlarını belirlemiştir.",
+  "Tasarruf, kaynakların bilinçli kullanılmasıdır.",
+  "Romanya'nın başkenti Bükreş'dir.",
+  "Irak'nın başkenti Bağdat'dir.",
+  "Işık yoğun ortamdan az yoğun ortama geçerken kırılır.",
+  "10 ile 11'nin çarpımı 110'dir.",
+  "Bir sayının karekökü, kendisiyle çarpıldığında o sayıyı veren pozitif değerdir.",
+  "Anadolu Selçuklu Devleti'nin başkenti Konya'ydı.",
+  "TBMM 23 Nisan 1920'de Ankara'da açıldı.",
+  "Çin'nın başkenti Pekin'dir.",
+  "2 ile 10'nin çarpımı 20'dir.",
+  "13 sayısının karesi 169, küpü 2197'tür.",
+  "Bir üçgenin iç açıları toplamı her zaman 180 derecedir.",
+  "Hollanda'nın başkenti Amsterdam'dir.",
+  "Determinizm her olayın bir nedeni olduğunu savunur.",
+  "60 sayısının %10'i 6'dir.",
+  "Olasılıkta 've' durumları çarpılır, 'veya' durumları toplanır.",
+  "80 sayısının %25'i 20'dir.",
+  "Bilgisayarın beyni işlemcidir (CPU).",
+  "240 sayısının %20'i 48'dir.",
+  "Kesme işareti, özel adlara gelen çekim eklerini, kısaltmalara gelen ekleri ayırmak ve belirli durumlarda harf veya ek düşmesini göstermek için kullanılır.",
+  "Harf İnkılabı ile 1928'de Latin alfabesine geçilmiştir.",
+  "Rasyonel sayılar a/b şeklinde yazılabilen sayılardır, burada b sıfırdan farklı bir tam sayıdır.",
+  "Sınıf kuralları birlikte belirlenmelidir.",
+  "Türkiye'nin uluslararası plaka kodu TR'dir.",
+  "Bir metinde bakış açısı ilahi, kahraman ve gözlemci olabilir.",
+  "Fiiller iş, oluş ve durum bildirir.",
+  "Türkiye'de dağlar genel olarak doğu-batı doğrultusunda uzanır.",
+  "Asal sayılar, sadece 1'e ve kendisine bölünebilen sayılardır ve modern şifreleme teknolojilerinin temelini oluşturur.",
+  "İkinci derece denklemde kökler çarpımı c/a'dır.",
+  "Trafikte emniyet kemeri takmak hayat kurtarır.",
+  "Elektrik akımı, elektronların bir iletken içinde düzenli hareketidir.",
+  "İstanbul 1453'te Fatih Sultan Mehmet tarafından fethedildi.",
+  "Fransız İhtilali 1789'da başlamıştır.",
+  "Yargıların nesnel mi öznel mi olduğu kanıtlanabilirliğe göre belirlenir.",
+  "Olimpiyatlarda beş halka beş kıtayı simgeler.",
+  "Aritmetik dizide genel terim aₙ=a₁+(n−1)d formülüyle bulunur.",
+  "9 ile 3'nin çarpımı 27'dir.",
+  "Gutenberg'in matbaayı icadı, bilimsel bilginin hızla yayılmasını sağlayarak Rönesans ve Reform hareketlerini tetiklemiştir.",
+  "Erzurum ve Sivas Kongreleri'nde manda ve himaye reddedildi.",
+  "40 sayısının %25'i 10'dir.",
+  "Tam kareler 1, 4, 9, 16, 25 gibi n² biçiminde sayılardır.",
+  "Lojistik denklem, sınırlı kaynaklara sahip bir ortamda popülasyon büyümesini modelleyen ve kaotik davranışlar gösterebilen bir matematiksel modeldir.",
+  "Zarf, fiilin anlamını zaman, durum, yer, miktar bakımından belirginleştirir.",
+  "İtalya'nın başkenti Roma'dir.",
+  "14 ile 11'nin çarpımı 154'dir.",
+  "İsim-fiiller (-ma, -ış, -mak), cümle içinde isim gibi kullanılır ve olumsuzluk eki alabilirken kalıcı isim de olabilirler.",
+  "Türev ve integral matematiksel analizin temel işlemleridir."
+ ]
+}

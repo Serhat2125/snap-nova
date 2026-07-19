@@ -3,7 +3,7 @@ description: "A new Flutter project."
 
 publish_to: 'none'
 
-version: 1.0.5+35
+version: 1.0.6+36
 
 environment:
   sdk: '>=3.2.3 <4.0.0'
@@ -171,6 +171,7 @@ flutter:
     - assets/tailwind.play.js
     # Sınıf-bazlı statik içerik (offline: her sınıf ≥100 soru + ≥100 bilgi)
     - assets/labirent_content/
+    - assets/labirent_i18n/
     # CC0 hazır 3D modeller (base64 gömülü) + GLB yükleyici
     - assets/gltf-loader.global.js
     - assets/models/pil.glb.js
@@ -181,6 +182,18 @@ flutter:
     - assets/models/fener.glb.js
     - assets/models/kulube.glb.js
     - assets/models/beyin.glb.js
+    # Bilgi Labirenti gerçekçi modeller (CC0/CC-BY, bkz. assets/models/LICENSES.md)
+    - assets/models/ejderha-mini.glb.js
+    - assets/models/kedi.glb.js
+    - assets/models/kopek.glb.js
+    - assets/models/tavsan.glb.js
+    - assets/models/tilki.glb.js
+    - assets/models/penguen.glb.js
+    - assets/models/baykus.glb.js
+    - assets/models/panda.glb.js
+    - assets/models/unicorn.glb.js
+    - assets/models/kus.glb.js
+    - assets/models/kule.glb.js
     # 3D Eğitim Modelleri — Ortak Ayarlar (Geçiş Stüdyosu)
     - assets/gecis-studyosu.html
     # 3D Eğitim Modelleri — Fizik

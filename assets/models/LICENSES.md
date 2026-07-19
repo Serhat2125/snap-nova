@@ -18,3 +18,15 @@ Her satır: dosya | model adı | yazar | kaynak | lisans | indirme tarihi
 Wayback arşivleri: her model sayfası https://web.archive.org/save/ ile arşivlenmiştir (kontrol: https://web.archive.org/web/*/poly.pizza/m/<id>).
 
 Not: Poly Pizza "Public Domain" etiketi CC0'a karşılık gelir; sayfa görüntüleri arşivlenebilir.
+
+| ejderha-mini.glb | Dragon | Quaternius | https://poly.pizza/m/VBvzjFIYws | Public Domain (CC0) | 2026-07-19 |
+| kedi.glb | Cat | Quaternius | https://poly.pizza/m/qKICY6xla2 | Public Domain (CC0) | 2026-07-19 |
+| kopek.glb | Shiba Inu | Quaternius | https://poly.pizza/m/y4wdQpg767 | Public Domain (CC0) | 2026-07-19 |
+| tavsan.glb | Bunny | Quaternius | https://poly.pizza/m/irZjWFARyl | Public Domain (CC0) | 2026-07-19 |
+| tilki.glb | Fox | Quaternius | https://poly.pizza/m/Bc97C66HKi | Public Domain (CC0) | 2026-07-19 |
+| penguen.glb | Penguin | madtrollstudio | https://poly.pizza/m/kvZRSJBz70 | CC-BY 3.0 (atıf: "Penguin" by madtrollstudio — poly.pizza) | 2026-07-19 |
+| baykus.glb | Owl | jeremy | https://poly.pizza/m/3IwTPvL_EAX | CC-BY 3.0 (atıf: "Owl" by jeremy — poly.pizza) | 2026-07-19 |
+| panda.glb | Panda | Quaternius | https://poly.pizza/m/q1uJ28Hs8T | Public Domain (CC0) | 2026-07-19 |
+| unicorn.glb | White Horse | Quaternius | https://poly.pizza/m/bEdE4rmZy9 | Public Domain (CC0) | 2026-07-19 |
+| kus.glb | Pigeon | Quaternius | https://poly.pizza/m/9NGlBTpDEr | Public Domain (CC0) | 2026-07-19 |
+| kule.glb | Stone Tower | Quaternius | https://poly.pizza/m/Rz4U5dZJz8 | Public Domain (CC0) | 2026-07-19 |
