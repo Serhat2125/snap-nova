@@ -29,6 +29,8 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/education_profile.dart';
+import '../../services/runtime_translator.dart';
+import '../../services/user_profile_service.dart';
 import '../../screens/academic_planner.dart' show logActivitySession;
 import '../leaderboard/domain/user_location.dart';
 
@@ -75,8 +77,11 @@ class LeagueAttempt {
   /// ayırmak için tiebreaker olarak kullanılır — kim daha hızlıysa o üstte.
   final int durationSec;
   final DateTime when;
-  /// Bu attempt'in oluşturulduğu konum (snapshot). Kullanıcı konum değiştirince
-  /// eski skor doğru scope'ta kalır — yeni şehrin sıralamasına sızmaz.
+  /// Bu attempt'in oluşturulduğu konum (snapshot). Attempt GEÇMİŞİ konum
+  /// değişse de kazanıldığı yerde kalır. TOPLAMLAR (league_totals) ise
+  /// BİLİNÇLİ olarak kullanıcının SON konumunu izler: kullanıcı şehir/sınıf
+  /// değiştirip yeni test çözünce birikmiş toplamı ve sıralaması yeni
+  /// kapsama taşınır (bkz. league_submit.ts totals merge yazımı).
   /// Eski kayıtlarda null olabilir; null durumunda güncel location kullanılır.
   final String? countryCodeSnapshot;
   final String? cityCodeSnapshot;
@@ -303,7 +308,11 @@ class LeagueScores {
         'durationSec': withSnapshot.durationSec,
         'whenMs': withSnapshot.when.toUtc().millisecondsSinceEpoch,
         'countryCode': countryCode,
-        'cityCode': location?.cityCode ?? '',
+        // Şehir slug'ı savunmalı normalize: farklı kaynaklardan (Gemini
+        // resolver, eski kayıt) gelen "Istanbul"/"istanbul " varyantları
+        // aynı şehir havuzunda toplansın. CF tarafı da aynı normalizasyonu
+        // uygular; okuma tarafı LeagueLeaderboardService'te normalize edilir.
+        'cityCode': (location?.cityCode ?? '').trim().toLowerCase(),
         'level': profile.level,
         'grade': profile.grade,
         'displayName': resolvedName,
@@ -399,8 +408,13 @@ class LeagueScores {
   static String effectiveCountryCode(
       EduProfile? profile, UserLocation? location) {
     final loc = (location?.countryCode ?? '').trim();
-    if (loc.isNotEmpty) return loc;
-    return (profile?.country ?? '').trim().toUpperCase();
+    final cc = loc.isNotEmpty
+        ? loc.toUpperCase()
+        : (profile?.country ?? '').trim().toUpperCase();
+    // Eğitim profili 'uk' kodunu, LocationCatalog ISO 'GB' kodunu kullanıyor;
+    // normalize edilmezse aynı ülke iki ayrı liderlik havuzuna bölünüyordu.
+    // CF tarafı (league_submit.ts) da aynı normalizasyonu uygular.
+    return cc == 'UK' ? 'GB' : cc;
   }
 
   static Future<void> flushOutbox() {
@@ -637,6 +651,60 @@ class LeagueScores {
       debugPrint('[LeagueScores] myCloudTotal fail: $e');
       return null;
     }
+  }
+
+  // ── Bilgi Ligi ekranı DIŞINDAN skor gönderimi (ör. Arena Sınav Modu) ──────
+  /// Kayıtlı lig konumu + anonim-ad tercihi + görünen adı kendisi çözer ve
+  /// add() ile aynı yoldan (yerel kayıt + cloud/outbox) gönderir. Prefs
+  /// anahtarları bilgi_ligi_screen'dekilerle birebir aynıdır.
+  static Future<void> submitQuizResult({
+    required EduProfile profile,
+    required String subjectKey,
+    String? topic,
+    required double score,
+    required int durationSec,
+  }) async {
+    UserLocation? location;
+    bool anonymous = false;
+    String profileName = '';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      anonymous = prefs.getBool('bilgi_ligi_anonymous_mode') ?? false;
+      profileName = (prefs.getString('profile_name') ?? '').trim();
+      final raw = prefs.getString('world_ranking_location_v1');
+      if (raw != null && raw.isNotEmpty) {
+        location =
+            UserLocation.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      }
+    } catch (e) {
+      debugPrint('[LeagueScores] submitQuizResult prefs fail: $e');
+    }
+    final user = FirebaseAuth.instance.currentUser;
+    final displayName = anonymous
+        ? (() {
+            final u = user?.uid ?? '';
+            return u.length >= 5
+                ? '${'Öğrenci'.tr()} #${u.substring(0, 5)}'
+                : 'Anonim'.tr();
+          })()
+        : (UserProfileService.instance.username.isNotEmpty
+            ? UserProfileService.instance.username
+            : (profileName.isNotEmpty ? profileName : user?.displayName));
+    await add(
+      LeagueAttempt(
+        subjectKey: subjectKey,
+        topic: topic,
+        score: score,
+        durationSec: durationSec,
+        when: correctedNow(),
+        countryCodeSnapshot: location?.countryCode,
+        cityCodeSnapshot: location?.cityCode,
+      ),
+      profile: profile,
+      location: location,
+      displayName: displayName,
+      avatar: '',
+    );
   }
 
   /// Yeni clientSubmitId üret — timestamp + 8-haneli rastgele.

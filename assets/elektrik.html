@@ -1860,8 +1860,8 @@ const COLORS = {
 // ============== INIT ==============
 function init() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xE3E7ED);
-  scene.fog = new THREE.Fog(0x1e2740, 45, 110);
+  scene.background = new THREE.Color(0xFAFAFA);
+  scene.fog = new THREE.Fog(0xe4ecf6, 45, 110);
 
   const W = window.innerWidth, H = window.innerHeight;
   camera = new THREE.PerspectiveCamera(55, W / H, 0.1, 200);
@@ -2659,21 +2659,27 @@ const INFO_DATA = {
       '➕ Atomun tam ortasındaki çekirdekte artı (+) yüklü protonlar bulunur.',
       '➖ Çekirdeğin çevresinde ise eksi (−) yüklü elektronlar döner.',
       '⚖️ Artı ve eksi yükler eşit sayıdaysa cisim yüksüzdür; buna nötr denir.',
-      '🎈 Bir cisim elektron alıp verdiğinde elektriklenir, yani yüklü hale gelir.'
+      '🎈 Bir cisim elektron alıp verdiğinde elektriklenir, yani yüklü hale gelir.',
+      '🔬 Elektronlar atomdan ayrılabilir, protonlar çekirdekte sabit kalır.',
+      '🧦 Halıda yürüyüp kapı koluna dokununca çarpılman bu yüzdendir.'
     ]},
     ortaokul: { emoji: '⚛️', title: 'Elektrik Yükleri', points: [
       '⚛️ Atom; çekirdek (proton ve nötronlar) ile çevresindeki elektronlardan oluşur.',
       '➕ Proton pozitif, elektron negatif yüklüdür; nötron ise yüksüzdür.',
       '⚖️ Proton sayısı elektron sayısına eşit olan cisim nötrdür (yüksüz).',
       '➖ Cisim fazladan elektron aldığında negatif (−) yüklü olur.',
-      '➕ Cisim elektron kaybettiğinde pozitif (+) yüklü olur.'
+      '➕ Cisim elektron kaybettiğinde pozitif (+) yüklü olur.',
+      '🔬 Yükün birimi coulombdur (C) ve q harfiyle gösterilir.',
+      '🚫 Cisimler proton alıp veremez; yüklenme daima elektron alışverişidir.'
     ]},
     lise: { emoji: '⚛️', title: 'Elektrik Yükleri', points: [
       '⚛️ Elektrik yükü q ile gösterilir ve birimi Coulomb (C) olarak ölçülür.',
       '🔬 Doğadaki en küçük yük, elektronun yüküdür: e = 1,6×10⁻¹⁹ Coulomb.',
       '🔢 Bütün yükler bu temel yükün tam katıdır: q = n·e (n bir tam sayıdır).',
       '➕➖ Aynı işaretli yükler birbirini iter, zıt işaretli yükler birbirini çeker.',
-      '⚖️ Yük korunumu yasası: kapalı bir sistemde toplam yük miktarı değişmez.'
+      '⚖️ Yük korunumu yasası: kapalı bir sistemde toplam yük miktarı değişmez.',
+      '🔢 1 coulomb yük, yaklaşık 6,25×10¹⁸ elektronun yüküne eşittir.',
+      '🧲 Yalıtkanda yük yerel kalır, iletkende ise yüzeye yayılır.'
     ]},
     tyt_ayt: { emoji: '⚛️', title: 'Elektrik Yükleri (TYT/AYT)', points: [
       '⚛️ Bir cismin yükü q = n·e formülüyle bulunur (e = 1,6×10⁻¹⁹ C, elementer yük).',
@@ -2690,21 +2696,27 @@ const INFO_DATA = {
       '🤚 İki cismi birbirine sürterek elektriklenmeye sürtünmeyle elektriklenme denir.',
       '👆 Yüklü bir cisme dokunarak elektriklenmeye dokunmayla elektriklenme denir.',
       '✋ Yüklü cismi yaklaştırarak (dokunmadan) elektriklenmeye etkiyle elektriklenme denir.',
-      '⚡ Bütün elektriklenme yollarında aslında elektronlar yer değiştirir.'
+      '⚡ Bütün elektriklenme yollarında aslında elektronlar yer değiştirir.',
+      '🧦 Kışın kazağını çıkarırken duyduğun çıtırtı da elektriklenmedir.',
+      '💧 Havanın nemli olduğu günlerde cisimler daha zor elektriklenir.'
     ]},
     ortaokul: { emoji: '🧲', title: 'Elektriklenme Türleri', points: [
       '🤚 Sürtünmede iki cisim birbirine sürtülür ve zıt cins yüklerle yüklenir.',
       '👆 Dokunmada cisimler temas eder ve aynı cins yükle yüklenir.',
       '✋ Etkide yük aktarılmaz; yüklü cisim yaklaşınca diğer cisimde kutuplaşma olur.',
       '🧶 Örneğin yün kumaş pozitif (+), ebonit çubuk negatif (−) yüklenir.',
-      '⚖️ Hangi yolla olursa olsun toplam yük her zaman korunur (değişmez).'
+      '⚖️ Hangi yolla olursa olsun toplam yük her zaman korunur (değişmez).',
+      '🚫 Etkide cisim uzaklaşınca yükler eski dağılımına geri döner.',
+      '💧 Nem yükü kaçırdığı için bu deneyler kuru ortamda yapılır.'
     ]},
     lise: { emoji: '🧲', title: 'Elektriklenme Türleri', points: [
       '🤚 Sürtünmeyle elektriklenmede cisimler zıt işaretli ve eşit büyüklükte yük kazanır.',
       '👆 Dokunma (iletim) yoluyla elektriklenmede cisimler aynı cins yükü paylaşır.',
       '✋ Etki (indüksiyon) yoluyla elektriklenmede cisim yaklaştırılınca yalnız kutuplaşır.',
       '⏚ Etki altındaki cisim topraklanırsa, zıt işaretli yükle kalıcı olarak yüklenir.',
-      '⚖️ Bütün bu yöntemlerde yük korunumu yasası geçerlidir.'
+      '⚖️ Bütün bu yöntemlerde yük korunumu yasası geçerlidir.',
+      '📋 Triboelektrik seri, sürtünen cisimlerden hangisinin (−) yükleneceğini verir.',
+      '🔬 Etkide cismin net yükü sıfır kalır, yalnızca yük dağılımı değişir.'
     ]},
     tyt_ayt: { emoji: '🧲', title: 'Elektriklenme (TYT/AYT)', points: [
       '🤚 Sürtünmede triboelektrik seriye göre cisimler zıt ve eşit büyüklükte yüklenir.',
@@ -2720,21 +2732,28 @@ const INFO_DATA = {
       '📊 Elektroskop, bir cismin yüklü olup olmadığını anlamamızı sağlayan bir alettir.',
       '🍂 İçinde birbirine değen iki ince metal yaprak bulunur.',
       '↔️ Cisimde yük varsa yapraklar birbirinden uzaklaşarak açılır.',
-      '🤚 Yüklü bir cisim yaklaştırıldığında yapraklar hareket ederek kalkar.'
+      '🤚 Yüklü bir cisim yaklaştırıldığında yapraklar hareket ederek kalkar.',
+      '🌐 Üstteki metal topuza yüklü cisim dokundurularak deney yapılır.',
+      '🚫 Cisim yüksüz (nötr) ise yapraklarda hiçbir hareket olmaz.',
+      '⏚ Elle dokunulursa yük vücuttan toprağa gider ve yapraklar kapanır.'
     ]},
     ortaokul: { emoji: '📊', title: 'Elektroskop', points: [
       '📊 Elektroskop, yükün hem varlığını hem de cinsini belirlemeye yarayan alettir.',
       '🍂 Metal yapraklar aynı cins yükle yüklenince birbirini iter ve açılır.',
       '↔️ Yapraklardaki açılma ne kadar fazlaysa cismin yükü de o kadar fazladır.',
       '👆 Dokunmayla yüklenen elektroskop kalıcı olarak yük kazanır.',
-      '✋ Etkiyle oluşan yaprak hareketi geçicidir; cisim uzaklaşınca eski haline döner.'
+      '✋ Etkiyle oluşan yaprak hareketi geçicidir; cisim uzaklaşınca eski haline döner.',
+      '🌐 Elektroskop; metal topuz, iletken çubuk ve iki yapraktan oluşur.',
+      '🚫 Nötr bir cisim yaklaştırıldığında yapraklarda değişiklik olmaz.'
     ]},
     lise: { emoji: '📊', title: 'Elektroskop', points: [
       '📊 Yapraklı elektroskop, bir cismin yüklü olup olmadığını tespit eder.',
       '🍂 Yapraklar aynı cins yükle yüklendiği için birbirini iterek açılır.',
       '🔼 Yüklü bir cisim yaklaştırıldığında yaprakların açıklığı artar ya da azalır.',
       '🔍 Cismin yük cinsi, işareti bilinen bir yükle karşılaştırılarak belirlenir.',
-      '⏚ Elektroskop topraklandığında yükünü kaybeder ve yapraklar kapanır.'
+      '⏚ Elektroskop topraklandığında yükünü kaybeder ve yapraklar kapanır.',
+      '🔍 Aynı cins yük yaklaşınca açıklık artar, zıt cins yaklaşınca azalır.',
+      '🔬 Yaprakların açılma açısı, biriken yük miktarıyla birlikte büyür.'
     ]},
     tyt_ayt: { emoji: '📊', title: 'Elektroskop (TYT/AYT)', points: [
       '📊 Elektroskopta yük cinsi tayini: aynı cins yük yaklaşınca açıklık artar.',
@@ -2750,21 +2769,28 @@ const INFO_DATA = {
       '🧲 Aynı cins iki yük (ikisi de artı veya ikisi de eksi) birbirini iter.',
       '🤝 Zıt cins iki yük (biri artı biri eksi) birbirini çeker.',
       '📏 Yükler birbirine yakınken kuvvet büyük, uzaklaştıkça kuvvet küçük olur.',
-      '🎚️ Yük miktarını ve aralarındaki mesafeyi değiştirip kuvveti izleyebilirsin.'
+      '🎚️ Yük miktarını ve aralarındaki mesafeyi değiştirip kuvveti izleyebilirsin.',
+      '🧲 Bu çekme ve itme kuvveti, cisimler birbirine değmeden de etki eder.',
+      '🎈 Sürtülmüş balonun duvara yapışması bu çekim kuvveti sayesindedir.',
+      '⚖️ İki yük birbirine eşit büyüklükte kuvvet uygular, biri daha güçlü değildir.'
     ]},
     ortaokul: { emoji: '💥', title: 'Coulomb Kuvveti', points: [
       '💥 İki yük arasındaki itme veya çekme kuvvetine Coulomb kuvveti denir.',
       '➕➕ Aynı cins yükler birbirini iter; ➕➖ zıt cins yükler birbirini çeker.',
       '📏 Yükler arasındaki mesafe arttıkça kuvvet hızla azalır.',
       '🔢 Yük miktarı büyüdükçe aralarındaki kuvvet de büyür.',
-      '🎚️ q ve d değerlerini değiştirerek kuvvetin nasıl değiştiğini gözlemle.'
+      '🎚️ q ve d değerlerini değiştirerek kuvvetin nasıl değiştiğini gözlemle.',
+      '📐 Kuvvet F = k·q₁·q₂/d² ile hesaplanır; birimi newtondur (N).',
+      '⚖️ İki yüke etkiyen kuvvetler eşit büyüklükte ve zıt yönlüdür.'
     ]},
     lise: { emoji: '💥', title: 'Coulomb Yasası', points: [
       '💥 İki nokta yük arasındaki kuvvet F = k·q₁·q₂ / d² formülüyle hesaplanır.',
       '🔢 Buradaki k Coulomb sabitidir ve değeri k = 9×10⁹ N·m²/C² olarak alınır.',
       '📏 Kuvvet, yükler arasındaki uzaklığın karesiyle ters orantılıdır.',
       '➕➖ Yükler aynı işaretliyse kuvvet itici, zıt işaretliyse çekicidir.',
-      '↔️ Newton\'un etki-tepki yasası gereği iki yüke eşit ve zıt kuvvetler etki eder.'
+      '↔️ Newton\'un etki-tepki yasası gereği iki yüke eşit ve zıt kuvvetler etki eder.',
+      '📏 Uzaklık 2 katına çıkarsa kuvvet dörtte birine düşer (ters kare).',
+      '🌐 Yükler hava yerine yalıtkan bir ortamdaysa kuvvet küçülür.'
     ]},
     tyt_ayt: { emoji: '💥', title: 'Coulomb Yasası (TYT/AYT)', points: [
       '💥 Coulomb kuvveti F = k·q₁·q₂/d² ile bulunur (k = 9×10⁹ N·m²/C²).',
@@ -2780,21 +2806,28 @@ const INFO_DATA = {
       '➡️ Her yükün çevresinde, başka yükleri etkileyebildiği bir bölge vardır.',
       '➕ Artı yüklerden alan çizgileri dışarı doğru çıkar.',
       '➖ Eksi yüklere ise alan çizgileri dışarıdan içeri doğru girer.',
-      '🎚️ Yükü değiştirerek alan çizgilerinin nasıl değiştiğini izleyebilirsin.'
+      '🎚️ Yükü değiştirerek alan çizgilerinin nasıl değiştiğini izleyebilirsin.',
+      '📏 Yüke yaklaştıkça alan güçlenir, uzaklaştıkça zayıflar.',
+      '🚫 Alan çizgileri hiçbir zaman birbirini kesmez.',
+      '🎯 Alanın içine konan başka bir yük itilir ya da çekilir.'
     ]},
     ortaokul: { emoji: '➡️', title: 'Elektrik Alan', points: [
       '➡️ Bir yükün çevresinde oluşturduğu etki bölgesine elektrik alan denir.',
       '📈 Alan çizgileri artı (+) yükten çıkar ve eksi (−) yükte son bulur.',
       '🔢 Yük ne kadar büyükse o yükten çıkan çizgi sayısı da o kadar fazladır.',
       '🧭 Alan çizgisinin yönü, oraya konan bir artı yüke etkiyen kuvvetin yönüdür.',
-      '🎚️ Yük miktarını değiştirerek alanın nasıl değiştiğini gözlemle.'
+      '🎚️ Yük miktarını değiştirerek alanın nasıl değiştiğini gözlemle.',
+      '📐 Alan şiddeti E ile gösterilir; birimi newton/coulombdur (N/C).',
+      '🎯 Alan sıfır olsaydı oraya konan yük hiç kuvvet hissetmezdi.'
     ]},
     lise: { emoji: '➡️', title: 'Elektrik Alan (E)', points: [
       '➡️ Elektrik alan, birim yüke etkiyen kuvvettir: E = F/q (birimi N/C).',
       '⚪ Bir nokta yükün oluşturduğu alanın büyüklüğü E = k·q/d² ile bulunur.',
       '📈 Alan çizgileri artı yükten çıkıp eksi yükte biter ve birbirini kesmez.',
       '📏 Çizgilerin sık olduğu bölgelerde elektrik alan daha güçlüdür.',
-      '🧭 Artı yük alan yönünde, eksi yük alana ters yönde kuvvet alır.'
+      '🧭 Artı yük alan yönünde, eksi yük alana ters yönde kuvvet alır.',
+      '➕ Birden çok yükün alanı vektörel toplanır (süperpozisyon ilkesi).',
+      '🎯 Alanların birbirini yok ettiği noktaya nötr nokta denir.'
     ]},
     tyt_ayt: { emoji: '➡️', title: 'Elektrik Alan (TYT/AYT)', points: [
       '➡️ Elektrik alan vektörel bir büyüklüktür: E = F/q = k·q/d² (birimi N/C).',
@@ -2810,21 +2843,28 @@ const INFO_DATA = {
       '🟢 Küçük bir artı yükü elektrik alanın içine bırakırsak hareket etmeye başlar.',
       '➡️ Bu küçük yük, alan çizgilerini takip ederek ilerler.',
       '🏃 Alanın etkisiyle itilir ya da çekilir.',
-      '🎚️ Kaynak yükü değiştirerek küçük yükün hareketini izleyebilirsin.'
+      '🎚️ Kaynak yükü değiştirerek küçük yükün hareketini izleyebilirsin.',
+      '⚪ Deneme yükü çok küçüktür, bu yüzden alanı bozmaz.',
+      '➕ Artı deneme yükü, artı kaynaktan itilerek uzaklaşır.',
+      '➖ Eksi kaynağa doğru ise çekilerek yaklaşır.'
     ]},
     ortaokul: { emoji: '🟢', title: 'Test Yükü Hareketi', points: [
       '🟢 Alanı incelemek için kullanılan küçük artı yüke test (deneme) yükü denir.',
       '➡️ Test yükü, bulunduğu noktadaki elektrik alan çizgisini takip ederek hareket eder.',
       '🏃 Alandan kuvvet aldığı için giderek hızlanır.',
       '🧭 Artı test yükü alanla aynı yönde hareket eder.',
-      '🎚️ Kaynak yükünü değiştirerek hareketin nasıl değiştiğini gözlemle.'
+      '🎚️ Kaynak yükünü değiştirerek hareketin nasıl değiştiğini gözlemle.',
+      '➖ Eksi test yükü, alan çizgilerine ters yönde hareket eder.',
+      '⚡ Hareket sırasında potansiyel enerji kinetik enerjiye dönüşür.'
     ]},
     lise: { emoji: '🟢', title: 'Test Yükü', points: [
       '🟢 Test yükü, alanı bozmayacak kadar küçük seçilen bir yüktür (q₀).',
       '🧭 Test yüküne etkiyen kuvvet F = q₀·E ile bulunur ve onu hızlandırır.',
       '➡️ Artı test yükü elektrik alanla aynı yönde hareket eder.',
       '🏃 Yükün kazandığı ivme a = F/m = q₀·E/m formülüyle hesaplanır.',
-      '📈 Test yükünün izlediği yol, bulunduğu noktadaki alan çizgisine uyar.'
+      '📈 Test yükünün izlediği yol, bulunduğu noktadaki alan çizgisine uyar.',
+      '⚡ Alanın yaptığı iş W = q₀·ΔV kadardır ve kinetik enerjiyi artırır.',
+      '🚫 Test yükü büyük seçilirse kaynağın alanını bozar, ölçüm yanılır.'
     ]},
     tyt_ayt: { emoji: '🟢', title: 'Test Yükü (TYT/AYT)', points: [
       '🟢 Test yükü, alanı bozmaması için çok küçük seçilir; alan E = F/q₀ ile tanımlanır.',
@@ -2840,21 +2880,28 @@ const INFO_DATA = {
       '⚪ Tek bir yükün çevresinde her yöne doğru alan çizgileri uzanır.',
       '➕ Yük artı ise çizgiler dışarı doğru gider.',
       '➖ Yük eksi ise çizgiler içeri doğru gelir.',
-      '🎚️ Yükün işaretini değiştirerek çizgilerin yönünü gözlemle.'
+      '🎚️ Yükün işaretini değiştirerek çizgilerin yönünü gözlemle.',
+      '☀️ Çizgiler, güneşin ışınları gibi her yöne eşit olarak yayılır.',
+      '📏 Yüke yakın yerde çizgiler sıktır, orada etki daha güçlüdür.',
+      '🚫 Uzaklaştıkça çizgiler seyrekleşir ve etki hızla zayıflar.'
     ]},
     ortaokul: { emoji: '⚪', title: 'Noktasal Yük Alanı', points: [
       '⚪ Noktasal bir yük, çevresine her yöne doğru elektrik alan yayar.',
       '☀️ Alan çizgileri yükten dışa (veya yüke içe) doğru ışınsal olarak yayılır.',
       '➕ Pozitif yükte çizgiler dışarı, ➖ negatif yükte içeri yönelir.',
       '📏 Yüke yakın bölgelerde alan daha güçlüdür.',
-      '🎚️ Yük miktarını ve işaretini değiştirerek alanı incele.'
+      '🎚️ Yük miktarını ve işaretini değiştirerek alanı incele.',
+      '📐 Alan şiddeti E = k·q/d² ile bulunur (k = 9×10⁹ N·m²/C²).',
+      '📏 Uzaklık 2 katına çıkarsa alan dörtte birine iner.'
     ]},
     lise: { emoji: '⚪', title: 'Noktasal Yük Alanı', points: [
       '⚪ Noktasal yükün alanı E = k·q/d² ile bulunur ve uzaklığın karesiyle azalır.',
       '☀️ Alan çizgileri merkezdeki yükten ışınsal (radyal) ve simetrik olarak yayılır.',
       '📏 Alan çizgileri yüke yakın bölgede sıklaşır, çünkü orada alan daha güçlüdür.',
       '🔢 Bir yükten çıkan çizgi sayısı, o yükün büyüklüğüyle orantılıdır.',
-      '🧭 Çizgiler artı yükte dışa, eksi yükte içe doğru yönelir.'
+      '🧭 Çizgiler artı yükte dışa, eksi yükte içe doğru yönelir.',
+      '🔵 Eş potansiyel yüzeyler, yükü merkez alan iç içe kürelerdir.',
+      '⚡ Aynı noktadaki potansiyel V = k·q/d ile bulunur (skaler).'
     ]},
     tyt_ayt: { emoji: '⚪', title: 'Noktasal Yük (TYT/AYT)', points: [
       '⚪ Noktasal yükün alanı E = k·q/d² ile bulunur ve ışınsal simetriye sahiptir.',
@@ -2870,21 +2917,28 @@ const INFO_DATA = {
       '🤝 Bir artı ve bir eksi yük varsa, çizgiler birinden çıkıp diğerine gider.',
       '🧲 İki artı yük varsa, çizgiler birbirinden uzaklaşır (itme).',
       '📈 İki yük arasındaki alan çizgileri eğri biçimler alır.',
-      '🎚️ Yüklerin işaretlerini değiştirerek çizgileri izle.'
+      '🎚️ Yüklerin işaretlerini değiştirerek çizgileri izle.',
+      '🎯 İki aynı yükün tam ortasında etkiler birbirini yok eder.',
+      '📏 Yükler birbirine yaklaştıkça aralarındaki etki güçlenir.',
+      '🚫 Çizgiler ne kadar kıvrılırsa kıvrılsın birbirini kesmez.'
     ]},
     ortaokul: { emoji: '🔴🔵', title: 'İki Yükün Alanı', points: [
       '🤝 Zıt yüklerde (dipol) alan çizgileri artı yükten çıkıp eksi yükte biter.',
       '🧲 Aynı cins yüklerde alan çizgileri birbirini iterek dışa kıvrılır.',
       '🎯 Aynı yüklerde, tam ortada alanların birbirini götürdüğü bir nötr nokta oluşur.',
       '📈 Alan çizgileri hiçbir zaman birbirini kesmez.',
-      '🎚️ İki yükü ayrı ayrı değiştirerek çizgi şekillerini gözlemle.'
+      '🎚️ İki yükü ayrı ayrı değiştirerek çizgi şekillerini gözlemle.',
+      '➕ Bir noktadaki toplam alan, iki alanın vektörel toplamıdır.',
+      '📏 Zıt yüklü ikiliye dipol denir; aralarındaki bölge en güçlü alandır.'
     ]},
     lise: { emoji: '🔴🔵', title: 'İki Yükün Alanı', points: [
       '🤝 Zıt yüklü ikili (dipol) için çizgiler artı yükten çıkar, eksi yükte son bulur.',
       '🧲 Aynı işaretli yüklerde, simetri ekseni üzerinde bir nötr nokta bulunur.',
       '➕ Toplam alan, her iki yükün alanının vektörel toplamıdır (süperpozisyon ilkesi).',
       '🎯 Nötr noktada iki yükün alanları eşit büyüklükte ve zıt yöndedir, toplamı sıfırdır.',
-      '📈 Alan çizgileri eş potansiyel yüzeylere diktir ve birbirini kesmez.'
+      '📈 Alan çizgileri eş potansiyel yüzeylere diktir ve birbirini kesmez.',
+      '🔢 Yükler farklı büyüklükteyse nötr nokta küçük yüke daha yakındır.',
+      '🤝 Zıt yüklerde nötr nokta, ikilinin dışında küçük yük tarafında olur.'
     ]},
     tyt_ayt: { emoji: '🔴🔵', title: 'İki Yük (TYT/AYT)', points: [
       '🤝 Net elektrik alan, yüklerin alanlarının vektörel toplamıyla bulunur (süperpozisyon).',
@@ -2900,21 +2954,28 @@ const INFO_DATA = {
       '🔵 İçi boş iletken bir topa yük verilirse, yük topun dış yüzeyine yayılır.',
       '🌐 Yük her zaman topun yüzeyinde toplanır.',
       '🚫 Topun iç kısmında hiç yük bulunmaz.',
-      '🎚️ Yük miktarını değiştirerek yüzeydeki dağılımı izle.'
+      '🎚️ Yük miktarını değiştirerek yüzeydeki dağılımı izle.',
+      '🌐 Yükler birbirini ittiği için en uzak yer olan yüzeye kaçar.',
+      '🛡️ Bu yüzden topun içindeki bir cisim elektrikten korunur.',
+      '📌 Top sivri uçluysa yük en çok o sivri bölgede toplanır.'
     ]},
     ortaokul: { emoji: '🔵', title: 'Yüklü İletken Küre', points: [
       '🌐 İletken bir küreye verilen yük, kürenin dış yüzeyine eşit dağılır.',
       '🚫 Kürenin iç bölgesinde elektrik alan sıfırdır.',
       '📏 Alan yalnızca kürenin yüzeyinde ve dışında bulunur.',
       '➡️ Küre dışında alan, sanki tüm yük merkezdeymiş gibi davranır (E = kq/d²).',
-      '🎚️ Yük miktarını değiştirerek alanı gözlemle.'
+      '🎚️ Yük miktarını değiştirerek alanı gözlemle.',
+      '📌 Sivri bölgelerde yük yoğunluğu artar; buna uç etkisi denir.',
+      '🛡️ Kürenin içi dış elektrik etkilerden korunur (Faraday kafesi).'
     ]},
     lise: { emoji: '🔵', title: 'Yüklü İletken Küre', points: [
       '🌐 İletken küredeki yük yüzeye yayılır; kürenin içinde alan sıfırdır (E=0).',
       '📏 Küre dışında (d ≥ R) alan E = k·q/d² ile hesaplanır.',
       '🔋 Kürenin içinde potansiyel her yerde sabittir ve değeri V = k·q/R\'dir.',
       '⚡ Elektrik alan en güçlü olduğu yer kürenin yüzeyidir.',
-      '🚫 İç bölge dış alandan etkilenmez; elektrostatik olarak korunmuştur.'
+      '🚫 İç bölge dış alandan etkilenmez; elektrostatik olarak korunmuştur.',
+      '📌 Sivri uçlarda yük yoğunluğu artar; paratoner bu ilkeye dayanır.',
+      '🔄 Dokundurulan iki küre yükü yarıçaplarıyla orantılı paylaşır.'
     ]},
     tyt_ayt: { emoji: '🔵', title: 'İletken Küre (TYT/AYT)', points: [
       '🌐 Gauss yasasına göre iletken kürenin içinde alan sıfırdır; yük yüzeyde toplanır.',
@@ -2930,21 +2991,28 @@ const INFO_DATA = {
       '🔋 Yüke yakın yerler "yüksek", uzak yerler "alçak" gibi düşünülebilir.',
       '⬇️ Yükler tıpkı suyun yukarıdan aşağı akması gibi yüksekten alçağa gitmek ister.',
       '🏔️ Bir tepe gibi: yüke yaklaştıkça elektriksel seviye (potansiyel) büyür.',
-      '🎚️ Yükü değiştirerek bu seviyenin nasıl değiştiğini izle.'
+      '🎚️ Yükü değiştirerek bu seviyenin nasıl değiştiğini izle.',
+      '🔢 Bu elektriksel seviyenin birimi volttur (V).',
+      '🔋 Kalem pilinin iki ucu arasındaki seviye farkı 1,5 volttur.',
+      '⚡ Seviye farkı ne kadar büyükse yükler o kadar hızlı akar.'
     ]},
     ortaokul: { emoji: '🔋', title: 'Elektriksel Potansiyel', points: [
       '🔋 Bir noktadaki elektriksel "seviye" o noktanın potansiyelidir ve V ile gösterilir.',
       '📏 Yüke yaklaştıkça potansiyel büyür, uzaklaştıkça küçülür.',
       '⬇️ Bir artı yük, yüksek potansiyelden alçak potansiyele doğru hareket etmek ister.',
       '🔢 Potansiyelin birimi Volt (V) olarak ölçülür.',
-      '🎚️ Uzaklığı ve yükü değiştirerek potansiyeli gözlemle.'
+      '🎚️ Uzaklığı ve yükü değiştirerek potansiyeli gözlemle.',
+      '⚡ İki nokta arasındaki potansiyel farkına gerilim denir.',
+      '🔋 Kalem pili 1,5 V, ev prizi ise 220 V gerilim sağlar.'
     ]},
     lise: { emoji: '🔋', title: 'Elektriksel Potansiyel (V)', points: [
       '🔋 Bir noktanın potansiyeli V = k·q/d ile bulunur; skaler bir büyüklüktür (birimi Volt).',
       '⬇️ Artı yük, yüksek potansiyelden alçak potansiyele doğru kendiliğinden hareket eder.',
       '🔵 Potansiyeli aynı olan noktaların oluşturduğu yüzeylere eş potansiyel yüzey denir.',
       '⚡ İki nokta arasındaki potansiyel farkı ΔV = V_A − V_B ile gösterilir.',
-      '🧭 Elektrik alan çizgileri her zaman eş potansiyel yüzeylere diktir.'
+      '🧭 Elektrik alan çizgileri her zaman eş potansiyel yüzeylere diktir.',
+      '⚡ Bir yükü taşırken yapılan iş W = q·ΔV formülüyle bulunur.',
+      '📐 Düzgün alanda alan ile potansiyel ilişkisi E = V/d biçimindedir.'
     ]},
     tyt_ayt: { emoji: '🔋', title: 'Potansiyel (TYT/AYT)', points: [
       '🔋 Bir noktanın potansiyeli V = k·q/d ile bulunur (skaler, birimi Volt = Joule/Coulomb).',
@@ -2960,21 +3028,28 @@ const INFO_DATA = {
       '⚡ Birbirine yakın duran yükler, konumlarından dolayı enerji depolar.',
       '🤝 Zıt yükler birbirini çekerek bir arada durur.',
       '🧲 Aynı yükler birbirini iter ve bu itme bir enerji biriktirir.',
-      '🎚️ Yükler arasındaki mesafeyi değiştirerek enerjiyi izle.'
+      '🎚️ Yükler arasındaki mesafeyi değiştirerek enerjiyi izle.',
+      '🏹 Gerilmiş yay gibi: yükler serbest kalınca bu enerji harekete dönüşür.',
+      '📏 Aynı cins yükleri yaklaştırmak için dışarıdan enerji harcanır.',
+      '🔢 Enerjinin birimi jouledur (J).'
     ]},
     ortaokul: { emoji: '⚡', title: 'Potansiyel Enerji', points: [
       '⚡ İki yükün birbirine göre konumundan kaynaklanan enerjiye potansiyel enerji denir.',
       '🧲 Aynı cins yükler birbirine yakınken sistemin enerjisi yüksektir.',
       '🤝 Zıt cins yüklerde enerji negatiftir; yükler birbirine bağlıdır.',
       '📏 Yükler arasındaki mesafe arttıkça enerji azalır.',
-      '🎚️ Yük miktarını ve mesafeyi değiştirerek enerjiyi gözlemle.'
+      '🎚️ Yük miktarını ve mesafeyi değiştirerek enerjiyi gözlemle.',
+      '🔢 Enerji skaler bir büyüklüktür ve birimi jouledur (J).',
+      '🏃 Serbest bırakılan yükün potansiyel enerjisi kinetik enerjiye dönüşür.'
     ]},
     lise: { emoji: '⚡', title: 'Elektriksel Potansiyel Enerji', points: [
       '⚡ İki yükün potansiyel enerjisi Eₚ = k·q₁·q₂/d ile bulunur (skaler büyüklük).',
       '🧲 Yükler aynı işaretliyse enerji pozitiftir (itme) ve yakınken büyüktür.',
       '🤝 Yükler zıt işaretliyse enerji negatiftir; bu, bağlı bir sistemi gösterir.',
       '📏 Yükler arasındaki mesafe arttıkça enerjinin büyüklüğü azalır.',
-      '🔄 Yapılan iş, ilk ve son enerji farkına eşittir: W = Eₚ(ilk) − Eₚ(son).'
+      '🔄 Yapılan iş, ilk ve son enerji farkına eşittir: W = Eₚ(ilk) − Eₚ(son).',
+      '⚡ Potansiyel cinsinden yazılışı Eₚ = q·V biçimindedir.',
+      '📏 Sonsuz uzaklıkta potansiyel enerji sıfır kabul edilir.'
     ]},
     tyt_ayt: { emoji: '⚡', title: 'Potansiyel Enerji (TYT/AYT)', points: [
       '⚡ İki yükün potansiyel enerjisi Eₚ = k·q₁·q₂/d ile bulunur (işaretli, skaler).',
@@ -2990,21 +3065,28 @@ const INFO_DATA = {
       '⬛ Yüklü iki levha arasında düzgün, paralel oklar (alan) oluşur.',
       '➡️ Bu bölgede alan her noktada aynıdır (düzgün alan).',
       '🔋 Tıpkı bir pilin iki kutbu gibi davranırlar.',
-      '🎚️ Levhaların yükünü değiştirerek alanı izle.'
+      '🎚️ Levhaların yükünü değiştirerek alanı izle.',
+      '🏃 Aradaki yüklü bir parçacık her noktada aynı kuvvetle itilir.',
+      '📏 Levhalar birbirine yaklaşınca aradaki etki güçlenir.',
+      '🔌 Bu yapı, kondansatör denilen devre elemanının temelidir.'
     ]},
     ortaokul: { emoji: '⬛', title: 'Düzgün Elektrik Alan', points: [
       '⬛ Birbirine paralel iki yüklü levha arasında düzgün bir elektrik alan oluşur.',
       '➡️ Alan çizgileri birbirine paralel ve eşit aralıklıdır.',
       '🔋 Çizgiler artı (+) levhadan eksi (−) levhaya doğru yönelir.',
       '📏 Levhalar arasındaki her noktada alan aynı şiddettedir.',
-      '🎚️ Levhaların yükünü değiştirerek alanı gözlemle.'
+      '🎚️ Levhaların yükünü değiştirerek alanı gözlemle.',
+      '📐 Alan şiddeti E = V/d ile bulunur (V gerilim, d levha aralığı).',
+      '🔌 Bu düzeneğe kondansatör denir ve elektrik enerjisi depolar.'
     ]},
     lise: { emoji: '⬛', title: 'Düzgün Alan / Levhalar', points: [
       '⬛ Paralel levhalar arasındaki düzgün alan E = V/d ile bulunur.',
       '➡️ Alan çizgileri birbirine paralel ve eşit aralıklıdır.',
       '🔋 Alan artı levhadan eksi levhaya yönelir ve her noktada aynı şiddettedir.',
       '🏃 Levhalar arasındaki bir yük, sabit bir kuvvet ve sabit bir ivme alır.',
-      '⚡ Yükü bir levhadan diğerine taşıyan iş W = q·E·d = q·V ile hesaplanır.'
+      '⚡ Yükü bir levhadan diğerine taşıyan iş W = q·E·d = q·V ile hesaplanır.',
+      '🎯 Alana dik giren yük, yatay atış gibi parabolik yörünge izler.',
+      '📏 Gerilim sabitken aralık (d) büyürse alan (E) küçülür.'
     ]},
     tyt_ayt: { emoji: '⬛', title: 'Düzgün Alan (TYT/AYT)', points: [
       '⬛ Paralel levhalar arasında alan E = V/d\'dir (kenar etkileri ihmal edilir).',
@@ -3020,21 +3102,28 @@ const INFO_DATA = {
       '🛡️ Tellerden örülmüş bir kafesin içi, dışarıdaki elektrikten korunur.',
       '🚗 Arabanın metal gövdesi içindekileri yıldırımdan korur.',
       '🚫 Kafesin içinde elektriğin etkisi hissedilmez.',
-      '🎚️ Dışarıdan yüklü bir cisim yaklaştırıp içerideki etkiyi izle.'
+      '🎚️ Dışarıdan yüklü bir cisim yaklaştırıp içerideki etkiyi izle.',
+      '🌐 Yükler kafesin dış yüzeyinde toplanır, içeri geçemez.',
+      '📱 Asansörde telefonun çekmemesi de benzer bir kalkanlama etkisidir.',
+      '🍲 Mikrodalga fırının kapı teli de bu ilkeyle ışınımı içeride tutar.'
     ]},
     ortaokul: { emoji: '🛡️', title: 'Faraday Kafesi', points: [
       '🛡️ İletken bir kafes, içini dış elektrik alanlardan korur.',
       '🚫 Kafesin iç bölgesinde elektrik alan sıfırdır (E=0).',
       '🔄 Dışarıdaki yük, kafesin yüzeyinde yük kutuplaşmasına yol açar.',
       '🚗 Araba ve uçak gövdeleri, içindekileri yıldırımdan bu sayede korur.',
-      '🎚️ Faraday modunu açıp içerideki test yükünün durduğunu gözlemle.'
+      '🎚️ Faraday modunu açıp içerideki test yükünün durduğunu gözlemle.',
+      '🌐 Yük daima dış yüzeyde toplanır, iç yüzey yüksüz kalır.',
+      '📡 Hassas cihazlar bu yöntemle dış elektriksel etkilerden korunur.'
     ]},
     lise: { emoji: '🛡️', title: 'Faraday Kafesi', points: [
       '🛡️ İletken bir kovuğun (kafesin) içinde elektrik alan sıfırdır (kalkanlama).',
       '🔄 Dış alan, kafes yüzeyinde indüklenen yüklerle tam olarak dengelenir.',
       '🚫 İçeride bulunan bir test yükü hiçbir elektriksel kuvvet hissetmez.',
       '📡 Bu özellik, hassas cihazları korumak için elektrostatik kalkanlamada kullanılır.',
-      '🚗 Araç/uçak gövdeleri ve koaksiyel kablolar bu ilkeye göre çalışır.'
+      '🚗 Araç/uçak gövdeleri ve koaksiyel kablolar bu ilkeye göre çalışır.',
+      '🔬 İletkenin iç yüzeyinde net yük bulunmaz; yük dışa toplanır.',
+      '📶 Kafes deliği, korunacak dalganın boyundan küçükse kalkanlama etkilidir.'
     ]},
     tyt_ayt: { emoji: '🛡️', title: 'Faraday Kafesi (TYT/AYT)', points: [
       '🛡️ İletken bir kovuğun içinde elektrostatik dengede net alan sıfırdır (E_iç = 0).',
@@ -3050,21 +3139,28 @@ const INFO_DATA = {
       '⏚ Topraklama, cisimdeki fazla yükü toprağa göndermektir.',
       '🌍 Toprak çok büyük olduğu için bu yükü kolayca yutar.',
       '✅ Topraklanan cisim yüksüz (nötr) hale gelir.',
-      '🎚️ Topraklama telini bağlayıp cismin nötrleştiğini izle.'
+      '🎚️ Topraklama telini bağlayıp cismin nötrleştiğini izle.',
+      '🏠 Evlerdeki prizlerin üçüncü ucu topraklama içindir.',
+      '⚡ Topraklama, cihaz bozulunca insanı çarpılmaktan korur.',
+      '🗼 Paratoner de yıldırımın yükünü toprağa indiren bir topraklamadır.'
     ]},
     ortaokul: { emoji: '⏚', title: 'Topraklama', points: [
       '⏚ Topraklama, bir cismi iletken bir telle toprağa bağlamaktır.',
       '🌍 Cisimdeki fazla yük bu tel üzerinden toprağa akar.',
       '✅ Sonuçta cisim nötrleşir ve potansiyeli sıfır (V=0) olur.',
       '⚡ Topraklama, elektrik güvenliği için kullanılır.',
-      '🎚️ Topraklamayı bağlayıp keserek yük durumunu gözlemle.'
+      '🎚️ Topraklamayı bağlayıp keserek yük durumunu gözlemle.',
+      '🏠 Priz ve cihaz gövdeleri, çarpılmayı önlemek için topraklanır.',
+      '✋ Etki altındayken topraklanan cisim kalıcı olarak zıt cins yüklenir.'
     ]},
     lise: { emoji: '⏚', title: 'Topraklama', points: [
       '⏚ Toprak sonsuz büyüklükte bir yük deposudur ve potansiyeli sıfır kabul edilir.',
       '🌍 Bir iletken topraklandığında potansiyeli sıfıra (V=0) iner.',
       '➖ Cisim negatif yüklüyse fazla elektronlar toprağa akar.',
       '✋ Etki altında topraklama yapılırsa cisim kalıcı olarak zıt işaretli yük kazanır.',
-      '⚡ Topraklama, güvenlik sağlamak ve fazla yükü boşaltmak için kullanılır.'
+      '⚡ Topraklama, güvenlik sağlamak ve fazla yükü boşaltmak için kullanılır.',
+      '🔌 Tesisattaki sarı-yeşil renkli iletken topraklama hattıdır.',
+      '🛡️ Kaçak akım gövdeden toprağa yönlendirilir, insana geçmez.'
     ]},
     tyt_ayt: { emoji: '⏚', title: 'Topraklama (TYT/AYT)', points: [
       '⏚ Topraklama, bir cismin potansiyelini sıfıra indirme işlemidir (V→0).',
@@ -3080,21 +3176,28 @@ const INFO_DATA = {
       '⚡ Yıldırım, gökyüzünde oluşan dev bir elektrik kıvılcımıdır.',
       '🏠 Paratoner, binaları yıldırımın zararından korur.',
       '🖨️ Fotokopi makineleri çalışmak için elektrik yükünü kullanır.',
-      '🎈 Sürtünerek elektriklenen bir balon, duvara yapışabilir.'
+      '🎈 Sürtünerek elektriklenen bir balon, duvara yapışabilir.',
+      '🚗 Arabadan inerken kapıya dokununca çarpılman statik elektriktir.',
+      '🧴 Saç kremi ve nemli hava saçların elektriklenmesini azaltır.',
+      '🏭 Bazı fabrikalar bacadaki tozu elektrik yardımıyla tutar.'
     ]},
     ortaokul: { emoji: '⚡', title: 'Uygulamalar', points: [
       '⚡ Yıldırım, bulut ile yer arasındaki büyük bir elektrik boşalmasıdır.',
       '🗼 Paratoner, biriken yükü güvenli bir şekilde toprağa indirir.',
       '🖨️ Fotokopi makineleri ve yazıcılar, toneri çekmek için elektrik yükü kullanır.',
       '🏭 Baca filtreleri, dumandaki tozları elektrostatik olarak tutar.',
-      '🎨 Elektrostatik boyama, boyanın yüzeye düzgün yapışmasını sağlar.'
+      '🎨 Elektrostatik boyama, boyanın yüzeye düzgün yapışmasını sağlar.',
+      '⛽ Yakıt tankerleri kıvılcımı önlemek için topraklanarak boşaltılır.',
+      '📄 Fotokopide toner, zıt yüklü kağıda çekilip ısıyla yapıştırılır.'
     ]},
     lise: { emoji: '⚡', title: 'Elektrostatik Uygulamalar', points: [
       '⚡ Yıldırımda biriken yük, havanın yalıtkanlığı bozulunca (dielektrik delinme) boşalır.',
       '🗼 Paratoner, sivri ucu ve topraklamasıyla yükü güvenle yere aktarır.',
       '🖨️ Lazer yazıcı ve fotokopi, yük desenli bir tambur üzerinde çalışır.',
       '🏭 Elektrostatik filtreler, baca gazındaki kül ve tozu yükleyerek tutar.',
-      '🎨 Toz boyama ve tarımsal ilaçlamada elektrostatik çekim kullanılır.'
+      '🎨 Toz boyama ve tarımsal ilaçlamada elektrostatik çekim kullanılır.',
+      '⛽ Yakıt aktarımında biriken yük kıvılcım doğurur; topraklama şarttır.',
+      '📌 Paratonerin ucu sivridir, çünkü yük yoğunluğu eğrilikle artar.'
     ]},
     tyt_ayt: { emoji: '⚡', title: 'Uygulamalar (TYT/AYT)', points: [
       '⚡ Yıldırım, bulutta ayrışan yüklerin yaklaşık 10⁹ Volt gerilimle boşalmasıdır.',
@@ -3110,21 +3213,28 @@ const INFO_DATA = {
       '🎯 Yüklü bir top iki levha arasından geçerken yolu eğrilir (sapar).',
       '➕ Artı yüklü top, eksi yüklü levhaya doğru çekilerek sapar.',
       '🏀 Tıpkı havaya atılan bir topun yere düşerken eğri çizmesi gibidir.',
-      '🎚️ Topun hızını ve yükünü değiştirerek sapmayı izle.'
+      '🎚️ Topun hızını ve yükünü değiştirerek sapmayı izle.',
+      '➖ Eksi yüklü top ise artı levhaya doğru sapar.',
+      '🚀 Top ne kadar hızlı girerse levhalar arasında o kadar az sapar.',
+      '🖨️ Yazıcılar mürekkep damlasını tam da bu yöntemle yönlendirir.'
     ]},
     ortaokul: { emoji: '🎯', title: 'Parçacık Sapması', points: [
       '🎯 Yüklü bir parçacık, düzgün bir alana girince hareket yönünü değiştirir.',
       '➕ Pozitif yük, eksi (−) levhaya doğru saparak ilerler.',
       '〰️ Parçacığın izlediği yol eğri bir çizgi (parabol) olur.',
       '⚡ Alan ne kadar güçlüyse parçacığın sapması o kadar fazladır.',
-      '🎚️ Alanı ve giriş hızını değiştirerek yörüngeyi gözlemle.'
+      '🎚️ Alanı ve giriş hızını değiştirerek yörüngeyi gözlemle.',
+      '➖ Negatif yük ise artı (+) levhaya doğru sapar.',
+      '🚀 Giriş hızı arttıkça alanda kalma süresi azalır, sapma küçülür.'
     ]},
     lise: { emoji: '🎯', title: 'Parçacık Sapması', points: [
       '🎯 Düzgün alana dik giren yüklü parçacık, parabolik bir yörünge izler.',
       '➡️ Yatay yönde hız sabittir, çünkü bu yönde kuvvet etki etmez.',
       '⬇️ Düşey yönde ise parçacık sabit ivmeyle hareket eder: a = qE/m (yatay atış gibi).',
       '〰️ Bu iki hareketin birleşimi parabolik bir yol oluşturur.',
-      '🖥️ Bu olay osiloskop ve mürekkep püskürtmeli yazıcılarda kullanılır.'
+      '🖥️ Bu olay osiloskop ve mürekkep püskürtmeli yazıcılarda kullanılır.',
+      '📐 Sapma y = ½·(qE/m)·t² ile bulunur; süre t = L/v₀ alınır.',
+      '⚖️ Elektriksel kuvvet ağırlıktan çok büyük olduğu için ağırlık ihmal edilir.'
     ]},
     tyt_ayt: { emoji: '🎯', title: 'Parçacık Sapması (TYT/AYT)', points: [
       '🎯 Düzgün alana dik giren yük, tıpkı yatay atış gibi parabolik yörünge çizer.',
@@ -3140,21 +3250,28 @@ const INFO_DATA = {
       '🔋 Kondansatör, elektrik yükünü biriktirip saklayan bir tür kaptır.',
       '🪫 Yük, birbirine paralel iki levha arasında depolanır.',
       '💡 Fotoğraf makinesi flaşı ve birçok devrede kullanılır.',
-      '🎚️ Gerilimi değiştirerek depolanan yük miktarını izle.'
+      '🎚️ Gerilimi değiştirerek depolanan yük miktarını izle.',
+      '⚡ Depoladığı enerjiyi bir anda boşaltabilir; flaş bu yüzden parlar.',
+      '🔌 Pilden farkı: yükü kimyasal değil, elektriksel olarak tutar.',
+      '⏱️ Dolması ve boşalması saniyenin çok küçük bir kesrinde olur.'
     ]},
     ortaokul: { emoji: '🔋', title: 'Kondansatör', points: [
       '🔋 Kondansatör, elektrik enerjisini depolayan bir devre elemanıdır.',
       '⬛ İki paralel levha ve aralarındaki bir yalıtkandan oluşur.',
       '🔢 Uygulanan gerilim arttıkça depolanan yük de artar.',
       '⚡ Depoladığı enerjiyi çok hızlı boşaltabilir (örneğin flaş patlaması).',
-      '🎚️ Gerilimi ve levha alanını değiştirerek davranışını gözlemle.'
+      '🎚️ Gerilimi ve levha alanını değiştirerek davranışını gözlemle.',
+      '📐 Sığa C = Q/V ile bulunur ve birimi faraddır (F).',
+      '🔋 Pil kimyasal enerji, kondansatör ise elektriksel enerji depolar.'
     ]},
     lise: { emoji: '🔋', title: 'Kondansatör (C=Q/V)', points: [
       '🔋 Bir kondansatörün sığası C = Q/V ile bulunur (birimi Farad, F).',
       '⬛ Paralel levhalı kondansatörün sığası C = ε₀·A/d formülüyle hesaplanır.',
       '⚡ Kondansatörde depolanan enerji U = ½·C·V² ile bulunur.',
       '📏 Levha alanı (A) arttıkça veya aralık (d) azaldıkça sığa (C) artar.',
-      '🔌 Kondansatörler seri bağlanınca toplam sığa azalır, paralel bağlanınca artar.'
+      '🔌 Kondansatörler seri bağlanınca toplam sığa azalır, paralel bağlanınca artar.',
+      '🧱 Levhalar arasına dielektrik konursa sığa k katına çıkar.',
+      '⏱️ RC devresinde dolma hızını zaman sabiti τ = R·C belirler.'
     ]},
     tyt_ayt: { emoji: '🔋', title: 'Kondansatör (TYT/AYT)', points: [
       '🔋 Sığa C = Q/V ile (birim Farad), paralel levhada ise C = ε₀·A/d ile bulunur.',
@@ -3171,13 +3288,19 @@ const INFO_DATA = {
       '⚡ Elektrik, çok küçük parçacıkların (elektron) hareketidir.',
       '🔌 Bu parçacıklar tellerin içinde akar.',
       '💡 Akan elektrik; lambayı yakar, oyuncağı çalıştırır.',
-      '🏃 Elektronlar ne kadar çok akarsa, o kadar çok elektrik olur.'
+      '🏃 Elektronlar ne kadar çok akarsa, o kadar çok elektrik olur.',
+      '🚰 Elektriğin telde akması, suyun boruda akmasına benzer.',
+      '🔋 Elektronları hareket ettiren şey pil ya da prizdir.',
+      '⚠️ Elektrik gözle görülmez ama etkisi çok güçlüdür.'
     ]},
     ortaokul: { emoji:'⚡', title:'Elektrik Nedir?', points:[
       '⚡ Elektrik, elektronların bir yönde akmasıdır (elektrik akımı).',
       '🔌 Elektronlar iletken tellerin içinde hareket eder.',
       '💡 Bu hareket cihazlara enerji taşır.',
-      '🔋 Elektronları hareket ettiren şey pildir.'
+      '🔋 Elektronları hareket ettiren şey pildir.',
+      '🔢 Akımın birimi amperdir (A) ve ampermetreyle ölçülür.',
+      '⚡ Pilin uçları arasındaki gerilim voltla (V) ölçülür.',
+      '🚰 Gerilim su pompasına, akım borudaki su akışına benzetilir.'
     ]}
   },
   gunlukElektrik: {
@@ -3185,13 +3308,19 @@ const INFO_DATA = {
       '🏠 Evimizde elektrik her yerde kullanılır.',
       '💡 Lambalar elektrikle ışık verir.',
       '📺 Televizyon, buzdolabı elektrikle çalışır.',
-      '📱 Telefon ve tabletler pil/şarjla çalışır.'
+      '📱 Telefon ve tabletler pil/şarjla çalışır.',
+      '🔥 Ütü ve saç kurutma makinesi elektriği ısıya çevirir.',
+      '🏭 Evimize gelen elektrik santralde üretilip tellerle taşınır.',
+      '⚠️ Kullanmadığın cihazları kapatmak elektrik tasarrufu sağlar.'
     ]},
     ortaokul: { emoji:'🏠', title:'Günlük Yaşamda Elektrik', points:[
       '🏠 Evlerdeki cihazlar prizden gelen elektrikle çalışır.',
       '💡 Aydınlatma, ısıtma, soğutma elektrikle yapılır.',
       '📱 Pille çalışan cihazlar taşınabilir elektrik kullanır.',
-      '⚡ Elektrik enerjisi başka enerjilere dönüşür (ışık, ısı, hareket).'
+      '⚡ Elektrik enerjisi başka enerjilere dönüşür (ışık, ısı, hareket).',
+      '💰 Tüketilen enerji kilovatsaat (kWh) olarak sayaçla ölçülür.',
+      '🏭 Elektrik santralde üretilir, iletim hatlarıyla evlere ulaşır.',
+      '🔆 LED ampuller aynı ışığı çok daha az enerjiyle verir.'
     ]}
   },
   pilNedir: {
@@ -3199,13 +3328,19 @@ const INFO_DATA = {
       '🔋 Pil, içinde elektrik enerjisi depolayan bir araçtır.',
       '➕ Bir artı (+) ucu, ➖ bir eksi (−) ucu vardır.',
       '🔌 Pili bir devreye bağlayınca elektrik akar.',
-      '🎮 Oyuncak, saat, kumanda pille çalışır.'
+      '🎮 Oyuncak, saat, kumanda pille çalışır.',
+      '🔢 Kalem pilin gerilimi 1,5 volttur.',
+      '🔁 Şarjlı piller boşalınca yeniden doldurulabilir.',
+      '🗑️ Biten piller çöpe değil, pil kutusuna atılmalıdır.'
     ]},
     ortaokul: { emoji:'🔋', title:'Pil Nedir?', points:[
       '🔋 Pil, kimyasal enerjiyi elektrik enerjisine çevirir.',
       '➕➖ İki kutbu (+ ve −) arasında gerilim oluşturur.',
       '🔌 Bu gerilim elektronları devrede hareket ettirir.',
-      '⚡ Pilin gerilimi volt (V) ile ölçülür.'
+      '⚡ Pilin gerilimi volt (V) ile ölçülür.',
+      '🔢 Kalem pil 1,5 V; iki pil seri bağlanırsa gerilim 3 V olur.',
+      '🔁 Şarj edilebilen pillere akümülatör denir.',
+      '🚫 Pil bitince kimyasal maddeler tükenir ve gerilim düşer.'
     ]}
   },
   basitDevre: {
@@ -3213,13 +3348,19 @@ const INFO_DATA = {
       '🔌 Devre; pil, tel ve ampulün halka gibi bağlanmasıdır.',
       '🔆 Halka tam (kapalı) ise elektrik akar, ampul yanar.',
       '🔋 Elektrik pilden çıkar, telden geçer, ampule gider, pile döner.',
-      '✂️ Halka bir yerden koparsa elektrik akmaz.'
+      '✂️ Halka bir yerden koparsa elektrik akmaz.',
+      '🔘 Anahtar, bu halkayı istediğimizde açıp kapatmamızı sağlar.',
+      '🔩 Teller metalden yapılır, çünkü metal elektriği iyi geçirir.',
+      '💡 Devreye ikinci bir ampul eklersen ışıkları daha sönük olur.'
     ]},
     ortaokul: { emoji:'🔌', title:'Basit Devre', points:[
       '🔌 Elektrik devresi: kaynak (pil), iletken (tel) ve alıcı (ampul).',
       '🔆 Kapalı devrede akım sürekli bir yol bulur ve akar.',
       '🔁 Akım pilin bir ucundan çıkıp diğerine döner.',
-      '✂️ Açık devrede yol kopuktur, akım geçmez.'
+      '✂️ Açık devrede yol kopuktur, akım geçmez.',
+      '📏 Devre elemanları seri ya da paralel olarak bağlanabilir.',
+      '🔢 Akım ampermetreyle, gerilim voltmetreyle ölçülür.',
+      '⚠️ Kaynağın iki ucu doğrudan birleşirse kısa devre olur, tehlikelidir.'
     ]}
   },
   ampulYanma: {
@@ -3227,13 +3368,19 @@ const INFO_DATA = {
       '💡 Ampulden elektrik geçince içindeki tel ısınır ve ışık verir.',
       '🔆 Akım varsa ampul yanar.',
       '🌑 Akım yoksa ampul söner.',
-      '🔋 Ampulün yanması için kapalı bir devre gerekir.'
+      '🔋 Ampulün yanması için kapalı bir devre gerekir.',
+      '🔆 Pil sayısı artarsa ampul daha parlak yanar.',
+      '🌡️ Ampul yanarken ısınır, çünkü elektriğin bir kısmı ısıya dönüşür.',
+      '💡 LED ampuller daha az ısınır ve daha az elektrik harcar.'
     ]},
     ortaokul: { emoji:'💡', title:'Ampulün Yanması', points:[
       '💡 Akım, ampuldeki ince flamandan geçerken onu kızdırır.',
       '🔆 Kızaran flaman ışık yayar (akkor).',
       '⚡ Akım arttıkça ampul daha parlak yanar.',
-      '🔌 Flaman kopar veya devre açılırsa ampul söner.'
+      '🔌 Flaman kopar veya devre açılırsa ampul söner.',
+      '🌡️ Akkor ampulde enerjinin çoğu ışığa değil, ısıya dönüşür.',
+      '📐 Ampulün gücü P = V·I ile bulunur ve watt (W) ile ölçülür.',
+      '🔗 Seri bağlı ampuller sönük, paralel bağlı ampuller tam parlak yanar.'
     ]}
   },
   anahtar: {
@@ -3241,13 +3388,19 @@ const INFO_DATA = {
       '🔘 Anahtar, devreyi açıp kapatmaya yarar.',
       '🔆 Anahtar kapalıyken yol tamdır, ampul yanar.',
       '⭕ Anahtar açıkken yol kopuktur, ampul söner.',
-      '💡 Evdeki ışık düğmeleri birer anahtardır.'
+      '💡 Evdeki ışık düğmeleri birer anahtardır.',
+      '🔩 Anahtarın içindeki metal parça iki teli birleştirip ayırır.',
+      '🚪 Buzdolabının kapağındaki lamba da bir anahtarla çalışır.',
+      '⚠️ Bir cihazı temizlemeden önce anahtarından kapatmak gerekir.'
     ]},
     ortaokul: { emoji:'🔘', title:'Anahtar (Açık-Kapalı)', points:[
       '🔘 Anahtar, devredeki akım yolunu açıp kapatan elemandır.',
       '🔆 Kapalı anahtar: devre tamamlanır, akım geçer.',
       '⭕ Açık anahtar: devre kopar, akım kesilir.',
-      '🏠 Aydınlatma ve cihaz kontrolünde kullanılır.'
+      '🏠 Aydınlatma ve cihaz kontrolünde kullanılır.',
+      '🔗 Seri anahtar tüm devreyi, paralel anahtar yalnız kendi kolunu keser.',
+      '🪜 İki ayrı noktadan kumanda için vaevien anahtar kullanılır.',
+      '⚠️ Anahtar faz hattına takılmalıdır, yoksa cihaz gerilimde kalır.'
     ]}
   },
   guvenliElektrik: {
@@ -3255,13 +3408,19 @@ const INFO_DATA = {
       '⚠️ Elektrik dikkatsiz kullanılırsa tehlikeli olabilir.',
       '🚫 Prize parmağını veya metal cisim sokma.',
       '💧 Islak elle elektrikli aletlere dokunma.',
-      '👨‍👩‍👧 Bir sorun olduğunda büyüklerden yardım iste.'
+      '👨‍👩‍👧 Bir sorun olduğunda büyüklerden yardım iste.',
+      '🔌 Fişi kablosundan değil, gövdesinden tutarak çek.',
+      '⚡ Elektrik direklerine ve trafo kutularına asla yaklaşma.',
+      '🚿 Banyoda ve küvet yakınında elektrikli cihaz kullanılmaz.'
     ]},
     ortaokul: { emoji:'⚠️', title:'Güvenli Elektrik', points:[
       '⚠️ Yüksek gerilim ve akım insana zarar verebilir.',
       '🚫 Çıplak kablolara ve prizlere dokunulmamalıdır.',
       '💧 Su elektriği ilettiği için ıslak ortamda dikkatli olunmalı.',
-      '🔌 Bozuk kablo ve aşırı yüklenmiş prizler yangın riski taşır.'
+      '🔌 Bozuk kablo ve aşırı yüklenmiş prizler yangın riski taşır.',
+      '⏚ Topraklama ve sigorta, çarpılma ile yangına karşı temel korumadır.',
+      '🔧 Onarımdan önce mutlaka sigorta kapatılmalıdır.',
+      '⚡ İnsan için asıl tehlike gerilim değil, vücuttan geçen akımdır.'
     ]}
   },
   iletkenYalitkan: {
@@ -3269,13 +3428,19 @@ const INFO_DATA = {
       '🔩 İletken: elektriği geçiren maddeler (metal, demir).',
       '🧱 Yalıtkan: elektriği geçirmeyen maddeler (plastik, tahta, cam).',
       '🔆 Devreye metal koyunca ampul yanar (iletken).',
-      '🌑 Devreye plastik koyunca ampul yanmaz (yalıtkan).'
+      '🌑 Devreye plastik koyunca ampul yanmaz (yalıtkan).',
+      '🔌 Kabloların içi bakır teldir, dışı plastik kılıftır.',
+      '💧 Tuzlu su ve nemli toprak da elektriği geçirir.',
+      '🧤 Elektrikçiler yalıtkan eldiven ve saplı aletler kullanır.'
     ]},
     ortaokul: { emoji:'🔩', title:'İletken / Yalıtkan', points:[
       '🔩 İletkenlerde elektronlar serbestçe hareket edebilir (metaller).',
       '🧱 Yalıtkanlarda elektronlar bağlıdır, akım geçmez (plastik, cam).',
       '🔌 Kablolar: içi bakır (iletken), dışı plastik (yalıtkan).',
-      '🧪 Bir maddenin iletkenliği basit devre ile test edilebilir.'
+      '🧪 Bir maddenin iletkenliği basit devre ile test edilebilir.',
+      '🥇 En iyi iletkenler gümüş, bakır ve altındır; kabloda bakır seçilir.',
+      '💧 Saf su yalıtkandır; içindeki tuzlar suyu iletken yapar.',
+      '🌡️ Metallerde sıcaklık arttıkça direnç artar, iletkenlik azalır.'
     ]}
   }
   ,
@@ -3285,12 +3450,18 @@ const INFO_DATA = {
       '🟢 Su pompası = Gerilim (Volt): suyu iten güçtür.',
       '🟤 Borunun darlığı = Direnç (Ohm): akışı zorlaştırır.',
       '🔵 Akan su miktarı = Akım (Amper): borudan geçen elektriktir.',
-      '⚡ Pompa güçlenince su hızlanır; boru daralınca su yavaşlar.'
+      '⚡ Pompa güçlenince su hızlanır; boru daralınca su yavaşlar.',
+      '🚰 Bu benzetme V = I·R bağıntısını anlamayı kolaylaştırır.',
+      '⚠️ Benzetme bir modeldir; elektronlar suda olduğu gibi akmaz.'
     ]},
     lise: { emoji:'💧', title:'Su Borusu Analojisi', points:[
       '💧 Gerilim (V), direnç (R) ve akım (I) arasındaki ilişki su modeliyle sezgisel anlaşılır.',
       '🟢 Pompa basıncı gerilime, boru kesiti dirence, debi akıma karşılık gelir.',
-      '📐 Bu benzetme Ohm yasasının (I = V/R) temelini oluşturur.'
+      '📐 Bu benzetme Ohm yasasının (I = V/R) temelini oluşturur.',
+      '⚡ Su çarkı, devredeki alıcıya (ampul, motor) karşılık gelir.',
+      '🔗 Tek boru seri devreye, kollara ayrılan boru paralel devreye benzer.',
+      '🚰 Depodaki su miktarı yükü (Q), debisi ise akımı (I) temsil eder.',
+      '⚠️ Modelin sınırı: elektronların sürüklenme hızı gerçekte çok küçüktür.'
     ]}
   },
   ampermetre: {
@@ -3298,12 +3469,19 @@ const INFO_DATA = {
       '🔢 Ampermetre, devreden geçen elektrik akımını ölçen alettir.',
       '✅ Her zaman devreye SERİ (akımın geçtiği yola) bağlanır.',
       '❌ Paralel bağlanırsa doğru ölçüm yapmaz.',
-      '⚡ Birimi amperdir (A).'
+      '⚡ Birimi amperdir (A).',
+      '🔬 İç direnci çok küçüktür, böylece devreyi neredeyse etkilemez.',
+      '🔢 Gerilimi ölçen voltmetre ise tam tersine paralel bağlanır.',
+      '⚠️ Ampermetrenin uçları doğrudan pile bağlanmamalıdır.'
     ]},
     lise: { emoji:'🔢', title:'Ampermetre Bağlama', points:[
       '🔢 İdeal ampermetrenin iç direnci sıfırdır, devreye seri bağlanır.',
       '✅ Seri bağlama, tüm akımın ölçüm aletinden geçmesini sağlar.',
-      '⚠️ Yanlış (paralel) bağlama kısa devreye yol açabilir.'
+      '⚠️ Yanlış (paralel) bağlama kısa devreye yol açabilir.',
+      '🔢 Voltmetrenin iç direnci ise çok büyüktür ve paralel bağlanır.',
+      '📐 Gerçek ampermetrenin iç direnci r ise ölçülen akım biraz küçük çıkar.',
+      '🔀 Ölçüm aralığını büyütmek için paralel şönt direnç eklenir.',
+      '⚡ Doğru akımda uçlar kutuplara uygun biçimde bağlanmalıdır.'
     ]}
   },
   ohmKanunu: {
@@ -3311,13 +3489,19 @@ const INFO_DATA = {
       '📐 Ohm Kanunu: Gerilim = Akım × Direnç (V = I · R).',
       '⬆️ Gerilim artarsa akım artar (elektronlar hızlanır).',
       '🟤 Direnç artarsa akım azalır (elektronlar atomlara çarpıp yavaşlar).',
-      '🔢 Akım = Gerilim / Direnç (I = V / R) formülüyle bulunur.'
+      '🔢 Akım = Gerilim / Direnç (I = V / R) formülüyle bulunur.',
+      '🔢 Birimler: gerilim volt (V), akım amper (A), direnç ohm (Ω).',
+      '🌡️ Direnç; telin cinsine, uzunluğuna, kalınlığına ve sıcaklığına bağlıdır.',
+      '💡 Aynı pile bağlı dirençlerden küçük olandan daha çok akım geçer.'
     ]},
     lise: { emoji:'📐', title:'Ohm Kanunu', points:[
       '📐 V = I · R; gerilim, akım ve direnç arasındaki temel ilişkidir.',
       '📈 Sabit dirençte akım, gerilimle doğru orantılıdır.',
       '🟤 Direnç, iletkenin akıma karşı gösterdiği zorluktur (birimi ohm, Ω).',
-      '⚡ Bu yasa devre analizinin temelidir.'
+      '⚡ Bu yasa devre analizinin temelidir.',
+      '📐 Telin direnci R = ρ·L/A ile bulunur (ρ özdirenç, L boy, A kesit).',
+      '🌡️ Metallerde sıcaklık artınca direnç büyür ve akım azalır.',
+      '📈 V–I grafiğinin eğimi direnci verir; doğrusalsa eleman ohmiktir.'
     ]}
   },
   paralelDevre: {
@@ -3326,13 +3510,18 @@ const INFO_DATA = {
       '⚠️ Seri devrede bir lamba sönerse tüm devre söner.',
       '🏠 Paralel bağlamada her eleman ayrı bir kol üzerindedir.',
       '✅ Paralel devrede bir lamba sönse bile diğerleri yanmaya devam eder.',
-      '🏡 Evlerdeki elektrik tesisatı bu yüzden paralel bağlanır.'
+      '🏡 Evlerdeki elektrik tesisatı bu yüzden paralel bağlanır.',
+      '🔢 Seride akım her yerde aynı, paralelde gerilim her kolda aynıdır.',
+      '🎄 Eski yılbaşı ışıkları seri bağlıdır; bir ampul yanınca hepsi söner.'
     ]},
     lise: { emoji:'🏠', title:'Seri ve Paralel Devre', points:[
       '🔗 Seri devrede akım her elemandan aynı geçer, gerilim paylaşılır.',
       '🏠 Paralel devrede gerilim her kolda aynı, akım kollara dağılır.',
       '📐 Seri: R_eş = R₁+R₂+... · Paralel: 1/R_eş = 1/R₁+1/R₂+...',
-      '✅ Paralel kollar birbirinden bağımsız çalışır.'
+      '✅ Paralel kollar birbirinden bağımsız çalışır.',
+      '📉 Paralelde eşdeğer direnç, en küçük dirençten bile küçüktür.',
+      '🔀 Paralel kollarda akım, dirençle ters orantılı olarak paylaşılır.',
+      '⚠️ Sık hata: paralelde dirençleri toplamak; doğrusu terslerini toplamaktır.'
     ]}
   },
   gucFatura: {
@@ -3341,7 +3530,9 @@ const INFO_DATA = {
       '⚡ Güç ayrıca P = I² · R ve P = V²/R şeklinde de yazılır, birimi watttır (W).',
       '🔌 Fırın gibi yüksek güçlü cihazlar çok akım çeker ve hızlı ısınır.',
       '💰 Tüketilen enerji (kWh) elektrik faturasını belirler.',
-      '⏱️ Güç arttıkça elektrik sayacı daha hızlı döner.'
+      '⏱️ Güç arttıkça elektrik sayacı daha hızlı döner.',
+      '💡 1 kWh, 1000 W gücündeki bir cihazın 1 saatte harcadığı enerjidir.',
+      '🔥 Isınmanın nedeni Joule etkisidir: açığa çıkan ısı Q = I²·R·t kadardır.'
     ]}
   },
   jenerator: {
@@ -3350,7 +3541,9 @@ const INFO_DATA = {
       '🧲 Mıknatıs bobine girip çıktıkça bobinde gerilim (EMK) oluşur.',
       '〰️ Üretilen akım yön değiştirir; buna alternatif akım (AC) denir.',
       '⚡ Mıknatıs hızlı hareket ederse üretilen gerilim ve frekans artar.',
-      '🏭 Elektrik santralleri bu prensiple çalışır (Faraday Yasası).'
+      '🏭 Elektrik santralleri bu prensiple çalışır (Faraday Yasası).',
+      '📐 İndüklenen EMK Faraday yasasıyla verilir: ε = −N·ΔΦ/Δt.',
+      '🔁 Şebeke geriliminin frekansı 50 Hz, etkin değeri 220 V düzeyindedir.'
     ]}
   },
   rcDevre: {
@@ -3359,7 +3552,9 @@ const INFO_DATA = {
       '🔋 Anahtar kapanınca kondansatör zamanla dolar (anında değil).',
       '📈 Dolum üstel (logaritmik) bir eğri çizer: Q(t) = Q₀(1−e^(−t/τ)).',
       '⏳ Zaman sabiti τ = R · C; dolma hızını belirler.',
-      '🟤 Direnç veya sığa büyürse kondansatör daha yavaş dolar.'
+      '🟤 Direnç veya sığa büyürse kondansatör daha yavaş dolar.',
+      '⏳ Bir τ süresi sonunda kondansatör son yükünün yaklaşık %63 kadarına ulaşır.',
+      '🔌 Kondansatör tam dolunca akım sıfırlanır, kol açık devre gibi davranır.'
     ]}
   }
   ,
@@ -3368,12 +3563,19 @@ const INFO_DATA = {
       '🌩️ Bulutların içinde sürtünmeyle çok miktarda yük (−) birikir.',
       '⚡ Bulutun altında eksi, yerde ise artı yükler toplanır.',
       '💥 Yük farkı çok büyüyünce hava yalıtkanlığını kaybeder ve yıldırım çakar.',
-      '🔌 Yıldırım, devasa bir elektrik boşalmasıdır (statik elektrik).'
+      '🔌 Yıldırım, devasa bir elektrik boşalmasıdır (statik elektrik).',
+      '🔊 Aniden ısınıp genleşen hava gök gürültüsünü oluşturur.',
+      '⏱️ Şimşeği önce görürüz, çünkü ışık sesten çok daha hızlıdır.',
+      '🏠 Fırtınada açık alanda değil, bina veya araç içinde durulmalıdır.'
     ]},
     lise: { emoji:'🌩️', title:'Yıldırım', points:[
       '🌩️ Bulut-yer arasındaki potansiyel farkı kritik değere ulaşınca dielektrik delinme olur.',
       '⚡ Yıldırım, biriken yükün ani boşalmasıyla oluşan yüksek akımlı bir kıvılcımdır.',
-      '🏠 Paratonerler bu boşalmayı güvenle toprağa iletir.'
+      '🏠 Paratonerler bu boşalmayı güvenle toprağa iletir.',
+      '📐 Havanın delinme dayanımı yaklaşık 3×10⁶ V/m düzeyindedir.',
+      '⚡ Yıldırım akımı 30.000 amperi aşabilir, süresi milisaniyelerdir.',
+      '📌 Paratonerin sivri ucu, uç etkisiyle boşalmayı kendine çeker.',
+      '🔊 Kanaldaki ani ısınma şok dalgası üretir; bu ses gök gürültüsüdür.'
     ]}
   },
   sagElKurali: {
@@ -3382,7 +3584,9 @@ const INFO_DATA = {
       '👍 Sağ el kuralı: başparmak akım yönünü (I) gösterirken, kıvrılan parmaklar manyetik alanın yönünü verir.',
       '🔄 Akım yönü tersine çevrilirse manyetik alanın yönü de tersine döner.',
       '🧭 Bu alan bir pusula iğnesini saptıracak kadar gerçektir (Oersted deneyi).',
-      '⚡ Akımın manyetik etkisi, elektrik motorlarının ve jeneratörlerin temelidir.'
+      '⚡ Akımın manyetik etkisi, elektrik motorlarının ve jeneratörlerin temelidir.',
+      '📐 Düz telin alanı B = μ₀·I/(2π·d) ile bulunur, uzaklıkla ters orantılıdır.',
+      '🌀 Bobin (solenoid) içinde alan düzgündür ve çubuk mıknatısınkine benzer.'
     ]}
   }
 };
@@ -4009,7 +4213,7 @@ function makeGridSystem(opts = {}) {
   const gWall = new THREE.GridHelper(size, divisions, cMain, cSub);
   gWall.rotation.x = Math.PI / 2; gWall.position.z = -0.05;
   gWall.material.transparent = true; gWall.material.opacity = isLight ? 0.35 : 0.18;
-  grp.add(gWall);
+  gWall.visible = false; grp.add(gWall);
   return grp;
 }
 
@@ -7643,9 +7847,9 @@ function applySceneTheme() {
   const isLight = window._lightMode === true;
   let bgColor, fogColor, fogNear, fogFar;
   if (isLight) {
-    bgColor = 0xE3E7ED; fogColor = 0xe4ecf6; fogNear = 45; fogFar = 110;
+    bgColor = 0xFAFAFA; fogColor = 0xe4ecf6; fogNear = 45; fogFar = 110;
   } else {
-    bgColor = 0xE3E7ED; fogColor = 0x1e2740; fogNear = 45; fogFar = 110;
+    bgColor = 0xFAFAFA; fogColor = 0xe4ecf6; fogNear = 45; fogFar = 110;
   }
   scene.background = new THREE.Color(bgColor);
   scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
@@ -7757,7 +7961,7 @@ function updateInfoPanel(subKey) {
       if (_extraPts.length) points = points.concat(['## Daha Fazla Ayrıntı'], _extraPts);
     }
   }
-  const showCount = (currentMode === 'sade') ? 3 : points.length;
+  const showCount = (currentMode === 'sade') ? 6 : points.length;
   // Satır başındaki ikon/emojileri temizleyen yardımcı (madde başında ikon olmasın)
   const stripIcon = (txt) => txt.replace(/^\s*(?:[\p{Extended_Pictographic}️‍⃣]\s*)+/u, '').trim();
   points.slice(0, showCount).forEach(p => {
@@ -9102,8 +9306,7 @@ function positionPaletteUnder(){
   margin:0 14px 2px !important;
   padding:6px 14px !important;
   display:grid !important;
-  grid-template-columns:1fr 1fr 1fr !important;
-  justify-items:center !important;
+  grid-template-columns:1fr auto 1fr !important;
   align-items:center !important;
   width:auto !important;
   box-sizing:border-box !important;
@@ -9157,36 +9360,36 @@ function positionPaletteUnder(){
    +'.bq-go b{font:800 18px "Bricolage Grotesque",system-ui}.bq-go small{display:block;font:600 10px system-ui;opacity:.72;margin-top:1px}.bq-go:hover{filter:brightness(1.3)}'
    +'.bq-desc{font:500 10.5px system-ui;color:#8aa0c4;text-align:center;margin-bottom:6px;line-height:1.35;min-height:26px}'
    +'#bqPickClose{margin-top:14px;width:100%;border:1px solid #2b405d;background:transparent;color:#aebbd6;border-radius:12px;padding:10px;font:700 13px system-ui;cursor:pointer}'
-   +'#bqOverlay{position:fixed;inset:0;background:#34373d;z-index:1000;display:none;flex-direction:column}#bqOverlay.on{display:flex}'
-   +'.bq-oh{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid #2b2e34;background:#26282d}'
-   +'.bq-oh #bqTitle{font:800 14.5px "Bricolage Grotesque",system-ui;color:#eaf2ff;flex:1;line-height:1.2}'
-   +'.bq-oh #bqTitle small{display:block;font:600 11px system-ui;color:#7e95bf;margin-top:2px}'
-   +'#bqTimer{font:700 12.5px "DM Mono",monospace;color:#ffb24e}'
-   +'.bq-cevap{font:700 11.5px "DM Mono",monospace;color:#ffb24e;border:1px solid #ffb24e66;border-radius:20px;padding:4px 11px;white-space:nowrap}'
-   +'#bqClose{border:none;background:#16294a;color:#cdd9f0;width:34px;height:34px;border-radius:9px;font-size:16px;cursor:pointer}'
+   +'#bqOverlay{position:fixed;inset:0;background:#f2f4f7;z-index:1000;display:none;flex-direction:column}#bqOverlay.on{display:flex}'
+   +'.bq-oh{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid #d5dbe6;background:#eef1f5}'
+   +'.bq-oh #bqTitle{font:800 14.5px "Bricolage Grotesque",system-ui;color:#111318;flex:1;line-height:1.2}'
+   +'.bq-oh #bqTitle small{display:block;font:600 11px system-ui;color:#3f4c66;margin-top:2px}'
+   +'#bqTimer{font:700 12.5px "DM Mono",monospace;color:#c2410c}'
+   +'.bq-cevap{font:700 11.5px "DM Mono",monospace;color:#c2410c;border:1px solid #c2410c55;border-radius:20px;padding:4px 11px;white-space:nowrap}'
+   +'#bqClose{border:none;background:#e2e8f0;color:#111318;width:34px;height:34px;border-radius:9px;font-size:16px;cursor:pointer}'
    +'#bqScroll{flex:1;overflow:auto;padding:16px 14px 48px;-webkit-overflow-scrolling:touch}'
-   +'.bq-q{background:linear-gradient(162deg,#52565f,#42454c);border:1px solid #6a6f79;border-radius:16px;padding:15px 16px;margin:0 auto 14px;max-width:680px;box-shadow:0 6px 20px rgba(0,0,0,.28)}'
-   +'.bq-qn{font:800 11px "DM Mono",monospace;color:#9fd0ff;letter-spacing:.5px}'
-   +'.bq-qt{font:600 15px system-ui;color:#f1f6ff;margin:7px 0 10px;line-height:1.5}'
+   +'.bq-q{background:#ffffff;border:1px solid #d5dbe6;border-radius:16px;padding:15px 16px;margin:0 auto 14px;max-width:680px;box-shadow:0 6px 20px rgba(0,0,0,.10)}'
+   +'.bq-qn{font:800 11px "DM Mono",monospace;color:#2563eb;letter-spacing:.5px}'
+   +'.bq-qt{font:600 15px system-ui;color:#111318;margin:7px 0 10px;line-height:1.5}'
    +'.bq-fig{background:#f5f7fa;border:1px solid #d4dcea;border-radius:10px;padding:10px;margin:2px auto 12px;max-width:420px;text-align:center}'
    +'.bq-fig svg{max-width:100%;height:auto;display:block;margin:0 auto}'
    +'.bq-stp .bq-fig{max-width:340px;margin:6px 0}'
    +'.bq-opts{display:flex;flex-wrap:wrap;gap:8px}'
-   +'.bq-opt{display:flex;gap:8px;align-items:center;text-align:left;border:1.5px solid #6b7079;background:rgba(255,255,255,.07);color:#f0f2f6;border-radius:11px;padding:9px 12px;font:600 13.5px system-ui;cursor:pointer}'
-   +'.bq-opt .ql{width:22px;height:22px;flex:none;border-radius:6px;background:#5a5e67;color:#eef1f5;font:800 11px "DM Mono",monospace;display:flex;align-items:center;justify-content:center}'
-   +'.bq-opt.ok{border-color:#27a567;background:rgba(39,165,103,.22);color:#7ef0b4}.bq-opt.ok .ql{background:#27a567;color:#06210d}'
-   +'.bq-opt.no{border-color:#d2546a;background:rgba(210,84,106,.2);color:#ff9fae}.bq-opt.no .ql{background:#d2546a}'
-   +'.bq-fb{font:700 12.5px system-ui;margin-top:10px}.bq-fb.ok{color:#7ef0b4}.bq-fb.no{color:#ff9fae}'
-   +'.bq-soltgl{display:block;margin-left:auto;margin-top:11px;border:1px solid #ffcf6b66;background:transparent;color:#ffcf6b;border-radius:9px;padding:6px 12px;font:700 12px system-ui;cursor:pointer}'
-   +'.bq-sol{display:none;margin-top:11px;border-top:1px dashed #ffffff2e;padding-top:11px}.bq-sol.on{display:block}'
+   +'.bq-opt{display:flex;gap:8px;align-items:center;text-align:left;border:1.5px solid #c9d2e0;background:#ffffff;color:#111318;border-radius:11px;padding:9px 12px;font:600 13.5px system-ui;cursor:pointer}'
+   +'.bq-opt .ql{width:22px;height:22px;flex:none;border-radius:6px;background:#e2e8f0;color:#111318;font:800 11px "DM Mono",monospace;display:flex;align-items:center;justify-content:center}'
+   +'.bq-opt.ok{border-color:#27a567;background:rgba(39,165,103,.12);color:#0e7a45}.bq-opt.ok .ql{background:#27a567;color:#ffffff}'
+   +'.bq-opt.no{border-color:#d2546a;background:rgba(210,84,106,.10);color:#b02a37}.bq-opt.no .ql{background:#d2546a;color:#ffffff}'
+   +'.bq-fb{font:700 12.5px system-ui;margin-top:10px}.bq-fb.ok{color:#0e7a45}.bq-fb.no{color:#b02a37}'
+   +'.bq-soltgl{display:block;margin-left:auto;margin-top:11px;border:1px solid #b4530966;background:transparent;color:#b45309;border-radius:9px;padding:6px 12px;font:700 12px system-ui;cursor:pointer}'
+   +'.bq-sol{display:none;margin-top:11px;border-top:1px dashed #00000026;padding-top:11px}.bq-sol.on{display:block}'
    +'.bq-stp{border-left:3px solid #34d399;padding:4px 0 4px 11px;margin:8px 0}'
-   +'.bq-stp .sn{font:800 10px "DM Mono",monospace;color:#34d399;letter-spacing:.5px}'
-   +'.bq-stp .so{font:500 14px system-ui;color:#eaf2ff;margin-top:2px}'
-   +'.bq-stp .sa{font:700 13px system-ui;color:#ffd27a;margin-top:2px}'
-   +'.bq-dtg{display:block;margin-left:auto;width:fit-content;margin-top:5px;border:1px solid #ffffff33;background:rgba(255,255,255,.05);color:#ffd27a;font:600 11px system-ui;cursor:pointer;padding:4px 9px;border-radius:7px}'
-   +'.bq-dd{display:none;font:500 12.5px system-ui;color:#cfe0ff;background:rgba(255,255,255,.06);border-radius:8px;padding:8px 10px;margin-top:5px;line-height:1.45}.bq-dd.on{display:block}'
-   +'.bq-ans{margin-top:11px;background:rgba(39,165,103,.18);border:1px solid #27a567;border-radius:10px;padding:9px 12px;font:700 13.5px system-ui;color:#7ef0b4}'
-   +'.bq-empty{max-width:520px;margin:50px auto;text-align:center;color:#8aa0c4;font:500 14px system-ui;line-height:1.7}';
+   +'.bq-stp .sn{font:800 10px "DM Mono",monospace;color:#0e7a45;letter-spacing:.5px}'
+   +'.bq-stp .so{font:500 14px system-ui;color:#111318;margin-top:2px}'
+   +'.bq-stp .sa{font:700 13px system-ui;color:#b45309;margin-top:2px}'
+   +'.bq-dtg{display:block;margin-left:auto;width:fit-content;margin-top:5px;border:1px solid #00000026;background:rgba(0,0,0,.04);color:#b45309;font:600 11px system-ui;cursor:pointer;padding:4px 9px;border-radius:7px}'
+   +'.bq-dd{display:none;font:500 12.5px system-ui;color:#243044;background:rgba(0,0,0,.05);border-radius:8px;padding:8px 10px;margin-top:5px;line-height:1.45}.bq-dd.on{display:block}'
+   +'.bq-ans{margin-top:11px;background:rgba(39,165,103,.12);border:1px solid #27a567;border-radius:10px;padding:9px 12px;font:700 13.5px system-ui;color:#0e7a45}'
+   +'.bq-empty{max-width:520px;margin:50px auto;text-align:center;color:#5a6a88;font:500 14px system-ui;line-height:1.7}';
   var st=document.createElement('style'); st.textContent=css; document.head.appendChild(st);
   var wrap=document.createElement('div');
   wrap.innerHTML=''
@@ -9247,6 +9450,241 @@ function positionPaletteUnder(){
   document.getElementById('bqClose').addEventListener('click',closeOverlay);
   window.bqOpenStep=openPickStep; window.bqOpenMix=openPickMix;
 
+})();
+</script>
+<style id="dockCenterFix">#bottomDock #toolsRow > *{margin:0 !important;} #bottomDock #toolsRow > :first-child{justify-self:start !important;} #bottomDock #toolsRow > :last-child{justify-self:end !important;}</style>
+<style id="helpHideV1">#btnHelp,#b-help,.scene-help,.tool-icon-btn.help{display:none !important;}</style>
+
+<style id="halfPanelV1">
+/* Bilgi paneli daima ekranin YARISI kadar; 3D sahne ile kesismez (halfPanelV1) */
+/* Once KOSULSUZ tavan: :has() desteklenmese bile panel yariyi asamaz ve
+   yazi alt sekmelerin altina giremez (eski WebView guvenligi). */
+#bottomDock{ max-height:50vh !important; box-sizing:border-box; overflow:visible !important; }
+/* Destekleyen tarayicida panel acikken tam yarim ekran */
+#bottomDock:has(.bottom-panel:not(.hidden):not(.vars-hidden):not(.info-mini)){ height:50vh !important; }
+#bottomDock .bottom-panel{ flex:1 1 auto !important; min-height:0 !important; display:flex; flex-direction:column; overflow:visible !important; }
+/* Yazi alani: alt eylem sekmelerinin (action-row) USTUNDE kalir, sigmazsa
+   yalniz .info-list icinde kayar — sekmelerin altina asla girmez. */
+#bottomDock .bottom-panel:not(.info-mini) .info-area{ flex:1 1 auto !important; min-height:0 !important; display:flex !important; }
+#bottomDock .bottom-panel:not(.info-mini) .info-text-area{ flex:1 1 auto !important; min-width:0; min-height:0 !important; display:flex !important; flex-direction:column !important; }
+#bottomDock .bottom-panel .info-title-row, #bottomDock .bottom-panel .info-page-ind{ flex:0 0 auto !important; }
+#bottomDock .bottom-panel:not(.info-mini) .info-scroll-wrap{ flex:1 1 auto !important; min-height:0 !important; overflow:hidden !important; display:flex; flex-direction:column; }
+#bottomDock .bottom-panel .info-list{ flex:1 1 auto !important; min-height:0 !important; max-height:none !important; overflow-y:auto !important; }
+#bottomDock .bottom-panel .action-row{ flex:0 0 auto !important; }
+/* ── KAYDIRMA DUZELTMESI ────────────────────────────────────────────────
+   .info-area taban CSS'te "align-items:flex-start" idi: satir yonlu flex'te
+   bu, yazi alaninin yuksekligini ICERIGE gore buyutuyor -> liste hic kisalmiyor,
+   scrollHeight==clientHeight oldugu icin NE kaydirma NE de kaydirma cubugu
+   calisiyordu; tasan yazi alt sekmelerin altinda kayboluyordu.
+   stretch ile yazi alani panele sigar, fazlasi .info-list icinde kayar. */
+#bottomDock .bottom-panel:not(.info-mini) .info-area{ align-items:stretch !important; }
+#bottomDock .bottom-panel .info-emoji-box{ align-self:flex-start !important; flex:0 0 auto !important; }
+/* dikey kaydirma gostergesi (sag kenar) her zaman dogru konumlansin */
+#bottomDock .bottom-panel .info-scroll-wrap{ position:relative !important; }
+#bottomDock .bottom-panel .info-scrollbar{ z-index:6 !important; }
+/* ✕ kapatma dugmesi: panelin ustune tasar, her zaman ON PLANDA ve okunur */
+#bottomDock .bottom-panel .info-close-btn{
+  z-index:60 !important;
+  background:#ffffff !important;
+  border:2px solid #2f8fd0 !important;
+  color:#10131f !important;
+  box-shadow:0 2px 10px rgba(0,0,0,.45) !important;
+}
+#bottomDock .bottom-panel .info-resize-handle{ z-index:55 !important; }
+/* ── KUCULTULMUS (mini) DURUM ──────────────────────────────────────────
+   ✕ ile kucultuldugunde panel yalnizca tek satirlik cip olarak kalir;
+   yarim ekran yuksekligi ve icerik gorunurlugu zorlanmaz. */
+#bottomDock .bottom-panel.info-mini{ flex:0 0 auto !important; min-height:0 !important; }
+#bottomDock .bottom-panel.info-mini > *:not(.info-mini-chip){ display:none !important; }
+/* panel disina tasan kontroller kirpilmasin (kapatma / boyutlandirma) */
+#bottomDock .bottom-panel .info-close-btn,
+#bottomDock .bottom-panel .info-resize-handle,
+#bottomDock .bottom-panel .info-mini-chip{ z-index:40 !important; }
+
+</style>
+<script id="halfFitV1">
+(function(){
+  if(window.__halfFitV1) return; window.__halfFitV1=1;
+  /* 3D icerik ekranin UST YARISINDA kalsin: sayfanin her-kare setViewOffset
+     cagrisi sarmalanir (ek dikey ofset), boyut icin camera.zoom ayarlanir. */
+  function cam(){ var c=window.camera;
+    if(c&&(c.isPerspectiveCamera||c.isOrthographicCamera)) return c;
+    try{ if(typeof camera!=='undefined'&&camera&&(camera.isPerspectiveCamera||camera.isOrthographicCamera)) return camera; }catch(e){}
+    return null; }
+  function scn(){ var s=window.scene; if(s&&s.isScene) return s;
+    try{ if(typeof scene!=='undefined'&&scene&&scene.isScene) return scene; }catch(e){}
+    return null; }
+  var box=null,tmp=null,corners=null;
+  var TOPB=0.92, BOTB=0.06, XREF=0.90; /* NDC bant: ust yari (0 = ekran ortasi) */
+  function fit(){
+    try{
+      var c=cam(), s=scn(); if(!c||!s||!window.THREE) return;
+      if(!c.__hfPatch){
+        c.__hfPatch=1; c.__hfExtra=0;
+        var orig=c.setViewOffset.bind(c);
+        c.__hfOrig=orig;
+        c.setViewOffset=function(fw,fh,x,y,w,h){ c.__hfSVO=1; return orig(fw,fh,x,y+(c.__hfExtra||0),w,h); };
+      }
+      if(!box){ box=new THREE.Box3(); tmp=new THREE.Box3(); corners=[]; for(var i=0;i<8;i++)corners.push(new THREE.Vector3()); }
+      box.makeEmpty(); var has=false;
+      s.updateMatrixWorld(true);
+      s.traverse(function(o){
+        if(!o.visible) return;
+        if(!(o.isMesh||o.isSprite||o.isLine||o.isPoints)) return;
+        var p=o.parent; while(p){ if(p.visible===false) return; p=p.parent; }
+        tmp.setFromObject(o);
+        if(!isFinite(tmp.min.x)||!isFinite(tmp.max.x)) return;
+        var sx=tmp.max.x-tmp.min.x, sy=tmp.max.y-tmp.min.y, sz=tmp.max.z-tmp.min.z;
+        if(sx>60||sy>60||sz>60) return;           /* dev dekor/zemin */
+        if(sy<0.15&&(sx>14||sz>14)) return;        /* duz-genis zemin */
+        box.union(tmp); has=true;
+      });
+      if(!has||box.isEmpty()) return;
+      var mn=box.min,mx=box.max,k=0;
+      for(var xi=0;xi<2;xi++)for(var yi=0;yi<2;yi++)for(var zi=0;zi<2;zi++)corners[k++].set(xi?mx.x:mn.x,yi?mx.y:mn.y,zi?mx.z:mn.z);
+      c.updateMatrixWorld(true);
+      var maxX=0, loY=Infinity, hiY=-Infinity, seen=false;
+      for(var j=0;j<8;j++){
+        var pr=corners[j].clone().project(c);
+        if(isFinite(pr.x)&&isFinite(pr.y)&&pr.z<1){ seen=true;
+          maxX=Math.max(maxX,Math.abs(pr.x));
+          loY=Math.min(loY,pr.y); hiY=Math.max(hiY,pr.y); }
+      }
+      if(!seen) return;
+      var H=window.innerHeight||1;
+      /* 1) konum: alt kenar bandin altina sarkiyorsa ek ofsetle yukari al */
+      var needUp=BOTB-loY, needDown=hiY-TOPB;
+      if(needUp>0.02){
+        c.__hfExtra=Math.min((c.__hfExtra||0)+needUp*0.9*(H/2), H*0.35);
+      } else if(needDown>0.02 && loY>BOTB+0.04){
+        var back=Math.min(needDown, loY-BOTB);
+        c.__hfExtra=Math.max((c.__hfExtra||0)-back*0.9*(H/2), -H*0.15);
+      }
+      /* sayfa setViewOffset kullanmiyorsa ofseti kendimiz uygula */
+      if(!c.__hfSVO && Math.abs(c.__hfExtra||0)>1){
+        c.__hfOrig(window.innerWidth,H,0,c.__hfExtra,window.innerWidth,H);
+      }
+      /* 2) boyut: banda sigmiyorsa zoom-out, cok kucukse sinirli zoom-in */
+      if(c.__hfBase==null) c.__hfBase=c.zoom||1;
+      var mY=(hiY-loY)/(TOPB-BOTB);
+      var m=Math.max(maxX/XREF, mY);
+      var t=c.zoom;
+      if(m>1.02) t=Math.max(0.35, c.zoom/m);
+      else if(m<0.88) t=Math.min(c.__hfBase*1.6, c.zoom*(0.95/Math.max(m,0.05)));
+      if(Math.abs(t-c.zoom)/(c.zoom||1)>0.03){ c.zoom=t; c.updateProjectionMatrix(); }
+    }catch(e){}
+  }
+  /* Bilgi panelini buyut/kucult tutamaci: artik --info-h yerine DOCK
+     yuksekligini ayarlar (liste flex ile paneli doldurdugu icin). Tavan 50vh,
+     taban 22vh — yazi hicbir zaman alt sekmelerin altina inmez. */
+  (function(){
+    function wire(){
+      var h=document.getElementById('infoResizeHandle'), d=document.getElementById('bottomDock');
+      if(!h||!d||h.__hfWired) return true;
+      h.__hfWired=1;
+      var drag=false,sy=0,sh=0;
+      function cap(){ return Math.round(window.innerHeight*0.50); }
+      function floorH(){ return Math.round(window.innerHeight*0.22); }
+      function down(e){ drag=true; sy=(e.touches?e.touches[0].clientY:e.clientY);
+        sh=d.getBoundingClientRect().height||cap(); }
+      function move(e){ if(!drag) return;
+        var y=(e.touches?e.touches[0].clientY:e.clientY);
+        var nh=Math.max(floorH(),Math.min(cap(),sh+(sy-y)));
+        d.style.setProperty('height',nh+'px','important');
+        d.style.setProperty('max-height',nh+'px','important'); }
+      function up(){ drag=false; }
+      h.addEventListener('touchstart',down,{passive:true});
+      window.addEventListener('touchmove',move,{passive:true});
+      window.addEventListener('touchend',up);
+      h.addEventListener('mousedown',down);
+      window.addEventListener('mousemove',move);
+      window.addEventListener('mouseup',up);
+      return true;
+    }
+    if(!wire()){ var n=0,iv=setInterval(function(){ if(wire()||++n>20) clearInterval(iv); },400); }
+  })();
+  /* ── Palet arka plani TUM sahnelerde kalici ─────────────────────────────
+     Sahne degisiminde sayfa kodu scene.background'i yeniden atiyor ve
+     kullanicinin sectigi rengi eziyordu. Secim varsa okuma kilitlenir;
+     sahne kodu yazmaya devam eder ama gorunen renk kullanicininki kalir. */
+  (function(){
+    var locked=null;
+    function lockScene(s){
+      if(!s||s.__bgLock) return;
+      s.__bgLock=1;
+      var val=s.background;
+      try{
+        Object.defineProperty(s,'background',{
+          configurable:true,
+          get:function(){ return locked!==null?locked:val; },
+          set:function(v){ val=v; }
+        });
+      }catch(e){ s.__bgLock=0; }
+    }
+    function setLocked(c){
+      try{ if(c&&window.THREE) locked=new window.THREE.Color(c); }catch(e){}
+    }
+    function readSaved(){
+      try{ if(typeof _palState==='object'&&_palState&&_palState.bg) return _palState.bg; }catch(e){}
+      return null;
+    }
+    function wire(){
+      var s=scn(); if(s) lockScene(s);
+      try{
+        if(typeof applyPaletteColor==='function'&&!applyPaletteColor.__bgPersist){
+          var orig=applyPaletteColor;
+          var w=function(t,c,skip){
+            var r=orig(t,c,skip);
+            if(t==='bg'){ lockScene(scn()); setLocked(c); }
+            return r;
+          };
+          w.__bgPersist=1; applyPaletteColor=w;
+        }
+      }catch(e){}
+      try{
+        if(typeof resetPalette==='function'&&!resetPalette.__bgPersist){
+          var origR=resetPalette;
+          var wr=function(){ locked=null; return origR.apply(this,arguments); };
+          wr.__bgPersist=1; resetPalette=wr;
+        }
+      }catch(e){}
+      /* sayfa acilisinda kayitli secim (localStorage) zaten _palState'e yuklenmis olur */
+      if(locked===null){ var sv=readSaved(); if(sv){ lockScene(scn()); setLocked(sv); } }
+    }
+    wire();
+    var n=0, iv=setInterval(function(){ wire(); if(++n>=12) clearInterval(iv); },500);
+  })();
+  setInterval(fit,700);
+  [400,900,1500,2200].forEach(function(ms){setTimeout(fit,ms);});
+  document.addEventListener('pointerup',function(){[250,600,1100].forEach(function(ms){setTimeout(fit,ms);});},true);
+})();
+</script>
+
+<script id="tableShareNativeV1">
+/* ── TABLO / KIYASLAMA "GÖNDER" DÜZELTMESİ ────────────────────────────────
+   Eski davranış: shareCardEl() yalnız kart öğesini html2canvas ile çizmeye
+   çalışıyordu. html2canvas yoksa fonksiyon SESSİZCE geri dönüyordu (düğme
+   ölü görünüyordu); yüklü olduğunda da kaydırmalı tablo içeriği ve arkadaki
+   3B sahne doğru çıkmıyor, kimi cihazda "Görüntü alınamadı" veriyordu.
+   Yeni davranış: cihazın kendi ekran görüntüsü alınır → ekranda ne varsa
+   (açık tablo, panel, sahne) tek karede paylaşılır. Native kanal yoksa
+   eski akış aynen çalışmaya devam eder (hiçbir şey kaybolmaz). */
+(function(){
+  if(window.__tblShareNative) return; window.__tblShareNative=1;
+  /* Dinleyici DOKÜMAN düzeyinde ve capture fazında: düğmenin kendi onclick
+     handler'ından ÖNCE çalışır (düğme üzerine eklenseydi sayfanın daha önce
+     atanmış onclick'i önce çalışır, eski hatalı akış devreye girerdi). */
+  document.addEventListener('click', function(ev){
+    var t=ev.target;
+    var b=(t && t.closest) ? t.closest('#tableSend,#compareSend') : null;
+    if(!b) return;
+    if(!(window.FlutterNativeShot && window.FlutterNativeShot.postMessage)) return; /* eski akışa bırak */
+    ev.stopImmediatePropagation(); ev.preventDefault();
+    try{ if(window._showGestureToast) window._showGestureToast('📸 Gönderiliyor...'); }catch(e){}
+    setTimeout(function(){
+      try{ window.FlutterNativeShot.postMessage('1'); }catch(e){}
+    }, 60);
+  }, true);
 })();
 </script>
 </body>

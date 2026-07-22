@@ -31,6 +31,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'friend_service.dart';
 import 'user_profile_service.dart';
@@ -80,7 +81,10 @@ class GroupContest {
       subjectName: (d['subjectName'] ?? '').toString(),
       subjectEmoji: (d['subjectEmoji'] ?? '🎯').toString(),
       topic: (d['topic'] ?? '').toString(),
-      questionCount: (d['questionCount'] as int?) ?? rawQs.length,
+      // Firestore sayıyı int yazsak bile double dönebilir (increment / CF /
+      // JSON round-trip) → `as int?` bir double'da TypeError fırlatırdı.
+      // `as num?`+toInt() her iki tipi de güvenle okur.
+      questionCount: (d['questionCount'] as num?)?.toInt() ?? rawQs.length,
       questions: rawQs
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
@@ -122,10 +126,12 @@ class GroupParticipant {
       username: (d['username'] ?? '').toString(),
       avatar: (d['avatar'] ?? '👤').toString(),
       status: (d['status'] ?? 'joined').toString(),
-      score: (d['score'] as int?) ?? 0,
-      correct: (d['correct'] as int?) ?? 0,
-      total: (d['total'] as int?) ?? 0,
-      durationMs: (d['durationMs'] as int?) ?? 0,
+      // int/double güvenli okuma — Firestore double döndürürse `as int?`
+      // TypeError fırlatıp sonuç/sıralama tablosunu çökertirdi.
+      score: (d['score'] as num?)?.toInt() ?? 0,
+      correct: (d['correct'] as num?)?.toInt() ?? 0,
+      total: (d['total'] as num?)?.toInt() ?? 0,
+      durationMs: (d['durationMs'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -152,6 +158,51 @@ class GroupContestService {
   static String inviteLinkFor(String contestId) =>
       'https://qualsar.app/grup/$contestId';
 
+  /// Yazım anında kullanılacak (username, avatar) çifti.
+  /// Yerel profil boş olabilir (kullanıcı bildirimden geldi, profil servisi
+  /// henüz init edilmedi) — o durumda users/{uid} doc'undan çözülür. Eskiden
+  /// doğrudan 'Oyuncu' yazılıyor ve katılımcılar birbirinin kullanıcı adını
+  /// hiç göremiyordu.
+  static Future<(String, String)> _myNameAvatar(String uid) async {
+    final p = UserProfileService.instance;
+    try {
+      await p.init(); // idempotent — zaten init'liyse anında döner
+    } catch (_) {}
+    var uname = p.username.trim();
+    var avatar = p.avatar.trim();
+    if (uname.isEmpty) {
+      try {
+        final u = await FriendService.getUserByUid(uid);
+        if (u != null) {
+          uname = u.username.trim().isNotEmpty
+              ? u.username.trim()
+              : u.displayName.trim();
+          if ((avatar.isEmpty || avatar == '👤') &&
+              u.avatar.trim().isNotEmpty) {
+            avatar = u.avatar.trim();
+          }
+        }
+      } catch (_) {}
+    }
+    // Kullanıcı adı hiç belirlenmemişse GERÇEK AD zinciri: yerel profil adı
+    // → profil ekranındaki isim (profile_name) → Google hesabı adı. Eskiden
+    // hepsi boşken 'Oyuncu' yazılıyordu.
+    if (uname.isEmpty) uname = p.displayName.trim();
+    if (uname.isEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        uname = (prefs.getString('profile_name') ?? '').trim();
+      } catch (_) {}
+    }
+    if (uname.isEmpty) {
+      try {
+        uname =
+            (FirebaseAuth.instance.currentUser?.displayName ?? '').trim();
+      } catch (_) {}
+    }
+    return (uname, avatar.isEmpty ? '👤' : avatar);
+  }
+
   // ─── Oluştur ───────────────────────────────────────────────────────────────
 
   /// Yeni grup yarışması oluşturur, sahibi ilk katılımcı olarak ekler.
@@ -169,9 +220,8 @@ class GroupContestService {
     final uid = _uid;
     if (uid == null || questions.isEmpty) return null;
     try {
-      final p = UserProfileService.instance;
-      final ownerName =
-          p.username.trim().isNotEmpty ? p.username.trim() : 'Oyuncu';
+      final (uname, _) = await _myNameAvatar(uid);
+      final ownerName = uname.isNotEmpty ? uname : 'Oyuncu';
       final now = DateTime.now();
       final docRef = _fs.collection(_collection).doc();
       await docRef.set({
@@ -254,8 +304,8 @@ class GroupContestService {
       if (target == null) return 'notfound';
       if (target.uid == uid) return 'self';
       final me = UserProfileService.instance;
-      final myName =
-          me.username.trim().isNotEmpty ? me.username.trim() : 'Oyuncu';
+      final (uname, _) = await _myNameAvatar(uid);
+      final myName = uname.isNotEmpty ? uname : 'Oyuncu';
       await _fs
           .collection('notifications')
           .doc(target.uid)
@@ -265,7 +315,7 @@ class GroupContestService {
         'type': 'group_contest_invite',
         'contestId': contestId,
         'fromUid': uid,
-        'fromUsername': me.username,
+        'fromUsername': uname.isNotEmpty ? uname : me.username,
         'fromDisplayName': myName,
         'fromAvatar': me.avatar,
         'subjectName': subjectName,
@@ -287,13 +337,22 @@ class GroupContestService {
         .collection('participants')
         .doc(uid);
     final existing = await pRef.get();
-    if (existing.exists) return; // skoru/durumu koru
-    final p = UserProfileService.instance;
+    final (uname, avatar) = await _myNameAvatar(uid);
+    if (existing.exists) {
+      // Skor/durum korunur; ama kayıt vaktiyle 'Oyuncu' yazıldıysa ve artık
+      // gerçek ad çözülebiliyorsa ONARILIR (eski bozuk satırlar kendini
+      // düzeltsin diye).
+      final old = (existing.data()?['username'] ?? '').toString().trim();
+      if (uname.isNotEmpty && (old.isEmpty || old == 'Oyuncu')) {
+        await pRef.set(
+            {'username': uname, 'avatar': avatar}, SetOptions(merge: true));
+      }
+      return;
+    }
     await pRef.set({
       'uid': uid, // collectionGroup sorgusu için (myContestsStream)
-      'username':
-          p.username.trim().isNotEmpty ? p.username.trim() : 'Oyuncu',
-      'avatar': p.avatar.isNotEmpty ? p.avatar : '👤',
+      'username': uname.isNotEmpty ? uname : 'Oyuncu',
+      'avatar': avatar,
       'status': 'joined',
       'score': 0,
       'correct': 0,

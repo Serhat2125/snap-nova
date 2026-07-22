@@ -11,17 +11,23 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../services/curriculum_catalog.dart' show curriculumFor;
 import '../services/education_profile.dart';
 import '../services/exam_catalog.dart' show ExamDefinition, examGroupsFor;
+import '../services/labirent_pool_service.dart';
 import '../services/labyrinth_quiz_gen.dart';
 import '../services/locale_service.dart';
 import '../services/school_structure.dart';
@@ -53,6 +59,8 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
   String? _error;
   // Sınav modu: seçilen sınava özel sorular AI ile üretilirken true.
   bool _generating = false;
+  /// Paylaşım için ekran görüntüsü sınırı (sertifika / başarı tablosu).
+  final GlobalKey _shotKey = GlobalKey();
 
   /// Web hedefinde iframe src'i.
   String get _webAssetUrl => 'assets/$_assetHtml';
@@ -80,6 +88,12 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
       // yazılır ki bağlı ebeveyn kendi panelinden görebilsin.
       ..addJavaScriptChannel('FlutterVeliRapor',
           onMessageReceived: (m) => _onVeliRapor(m.message))
+      // "Başarımı Paylaş" / Başarı Tablosu paylaşımı: WebView'da
+      // navigator.share yok (file:// güvenli bağlam değil) → oyun panoya
+      // kopyalayıp ham alert() gösteriyordu ('"file://" adresindeki sayfa…').
+      // Bu kanal ekranın görüntüsünü alıp sistemin paylaş menüsünü açar.
+      ..addJavaScriptChannel('FlutterNativeShot',
+          onMessageReceived: (_) => _shareScreenshot())
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) {
@@ -169,7 +183,8 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
         final lang = (data['lang'] ?? 'tr').toString().split('-').first;
         // Önceki okuma varsa kes, yenisini başlat.
         unawaited(TtsService.stop()
-            .then((_) => TtsService.speak(text, langCode: lang)));
+            .then((_) => TtsService.speak(text, langCode: lang))
+            .catchError((_) {/* TTS hatası kritik değil; sessizce geç */}));
       } else if (action == 'stop') {
         unawaited(TtsService.stop());
       }
@@ -179,15 +194,48 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
 
   /// Oyun içi seviye kartına basılınca gelen mesaj: {type:'class', level}.
   /// O seviye için sınıf/alan seçtirip sorular üretir ve oyunu başlatır.
+  /// Ekran görüntüsünü alıp sistemin paylaş menüsünü açar (sertifika,
+  /// başarı tablosu vb.). Oyun tarafı `FlutterNativeShot.postMessage('1')`
+  /// çağırır; böylece ekranda ne varsa aynen paylaşılır.
+  Future<void> _shareScreenshot() async {
+    try {
+      final boundary = _shotKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+      if (boundary == null) return;
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (data == null) return;
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/bilgi-labirenti.png');
+      await file.writeAsBytes(data.buffer.asUint8List(), flush: true);
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'image/png')],
+        text: 'Bilgi Labirenti',
+      );
+    } catch (_) {}
+  }
+
+  /// Bir seçim/soru-üretim akışı sürerken oyunun ikinci bir kart mesajı
+  /// göndermesini yok say — çift-tık (profil ilk yüklenirken açık overlay
+  /// yokken) iki paralel akış başlatıp üst üste sheet + çift enjeksiyon +
+  /// erken overlay kapanmasına yol açıyordu.
+  bool _flowBusy = false;
+
   void _onGameMode(String msg) {
+    if (_flowBusy) return;
     try {
       final data = jsonDecode(msg);
       if (data is! Map) return;
       if (data['type'] == 'class') {
         final level = (data['level'] ?? '').toString();
-        if (level.isNotEmpty) _pickAndInjectClass(presetLevel: level);
+        if (level.isNotEmpty) {
+          _flowBusy = true;
+          _pickAndInjectClass(presetLevel: level)
+              .whenComplete(() => _flowBusy = false);
+        }
       } else if (data['type'] == 'exam') {
-        _pickAndInjectExam();
+        _flowBusy = true;
+        _pickAndInjectExam().whenComplete(() => _flowBusy = false);
       }
     } catch (_) {}
   }
@@ -252,8 +300,34 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
       );
       return;
     }
-    // Bundled yoksa: ders(ler) seç — tek de çoklu da olur (konu seçtirmiyoruz:
-    // tüm konular) → AI ile üret.
+    // TOPLULUK HAVUZU: ülke × sınav × dil havuzu hazırsa içerik oradan gelir
+    // (ders seçtirmeden — havuz sınavın tüm derslerini kapsar; bundled ile
+    // aynı UX). Hazır değilse AI üretir ve havuza da yazar.
+    final examPoolMeta = LabirentPoolMeta(
+      country: (EduProfile.current?.country ?? 'tr').toLowerCase(),
+      level: 'exam',
+      grade: exam.key.toLowerCase(),
+      kind: 'exam',
+      subjectsHint: exam.subjects.map((s) => s.displayName).join(' · '),
+      curriculumSig: LabirentPoolService.curriculumSigFrom(
+          [exam.key, for (final s in exam.subjects) s.key]),
+      optionCount: exam.optionCount.clamp(3, 5),
+    );
+    setState(() => _generating = true);
+    final pooled = await LabirentPoolService.drawBundle(examPoolMeta);
+    if (!mounted) return;
+    setState(() => _generating = false);
+    if (pooled != null) {
+      await _injectAndStart(
+        questions: (pooled['questions'] as List).cast<Map<String, dynamic>>(),
+        facts: (pooled['facts'] as List).cast<String>(),
+        label: exam.displayName,
+        startLevelKey: startKey,
+      );
+      return;
+    }
+    // Havuz hazır değil: ders(ler) seç — tek de çoklu da olur (konu
+    // seçtirmiyoruz: tüm konular) → AI ile üret + havuzu organik doldur.
     final picked = await _chooseMany(
       '${exam.displayName} · ${"Ders seç".tr()}',
       [for (final s in exam.subjects) '${s.emoji}  ${s.displayName}'],
@@ -261,10 +335,24 @@ class _BilgiLabirentiScreenState extends State<BilgiLabirentiScreen>
     if (picked == null || picked.isEmpty || !mounted) return;
     final subjects = [for (final i in picked) exam.subjects[i]];
     await _generateAndInject(
-      () => LabyrinthQuizGen.generateForExam(
-          exam: exam, subjects: subjects, count: 24),
+      () async {
+        final b = await LabyrinthQuizGen.generateForExam(
+            exam: exam, subjects: subjects, count: 24);
+        final qs =
+            (b['questions'] as List? ?? const []).cast<Map<String, dynamic>>();
+        final facts = (b['facts'] as List? ?? const []).cast<String>();
+        if (qs.isNotEmpty) {
+          unawaited(LabirentPoolService.insertBundle(examPoolMeta, qs, facts));
+          unawaited(LabirentPoolService.cacheBundle(examPoolMeta, qs, facts));
+          return b;
+        }
+        // AI üretemedi (offline / kota) → cihazda biriken içerikten oyna.
+        return await LabirentPoolService.cachedBundle(examPoolMeta) ?? b;
+      },
       '${exam.displayName} · ${subjects.length} ${"ders".tr()}',
       startLevelKey: startKey,
+      // AI + havuz başarısızsa uygulamayla gelen sınav havuzuyla oyna.
+      lastResort: () => LabyrinthQuizGen.loadBundledExam(exam.key),
     );
   }
 
@@ -301,7 +389,11 @@ var els=document.querySelectorAll('[title]');for(var i=0;i<els.length;i++){var v
 var pend=false;var obs=new MutationObserver(function(){if(pend)return;pend=true;requestAnimationFrame(function(){pend=false;walk();});});
 obs.observe(document.body,{childList:true,subtree:true,characterData:true});walk();})();''';
     try {
-      await ctrl.runJavaScript('window.__gameI18n=$raw;$observer');
+      // __ttsLang: tarayıcı-içi TTS (web fallback) sabit "tr-TR" okumasın —
+      // kullanıcının dilini kullansın. (Mobilde native TTS zaten doğru dili
+      // alıyor; bu satır yalnız speechSynthesis yolunu düzeltir.)
+      await ctrl.runJavaScript(
+          'window.__ttsLang=${jsonEncode(code)};window.__gameI18n=$raw;$observer');
     } catch (_) {}
   }
 
@@ -454,16 +546,68 @@ obs.observe(document.body,{childList:true,subtree:true,characterData:true});walk
         break;
       }
     }
+    // TOPLULUK HAVUZU: ülke × kademe × sınıf × dil havuzu hazırsa (≥300 soru
+    // + ≥500 bilgi) içerik ORADAN gelir — AI yok, maliyet 0, anında açılır.
+    // Hazır değilse AI üretir ve sonuç havuza da yazılır (organik doluş);
+    // CF generator arka planda hedefe tamamlar.
+    final poolMeta = LabirentPoolMeta(
+      country: country,
+      level: level == 'üniversite' ? 'uni' : structKey,
+      grade: '$grade',
+      track: trackKey,
+      kind: 'class',
+      subjectsHint: subjects
+          .map((s) => s.topics.isEmpty
+              ? s.displayName
+              : '${s.displayName} (${s.topics.take(6).join(', ')})')
+          .join(' · '),
+      curriculumSig: LabirentPoolService.curriculumSigFrom(
+          [for (final s in subjects) '${s.key}:${s.topics.join(',')}']),
+      optionCount: genLevel == 'ilkokul'
+          ? 3
+          : genLevel == 'ortaokul'
+              ? 4
+              : 5,
+    );
+    setState(() => _generating = true);
+    final pooled = await LabirentPoolService.drawBundle(poolMeta);
+    if (!mounted) return;
+    setState(() => _generating = false);
+    if (pooled != null) {
+      await _injectAndStart(
+        questions: (pooled['questions'] as List).cast<Map<String, dynamic>>(),
+        facts: (pooled['facts'] as List).cast<String>(),
+        label: label,
+        startLevelKey: level,
+      );
+      return;
+    }
     await _generateAndInject(
-      () => LabyrinthQuizGen.generateForClass(
-          level: genLevel,
-          grade: grade,
-          track: isTR ? track : trackLabel,
-          count: 24,
-          countryName: countryName,
-          subjects: isTR ? null : subjects),
+      () async {
+        final b = await LabyrinthQuizGen.generateForClass(
+            level: genLevel,
+            grade: grade,
+            track: isTR ? track : trackLabel,
+            count: 24,
+            countryName: countryName,
+            subjects: isTR ? null : subjects);
+        final qs =
+            (b['questions'] as List? ?? const []).cast<Map<String, dynamic>>();
+        final facts = (b['facts'] as List? ?? const []).cast<String>();
+        if (qs.isNotEmpty) {
+          unawaited(LabirentPoolService.insertBundle(poolMeta, qs, facts));
+          unawaited(LabirentPoolService.cacheBundle(poolMeta, qs, facts));
+          return b;
+        }
+        // AI üretemedi (offline / kota) → cihazda biriken içerikten oyna.
+        return await LabirentPoolService.cachedBundle(poolMeta) ?? b;
+      },
       label,
       startLevelKey: level,
+      // AI + havuz başarısızsa uygulamayla gelen sınıf havuzuyla oyna
+      // (ülke/dil ne olursa olsun oyun AÇILIR; içerik TR müfredatı olabilir).
+      lastResort: () =>
+          LabyrinthQuizGen.loadBundledFallback(genLevel, grade, track: track),
     );
   }
 
@@ -604,22 +748,36 @@ obs.observe(document.body,{childList:true,subtree:true,characterData:true});walk
     Future<Map<String, dynamic>> Function() gen,
     String label, {
     String? startLevelKey,
+    // SON ÇARE: AI ve havuz başarısızsa uygulamayla gelen (bundled) içerik.
+    // Bunsuz, kredi bitikken/offline'da oyun HİÇ açılmıyordu; artık her
+    // koşulda oynanabilir bir labirent başlar.
+    Future<Map<String, dynamic>?> Function()? lastResort,
   }) async {
     final ctrl = _controller;
     if (ctrl == null) return;
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _generating = true);
-    // AI üretimi asla sonsuza asılmasın: 40 sn'de kes (kredi bitik/offline ise
-    // spinner takılıp kalmaz; kullanıcıya hızlı geri bildirim gider).
+    // AI üretimi asla sonsuza asılmasın: 25 sn'de kes (kredi bitik/offline ise
+    // spinner takılıp kalmaz; son çare içeriğine hızlıca geçilir).
     List<Map<String, dynamic>> qs;
     List<String> facts;
     try {
-      final b = await gen().timeout(const Duration(seconds: 40));
+      final b = await gen().timeout(const Duration(seconds: 25));
       qs = (b['questions'] as List? ?? const []).cast<Map<String, dynamic>>();
       facts = (b['facts'] as List? ?? const []).cast<String>();
     } catch (_) {
       qs = const [];
       facts = const [];
+    }
+    if (qs.isEmpty && lastResort != null) {
+      try {
+        final fb = await lastResort();
+        if (fb != null) {
+          qs = (fb['questions'] as List? ?? const [])
+              .cast<Map<String, dynamic>>();
+          facts = (fb['facts'] as List? ?? const []).cast<String>();
+        }
+      } catch (_) {/* son çare de yoksa aşağıda uyarı gösterilir */}
     }
     if (!mounted) return;
     setState(() => _generating = false);
@@ -670,7 +828,9 @@ obs.observe(document.body,{childList:true,subtree:true,characterData:true});walk
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
+    return RepaintBoundary(
+      key: _shotKey,
+      child: PopScope(
       // Mobilde geri tuşu: önce oyunun KENDİ adımında geri git (açık panel/
       // alt ekran kapanır ya da menüye dönülür). Oyun "kök"teyse (ana menü,
       // açık bir şey yok) ekrandan çıkıp bir önceki Flutter sayfasına döner —
@@ -745,6 +905,7 @@ obs.observe(document.body,{childList:true,subtree:true,characterData:true});walk
             ],
           ),
         ),
+      ),
       ),
     );
   }

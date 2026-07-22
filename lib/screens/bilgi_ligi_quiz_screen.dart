@@ -168,10 +168,10 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
   /// Sıralama puanı = net (ondalıklı). 1 net = 1 puan, 7.75 net = 7.75 puan.
   double get _finalScore => _net;
 
-  /// Puan formatı: tam sayı ise "8", ondalıksa "7.75".
+  /// Puan formatı: tam sayı ise "8", ondalıksa "7,75" (TR ondalık virgül).
   String _formatScore(double n) {
     if (n == n.truncateToDouble()) return n.toInt().toString();
-    return n.toStringAsFixed(2);
+    return n.toStringAsFixed(2).replaceAll('.', ',');
   }
 
   @override
@@ -349,11 +349,10 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
   }
 
   void _startTicker() {
+    // Saniyelik setState KALDIRILDI: oyun UI'ında geçen süre gösterilmiyor,
+    // toplam süre bitişte duvar saatinden hesaplanıyor (_finishQuiz). Her
+    // saniye tüm ekranı yeniden çizmek saf performans israfıydı.
     _ticker?.cancel();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      setState(() {});
-    });
   }
 
   /// Şık seçimi ANINDA `_userAnswers`e yazılır — serbest gezinme (pil
@@ -676,9 +675,16 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
             onPressed: () async {
               final navigator = Navigator.of(context);
               final exit = await _confirmExit();
-              if (exit && mounted) {
-                navigator.pop();
+              if (!exit || !mounted) return;
+              // Sistem-geri (PopScope) yoluyla birebir aynı davranış:
+              // yarıda bırakmada günlük kota iade edilir. Eskiden yalnız
+              // sistem-geri iade ediyordu; ok tuşuyla çıkan kullanıcının
+              // hakkı haksız yere yanıyordu.
+              if (_quotaCharged) {
+                await UsageQuota.decrement(QuotaKind.arenaQuiz);
+                _quotaCharged = false;
               }
+              if (mounted) navigator.pop();
             },
             icon: Icon(Icons.arrow_back_rounded,
                 color: AppPalette.textPrimary(context)),
@@ -1081,7 +1087,16 @@ class _BilgiLigiQuizScreenState extends State<BilgiLigiQuizScreen> {
           ),
           const SizedBox(height: 8),
           OutlinedButton(
-            onPressed: _bootstrap,
+            // ESKİDEN doğrudan _bootstrap çağrılıyordu: skor yalnızca pop'ta
+            // döndürüldüğü için bir önceki testin puanı HİÇ gönderilmeden
+            // siliniyordu; ayrıca ücretsiz "günde 1 lig testi" kapısı da
+            // atlanıyordu. Artık skor + again bayrağıyla pop edilir; çağıran
+            // ekran skoru işleyip kapı kontrolüyle yeni testi başlatır.
+            onPressed: () => Navigator.of(context).pop(<String, num>{
+              'score': score,
+              'durationSec': _totalSec,
+              'again': 1,
+            }),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(

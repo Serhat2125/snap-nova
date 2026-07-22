@@ -51,6 +51,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'education_profile.dart';
 import 'error_logger.dart';
+import 'locale_service.dart';
 import 'summary_cache_service.dart' show SummaryCacheService;
 
 /// Bir soru.
@@ -114,18 +115,28 @@ class QuestionPoolService {
 
   // ─── Pool key oluştur ──────────────────────────────────────────────────────
 
-  /// Aynı şema: country|level|grade|subject|topic.
+  /// Şema: country|level|grade|subject|topic[|lang].
+  ///
+  /// DİL AYRIMI: dil anahtara dahil değildi → aynı (ülke/seviye/sınıf/ders/
+  /// konu) havuzu uygulama dilinden bağımsız paylaşılıyordu; İngilizce
+  /// arayüzlü kullanıcı, havuzu ilk dolduran Türkçe kullanıcının Türkçe
+  /// sorularını çekiyordu (Bilgi Ligi'nde QuizPoolService.poolKey ile
+  /// düzeltilen sorunun aynısı). Artık Türkçe DIŞI dillerde anahtara `|lang`
+  /// eklenir; Türkçe suffix almaz ki mevcut (Türkçe içerikli) havuzlar TR
+  /// kullanıcılar için geçerli kalsın.
   static String makePoolKey({
     required EduProfile profile,
     required String subject,
     required String topic,
   }) {
     // SummaryCacheService ile aynı normalizasyon (tutarlı anahtar).
-    return SummaryCacheService.makeCacheKey(
+    final base = SummaryCacheService.makeCacheKey(
       profile: profile,
       subject: subject,
       topic: topic,
     );
+    final lang = LocaleService.global?.localeCode ?? 'tr';
+    return lang == 'tr' ? base : '$base|$lang';
   }
 
   // ─── Havuzdan soru çek ─────────────────────────────────────────────────────
@@ -388,6 +399,9 @@ class QuestionPoolService {
         ).split('|')[3],
         'subjectName': subject,
         'topicName': topic,
+        // Havuzun içerik dili — Cloud Function generator bu dilde üretir
+        // (yoksa 'tr' varsayılır; bkz. question_pool_generator.ts).
+        'lang': LocaleService.global?.localeCode ?? 'tr',
         'status': 'generating',
         'acceptedCount': 0,
         'generatedCount': 0,
@@ -547,6 +561,21 @@ class QuestionPoolService {
           }
         ]),
       });
+      // Düz kopya — günlük admin özeti (dailyReportDigest CF) buradan sayar;
+      // soru dokümanındaki reports[] dizisi tarihe göre sorgulanamıyor.
+      unawaited(() async {
+        try {
+          await FirebaseFirestore.instance
+              .collection('question_error_reports')
+              .add({
+            'poolKey': key,
+            'questionId': questionId,
+            'by': user?.uid ?? 'anonymous',
+            'reason': reason ?? '',
+            'reportedAt': FieldValue.serverTimestamp(),
+          });
+        } catch (_) {/* özet sayacı kritik değil */}
+      }());
       return true;
     } catch (e, st) {
       ErrorLogger.instance

@@ -1102,6 +1102,15 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
       _snack('Kod geçersiz ya da süresi dolmuş.'.tr());
       return;
     }
+    // Aynı çocuk zaten başka bir slota bağlıysa İKİNCİ kez bağlanmasın —
+    // eskiden iki slota aynı uid yazılabiliyor, birini kaldırmak Firestore
+    // bağlantısını topyekûn silip diğer slotu da öldürüyordu.
+    final dup = _childUids.entries
+        .any((e) => e.key != slot && e.value.trim() == childUid);
+    if (dup) {
+      _snack('Bu çocuk zaten başka bir slota bağlı.'.tr());
+      return;
+    }
     final res = await ParentLinkService.linkByCode(code);
     if (res == LinkRequestResult.success ||
         res == LinkRequestResult.alreadyLinked) {
@@ -1120,7 +1129,14 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
   Future<void> _unlinkSlot(int slot) async {
     final uid = (_childUids[slot] ?? '').trim();
     if (uid.isNotEmpty) {
-      await ParentLinkService.unlinkChild(uid);
+      // Aynı uid (eski sürümlerde) birden fazla slota bağlanabildiyse
+      // Firestore bağlantısı YALNIZCA son slot kaldırılırken silinir —
+      // aksi halde öteki slot "veri yok"a düşüyordu.
+      final usedElsewhere = _childUids.entries
+          .any((e) => e.key != slot && e.value.trim() == uid);
+      if (!usedElsewhere) {
+        await ParentLinkService.unlinkChild(uid);
+      }
     }
     final p = await SharedPreferences.getInstance();
     await p.remove('progress_child_${slot}_uid');

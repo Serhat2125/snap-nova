@@ -383,9 +383,11 @@ the same MANDATORY presence.''';
         _localeCode != 'tr') {
       return _runtimeTranslate!(trSource);
     }
-    // 6) İngilizce fallback
+    // 6) İngilizce fallback (elle girilmiş + üretilmiş sözlük)
     final en = _translations['en']?[key];
     if (en != null) return en;
+    final genEn = generatedTranslations['en']?[key];
+    if (genEn != null && genEn.isNotEmpty) return genEn;
     return key;
   }
 

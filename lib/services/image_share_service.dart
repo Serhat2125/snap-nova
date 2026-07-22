@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../widgets/latex_text.dart';
+import 'runtime_translator.dart';
 import 'solutions_storage.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -106,20 +107,29 @@ class ImageShareService {
       final dir = await getTemporaryDirectory();
       final ts = DateTime.now().millisecondsSinceEpoch;
 
-      final files = await Future.wait(List.generate(keys.length, (i) async {
+      // SIRAYLA yakala — eskiden Future.wait ile TÜM sayfalar aynı anda
+      // çiziliyordu. Bir sayfanın ham görüntüsü 2× çözünürlükte ~30 MB;
+      // 4-6 sayfalık uzun çözümlerde bu 150 MB+ anlık belleğe çıkıp Android'in
+      // uygulamayı öldürmesine yol açıyordu (paylaş menüsü açılır açılmaz
+      // uygulamadan düşme). Sıralı yakalamada tepe bellek TEK sayfa kadardır.
+      final files = <XFile>[];
+      for (int i = 0; i < keys.length; i++) {
         final bytes = await _capturePng(keys[i]);
         final f = File(
             '${dir.path}/qualsar_${ts}_${(i + 1).toString().padLeft(2, '0')}.png');
         await f.writeAsBytes(bytes);
         debugPrint('[ImgShare] sayfa ${i + 1}/${keys.length} = ${bytes.length}b');
-        return XFile(f.path, mimeType: 'image/png');
-      }));
+        files.add(XFile(f.path, mimeType: 'image/png'));
+        // Sonraki sayfadan önce bir kare bekle: yazılan tampon serbest kalsın.
+        await WidgetsBinding.instance.endOfFrame;
+      }
 
       entry.remove();
 
       await Share.shareXFiles(
         files,
-        text: 'QuAlsar ile çözdüm, sen de dene!',
+        text:
+            '${'Bu soruyu QuAlsar ile çözdüm! 📸 Fotoğrafını çek, saniyeler içinde çözümünü gör — hemen indir:'.tr()}\nhttps://qualsar.app',
       );
     } catch (e, st) {
       debugPrint('[ImgShare] failed: $e\n$st');
@@ -211,11 +221,17 @@ class ImageShareService {
       throw Exception('Render sınırı bulunamadı — kart oluşturulamadı');
     }
     final image = await boundary.toImage(pixelRatio: _pixelRatio);
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    if (byteData == null) {
-      throw Exception('PNG byte dönüşümü başarısız');
+    try {
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        throw Exception('PNG byte dönüşümü başarısız');
+      }
+      return byteData.buffer.asUint8List();
+    } finally {
+      // Ham görüntü (sıkıştırılmamış, sayfa başına ~30 MB) hemen bırakılmalı;
+      // eskiden GC'ye kalıyordu ve bellek birikip uygulamayı düşürüyordu.
+      image.dispose();
     }
-    return byteData.buffer.asUint8List();
   }
 
   static String _cleanResourceLines(String full) {

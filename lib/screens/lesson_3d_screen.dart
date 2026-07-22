@@ -19,6 +19,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../services/ai_quota_service.dart';
@@ -102,6 +104,25 @@ class _Lesson3DScreenState extends State<Lesson3DScreen>
       )
       ..setNavigationDelegate(
         NavigationDelegate(
+          onNavigationRequest: (req) {
+            final url = req.url;
+            final internal = url.contains('appassets.androidplatform.net') ||
+                url.startsWith('file:') ||
+                url.startsWith('about:') ||
+                url.startsWith('data:') ||
+                url.startsWith('blob:');
+            if (internal) return NavigationDecision.navigate;
+            // whatsapp://, intent://, wa.me vb. dış bağlantılar WebView'i
+            // bozmasın — sistemde aç (ERR_UNKNOWN_URL_SCHEME düzeltmesi).
+            launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)
+                .catchError((_) => false);
+            return NavigationDecision.prevent;
+          },
+          // Canvas'a çizilen yazılar (fillText) piksel olarak kalır ve DOM gibi
+          // sonradan güncellenemez; motoru sayfa script'lerinden ÖNCE enjekte
+          // etmeyi dene ki ilk çizimler de sözlükten çevrilsin. Motor idempotent
+          // (__i18nReady) — onPageFinished'teki ikinci çağrı zararsızdır.
+          onPageStarted: (_) => _injectI18n(),
           onPageFinished: (_) async {
             if (mounted) setState(() => _loading = false);
             // Dil Türkçe değilse 3D ders içeriğini hedef dile çevir.
@@ -256,6 +277,31 @@ class _Lesson3DScreenState extends State<Lesson3DScreen>
     try {
       await ctrl.runJavaScript('window.__APP_LANG = ${jsonEncode(lang)};');
       await ctrl.runJavaScript(_i18nEngineJs);
+      // Önceki ziyaretlerde bu derste toplanan metinlerin hazır (cache/baked)
+      // çevirilerini beklemeden bas: canvas yazıları ancak çizim ANINDA
+      // çevrilebildiği için sözlüğün ilk çizimden önce dolu olması gerekir.
+      final sp = await SharedPreferences.getInstance();
+      final stored = sp.getStringList(_srcsKey(widget.assetHtml));
+      if (stored != null && stored.isNotEmpty) {
+        final instant = RuntimeTranslator.instance.peekCached(stored, lang);
+        if (instant.isNotEmpty) await _pushI18n(instant);
+      }
+    } catch (_) {}
+  }
+
+  /// Derste görülen kaynak metinlerin kalıcı listesi (sözlük ön-yüklemesi için).
+  static String _srcsKey(String asset) => 'l3d_i18n_srcs_$asset';
+
+  Future<void> _rememberSources(List<String> strings) async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      final key = _srcsKey(widget.assetHtml);
+      final merged = <String>{...?sp.getStringList(key), ...strings}.toList();
+      // Sınırsız büyümesin — en yeni 800 kayıt yeter.
+      final capped = merged.length > 800
+          ? merged.sublist(merged.length - 800)
+          : merged;
+      await sp.setStringList(key, capped);
     } catch (_) {}
   }
 
@@ -273,6 +319,9 @@ class _Lesson3DScreenState extends State<Lesson3DScreen>
       return;
     }
     if (lang.isEmpty || lang == 'tr' || strings.isEmpty) return;
+
+    // Sonraki açılışlarda sözlüğü çizimden önce yükleyebilmek için sakla.
+    unawaited(_rememberSources(strings));
 
     // 1) Anında hazır olanları (cache + baked) hemen geri gönder.
     final instant = RuntimeTranslator.instance.peekCached(strings, lang);
@@ -382,9 +431,12 @@ class _Lesson3DScreenState extends State<Lesson3DScreen>
     for (var i=0;i<els.length;i++) takeAttrs(els[i]);
   }
 
+  // Not: zamanlayıcı SIFIRLANMAZ (debounce değil) — rAF döngüsünde her karede
+  // çizilen çevrilmemiş canvas yazısı sürekli sıfırlasaydı flush hiç çalışmazdı.
   var flushT = null;
-  function scheduleFlush(){ if (flushT) clearTimeout(flushT); flushT = setTimeout(flush, 200); }
+  function scheduleFlush(){ if (!flushT) flushT = setTimeout(flush, 200); }
   function flush(){
+    flushT = null;
     var arr = Object.keys(QUEUE);
     if (!arr.length) return;
     QUEUE = Object.create(null);
@@ -396,32 +448,66 @@ class _Lesson3DScreenState extends State<Lesson3DScreen>
   window.__applyI18n = function(json){
     try {
       var map = (typeof json === 'string') ? JSON.parse(json) : json;
-      for (var key in map){ DICT[key] = map[key]; delete PENDING[key]; }
+      for (var key in map){
+        DICT[key] = map[key]; delete PENDING[key];
+        OUT[norm(map[key])] = 1; // çıktıyı yeniden çevirmeye kalkma
+      }
       applyAll();
     } catch(e){}
   };
 
-  // İlk tam tarama (yalnız bir kez)
-  scanSubtree(document.body);
-  scheduleFlush();
-
-  // Dinamik içerik: yalnızca değişen düğüm/alt-ağaç işlenir (tam yeniden tarama yok)
+  // ── Canvas yazıları (fillText/strokeText) ────────────────────────────────
+  // Tuvale çizilen metin DOM'da olmadığından motor onu göremez; çizim ANINDA
+  // araya girip sözlükten çeviririz. Piksel sonradan güncellenemez — çeviri
+  // henüz yoksa kuyruğa eklenir ve bir SONRAKİ çizimde (sahne değişimi, rAF)
+  // devreye girer. measureText da çevrilen metinle ölçer ki hizalama tutsun.
+  var OUT = Object.create(null); // üretilmiş çeviriler (geri-çeviri döngüsü yok)
+  function trCanvas(s){
+    if (typeof s !== 'string') return s;
+    var k = norm(s);
+    if (k.length < 2 || !hasLetters(k) || OUT[k]) return s;
+    var tr = DICT[k];
+    if (tr === undefined){ want(k); scheduleFlush(); return s; }
+    return tr;
+  }
   try {
-    var mo = new MutationObserver(function(muts){
-      var changed = false;
-      for (var i=0;i<muts.length;i++){
-        var m = muts[i];
-        if (m.type === 'characterData'){
-          if (applying) continue;
-          takeText(m.target); changed = true;
-        } else if (m.type === 'childList' && m.addedNodes){
-          for (var a=0;a<m.addedNodes.length;a++){ scanSubtree(m.addedNodes[a]); changed = true; }
-        }
-      }
-      if (changed) scheduleFlush();
-    });
-    mo.observe(document.body, {childList:true, subtree:true, characterData:true});
+    var CP = window.CanvasRenderingContext2D && CanvasRenderingContext2D.prototype;
+    if (CP && !CP.__i18nPatched){
+      CP.__i18nPatched = true;
+      var _ft = CP.fillText, _st = CP.strokeText, _mt = CP.measureText;
+      CP.fillText = function(t){ arguments[0] = trCanvas(t); return _ft.apply(this, arguments); };
+      CP.strokeText = function(t){ arguments[0] = trCanvas(t); return _st.apply(this, arguments); };
+      CP.measureText = function(t){ return _mt.call(this, trCanvas(t)); };
+    }
   } catch(e){}
+
+  // İlk tarama + gözlemci. Erken enjeksiyonda (onPageStarted) body henüz
+  // olmayabilir — DOMContentLoaded'a ertele; canvas yaması yukarıda zaten aktif.
+  function boot(){
+    if (window.__i18nBooted) return;
+    window.__i18nBooted = true;
+    scanSubtree(document.body);
+    scheduleFlush();
+    // Dinamik içerik: yalnızca değişen düğüm/alt-ağaç işlenir (tam yeniden tarama yok)
+    try {
+      var mo = new MutationObserver(function(muts){
+        var changed = false;
+        for (var i=0;i<muts.length;i++){
+          var m = muts[i];
+          if (m.type === 'characterData'){
+            if (applying) continue;
+            takeText(m.target); changed = true;
+          } else if (m.type === 'childList' && m.addedNodes){
+            for (var a=0;a<m.addedNodes.length;a++){ scanSubtree(m.addedNodes[a]); changed = true; }
+          }
+        }
+        if (changed) scheduleFlush();
+      });
+      mo.observe(document.body, {childList:true, subtree:true, characterData:true});
+    } catch(e){}
+  }
+  if (document.body) boot();
+  else document.addEventListener('DOMContentLoaded', boot);
 })();
 """;
 
@@ -588,7 +674,20 @@ class _Lesson3DScreenState extends State<Lesson3DScreen>
       appBar: AppBar(
         backgroundColor: const Color(0xFF161D49),
         foregroundColor: const Color(0xFFFFF4DC),
-        title: Text(widget.title.tr()),
+        // Uzun ders adları ("Geometrik Cisimler ve Hesaplamalar" gibi) üç nokta
+        // ile kesiliyordu; sığmıyorsa yazı tek satırda ölçeklenerek küçülür ve
+        // başlık tam okunur (belli bir alt sınıra kadar).
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(
+            widget.title.tr(),
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.visible,
+          ),
+        ),
+        titleSpacing: 8,
         elevation: 0,
       ),
       body: SafeArea(
@@ -717,15 +816,15 @@ class _AskAiSheetState extends State<_AskAiSheet> {
     });
     _scrollDown();
     try {
-      // Profesyonel ders uzmanı kimliği + temiz biçim kuralları + konu bağlamı.
-      final ctxMsg =
-          '${_AskAiSheet.styleRules}\n'
-          '${_AskAiSheet.levelRule(widget.level)}\n\n'
-          '${widget.level.isEmpty ? '' : '[SEVİYE: ${widget.level}]\n'}'
-          '${widget.topic.isEmpty ? '' : '[KONU: ${widget.topic}]\n'}'
-          'Öğrencinin sorusu: $q';
-      final reply = await GeminiService.chatWithCoach(
-        userMessage: ctxMsg,
+      // Kompakt konu-öğretmeni yolu (koç promptu DEĞİL): kurallar `system`
+      // olarak gider, geçmiş gerçek sohbet mesajı olur → belirgin şekilde
+      // daha hızlı yanıt ve konuya odaklı cevap.
+      final reply = await GeminiService.askLessonTutor(
+        question: q,
+        topic: widget.topic,
+        level: widget.level,
+        levelRule: _AskAiSheet.levelRule(widget.level),
+        styleRules: _AskAiSheet.styleRules,
         history: history,
       );
       if (!mounted) return;
@@ -755,7 +854,7 @@ class _AskAiSheetState extends State<_AskAiSheet> {
           padding: const EdgeInsets.only(top: 4, bottom: 2),
           child: Text(line,
               style: const TextStyle(
-                  color: Color(0xFFFFD166), fontSize: 13.5, fontWeight: FontWeight.w800, height: 1.3)),
+                  color: Color(0xFFB45309), fontSize: 13.5, fontWeight: FontWeight.w800, height: 1.3)),
         ));
       } else if (line.startsWith('•')) {
         widgets.add(Padding(
@@ -764,10 +863,10 @@ class _AskAiSheetState extends State<_AskAiSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('• ',
-                  style: TextStyle(color: Color(0xFF4FD6E0), fontSize: 13.5, fontWeight: FontWeight.w800)),
+                  style: TextStyle(color: Color(0xFF0E7FA3), fontSize: 13.5, fontWeight: FontWeight.w800)),
               Expanded(
                 child: Text(line.substring(1).trim(),
-                    style: const TextStyle(color: Color(0xFFEEF0FF), fontSize: 13.5, height: 1.4)),
+                    style: const TextStyle(color: Color(0xFF1E2430), fontSize: 13.5, height: 1.4)),
               ),
             ],
           ),
@@ -776,7 +875,7 @@ class _AskAiSheetState extends State<_AskAiSheet> {
         widgets.add(Padding(
           padding: const EdgeInsets.only(bottom: 3),
           child: Text(line,
-              style: const TextStyle(color: Color(0xFFEEF0FF), fontSize: 13.5, height: 1.42)),
+              style: const TextStyle(color: Color(0xFF1E2430), fontSize: 13.5, height: 1.42)),
         ));
       }
     }
@@ -800,7 +899,7 @@ class _AskAiSheetState extends State<_AskAiSheet> {
       child: Container(
         height: MediaQuery.of(context).size.height * 0.72,
         decoration: const BoxDecoration(
-          color: Color(0xFF161B2E),
+          color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           border: Border(top: BorderSide(color: Color(0xFF9D7FE6), width: 2)),
         ),
@@ -815,20 +914,20 @@ class _AskAiSheetState extends State<_AskAiSheet> {
                     child: Text(
                       '🤖 Size nasıl yardımcı olabilirim?'.tr(),
                       style: const TextStyle(
-                        color: Color(0xFFFFD166),
+                        color: Color(0xFFB45309),
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Color(0xFFB9C2EE)),
+                    icon: const Icon(Icons.close, color: Color(0xFF64748B)),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, color: Color(0xFF2F3A5F)),
+            const Divider(height: 1, color: Color(0xFFE2E8F0)),
             // Mesajlar / boş durumda ipucu
             Expanded(
               child: _msgs.isEmpty
@@ -840,7 +939,7 @@ class _AskAiSheetState extends State<_AskAiSheet> {
                               ? '${widget.topic} ${'hakkında merak ettiğin her şeyi sorabilirsin.'.tr()}'
                               : 'Bu konuda merak ettiğin her şeyi sorabilirsin.'.tr(),
                           textAlign: TextAlign.center,
-                          style: const TextStyle(color: Color(0xFF8A93B0), fontSize: 13, height: 1.4),
+                          style: const TextStyle(color: Color(0xFF64748B), fontSize: 13, height: 1.4),
                         ),
                       ),
                     )
@@ -861,7 +960,7 @@ class _AskAiSheetState extends State<_AskAiSheet> {
                             decoration: BoxDecoration(
                               color: m.user
                                   ? const Color(0xFF2563EB)
-                                  : const Color(0xFF1F2540),
+                                  : const Color(0xFFF2F4F8),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: m.user
@@ -880,7 +979,7 @@ class _AskAiSheetState extends State<_AskAiSheet> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Text('AI yazıyor…'.tr(),
-                    style: const TextStyle(color: Color(0xFF8A93B0), fontSize: 12)),
+                    style: const TextStyle(color: Color(0xFF64748B), fontSize: 12)),
               ),
             // Giriş satırı
             SafeArea(
@@ -894,14 +993,14 @@ class _AskAiSheetState extends State<_AskAiSheet> {
                         controller: _ctrl,
                         minLines: 1,
                         maxLines: 4,
-                        style: const TextStyle(color: Color(0xFFEEF0FF), fontSize: 14),
+                        style: const TextStyle(color: Color(0xFF111827), fontSize: 14),
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _send(),
                         decoration: InputDecoration(
                           hintText: _msgs.isEmpty ? '' : 'istediğin herhangi bir şeyi sorabilirsin'.tr(),
-                          hintStyle: const TextStyle(color: Color(0xFF8A93B0)),
+                          hintStyle: const TextStyle(color: Color(0xFF7C8698)),
                           filled: true,
-                          fillColor: const Color(0xFF1F2540),
+                          fillColor: const Color(0xFFF2F4F8),
                           contentPadding:
                               const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           border: OutlineInputBorder(
@@ -919,7 +1018,7 @@ class _AskAiSheetState extends State<_AskAiSheet> {
                         height: 44,
                         decoration: BoxDecoration(
                           color: _sending
-                              ? const Color(0xFF3A4668)
+                              ? const Color(0xFFE2E8F0)
                               : const Color(0xFFFFD166),
                           borderRadius: BorderRadius.circular(12),
                         ),

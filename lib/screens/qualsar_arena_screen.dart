@@ -29,6 +29,7 @@ import '../services/user_profile_service.dart';
 import '../services/education_profile.dart';
 import '../services/usage_quota.dart';
 import '../services/gemini_service.dart';
+import '../services/locale_service.dart';
 import '../utils/math_text_cleaner.dart';
 import '../services/question_pool_service.dart';
 import '../services/group_contest_service.dart';
@@ -36,12 +37,14 @@ import '../services/contest_group_service.dart';
 import 'group_contest_screen.dart';
 import '../services/duelo_matchmaking_service.dart';
 import '../services/friend_service.dart';
+import '../services/known_opponents_service.dart';
 import '../services/notification_service.dart';
 import '../services/deep_link_service.dart';
 import '../services/achievement_service.dart';
 import 'bilgi_ligi_screen.dart';
 import 'bilgi_ligi_quiz_screen.dart';
 import '../features/league/league_demo_students.dart';
+import '../features/league/league_scores.dart';
 import '../widgets/exam_mode_widgets.dart';
 import '../widgets/rotating_globe.dart';
 import 'invite_accept_screen.dart';
@@ -498,6 +501,21 @@ class _QuAlsarArenaScreenState extends State<QuAlsarArenaScreen> {
           'faculty': faculty,
         };
       }
+    }
+
+    // Bildirimden gelindiyse (düello daveti / arkadaşlık isteği) eğitim
+    // kurulum dialogu AKIŞI KESMESİN: davet ders+konuyu zaten taşıyor,
+    // kabul eden tarafın seviye seçmesine gerek yok. Kayıtlı profil varsa
+    // yukarıda uygulandı; yoksa varsayılanlarla ana ekrana geçilir ve
+    // davet sheet'i doğrudan açılır.
+    if (widget.openAction != null) {
+      if (mounted) {
+        setState(() {
+          _hasProfile = true;
+          _loaded = true;
+        });
+      }
+      return;
     }
 
     // Profil kayıtlı VE deneme süresi bitmiş → direkt ana ekran
@@ -3259,10 +3277,10 @@ class _RealNotifItem extends StatelessWidget {
   String _ago() {
     final d = DateTime.now().difference(notif.when);
     if (d.inMinutes < 1) return 'şimdi'.tr();
-    if (d.inMinutes < 60) return '${d.inMinutes} dk önce';
-    if (d.inHours < 24) return '${d.inHours} sa önce';
-    if (d.inDays < 7) return '${d.inDays} g önce';
-    return '${(d.inDays / 7).floor()} hafta';
+    if (d.inMinutes < 60) return '${d.inMinutes} ${'dk önce'.tr()}';
+    if (d.inHours < 24) return '${d.inHours} ${'sa önce'.tr()}';
+    if (d.inDays < 7) return '${d.inDays} ${'g önce'.tr()}';
+    return '${(d.inDays / 7).floor()} ${'hafta'.tr()}';
   }
 
   @override
@@ -3810,21 +3828,29 @@ class _WorldVsChipsState extends State<_WorldVsChips> {
                 style: const TextStyle(fontSize: 9)),
           ),
           const SizedBox(width: 4),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(name,
-                  style: _sans(
-                      size: 8.5,
-                      weight: FontWeight.w800,
-                      color: Colors.white)),
-              Text('${flagEmojiFor(cc)} ${_countryName(cc)}',
-                  style: _sans(
-                      size: 7,
-                      weight: FontWeight.w600,
-                      color: Colors.white.withValues(alpha: 0.78))),
-            ],
+          // Flexible + ellipsis: uzun isim/ülke adında ("United Kingdom",
+          // "Deutschland") iki çipin toplamı dar ekranda taşıyordu.
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _sans(
+                        size: 8.5,
+                        weight: FontWeight.w800,
+                        color: Colors.white)),
+                Text('${flagEmojiFor(cc)} ${_countryName(cc)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: _sans(
+                        size: 7,
+                        weight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.78))),
+              ],
+            ),
           ),
         ],
       ),
@@ -3838,10 +3864,16 @@ class _WorldVsChipsState extends State<_WorldVsChips> {
       child: Row(
         key: ValueKey(_tick),
         crossAxisAlignment: CrossAxisAlignment.start,
+        // Çipler iki uca yaslanır: ilki en SOLDA, ikincisi aynı hizada en
+        // SAĞDA (kullanıcı isteği — eskiden ikisi de solda yan yanaydı).
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _chip(seed: _tick * 2 + 5, accent: const Color(0xFF38BDF8)),
-          const Spacer(),
-          _chip(seed: _tick * 2 + 340007, accent: const Color(0xFFF472B6)),
+          Flexible(
+              child: _chip(seed: _tick * 2 + 5, accent: const Color(0xFF38BDF8))),
+          const SizedBox(width: 8),
+          Flexible(
+              child: _chip(
+                  seed: _tick * 2 + 340007, accent: const Color(0xFFF472B6))),
         ],
       ),
     );
@@ -3914,22 +3946,29 @@ class _CountryVsChipsState extends State<_CountryVsChips> {
                 style: const TextStyle(fontSize: 12)),
           ),
           const SizedBox(width: 6),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(name,
-                  style: _sans(
-                      size: 10.5,
-                      weight: FontWeight.w800,
-                      color: Colors.white)),
-              if (city.isNotEmpty)
-                Text(city,
+          // Flexible + ellipsis: uzun isim/şehir dar ekranda taşırıyordu.
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: _sans(
-                        size: 8.5,
-                        weight: FontWeight.w600,
-                        color: Colors.white.withValues(alpha: 0.75))),
-            ],
+                        size: 10.5,
+                        weight: FontWeight.w800,
+                        color: Colors.white)),
+                if (city.isNotEmpty)
+                  Text(city,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: _sans(
+                          size: 8.5,
+                          weight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.75))),
+              ],
+            ),
           ),
         ],
       ),
@@ -3944,7 +3983,9 @@ class _CountryVsChipsState extends State<_CountryVsChips> {
       child: Row(
         key: ValueKey(_tick),
         children: [
-          _chip(seed: _tick * 2 + 11, accent: const Color(0xFF38BDF8)),
+          Flexible(
+              child:
+                  _chip(seed: _tick * 2 + 11, accent: const Color(0xFF38BDF8))),
           const Spacer(),
           Container(
             padding:
@@ -3968,7 +4009,9 @@ class _CountryVsChipsState extends State<_CountryVsChips> {
             ),
           ),
           const Spacer(),
-          _chip(seed: _tick * 2 + 700003, accent: const Color(0xFFF472B6)),
+          Flexible(
+              child: _chip(
+                  seed: _tick * 2 + 700003, accent: const Color(0xFFF472B6))),
         ],
       ),
     );
@@ -4365,8 +4408,14 @@ class _DueloCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Text('Düello Arenası'.tr(),
-                            style: _sans(size: 16, weight: FontWeight.w800, color: Colors.white, letterSpacing: -0.01)),
+                        // Flexible+ellipsis — 55 dilden birinde uzun başlık
+                        // CANLI rozetiyle birlikte satırı taşırmasın.
+                        Flexible(
+                          child: Text('Düello Arenası'.tr(),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _sans(size: 16, weight: FontWeight.w800, color: Colors.white, letterSpacing: -0.01)),
+                        ),
                         SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -5298,8 +5347,15 @@ class _DueloRecordsPageState extends State<_DueloRecordsPage> {
   }
 
   void _rematchFromRecord(BuildContext ctx, _DueloRecord r) {
-    // Aynı ders+konu ile yeni bir lobi aç — kullanıcı istediğinde direkt
-    // "Rakip Bul" diyebilir.
+    // Arkadaş kaydında aynı ders+konuyla GERÇEK rövanş daveti gönderilir;
+    // her durumda lobi açılır (kullanıcı yeni yarış da başlatabilir).
+    if (r.scope == 'friend' && r.opponentName.trim().isNotEmpty) {
+      unawaited(DueloMatchmakingService.requestRematch(
+        opponentUsername: r.opponentName,
+        subjectName: r.subjectName,
+        topicName: r.topicName,
+      ));
+    }
     Navigator.of(ctx).pushReplacement(
       MaterialPageRoute(builder: (_) => DueloLobbyScreen()),
     );
@@ -5637,32 +5693,32 @@ class _DueloRecordFullCard extends StatelessWidget {
   });
 
   String _fmtFullDate(DateTime d) {
+    // TAM ay adları anahtar olarak kullanılır: kısaltmalar ('Ara' gibi)
+    // sözlükte başka anlamlı anahtarlarla ('Ara' = arama) çakışıyordu.
+    // Çeviri değerleri yine kısa biçimdir ("15 Dic 2026").
     const months = [
-      'Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz',
-      'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara',
+      'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
     ];
     final hh = d.hour.toString().padLeft(2, '0');
     final mm = d.minute.toString().padLeft(2, '0');
-    return '${d.day} ${months[d.month - 1]} ${d.year}  ·  $hh:$mm';
+    return '${d.day} ${months[d.month - 1].tr()} ${d.year}  ·  $hh:$mm';
   }
 
   @override
   Widget build(BuildContext context) {
     final win = record.winner;
-    final label = win == 1
-        ? 'Kazandın'.tr()
-        : (win == 0 ? 'Berabere'.tr() : 'Kaybettin'.tr());
     final accent = win == 1
         ? _Palette.success
         : (win == 0 ? AppPalette.textPrimary(context) : _Palette.error);
-    final scopeTxt = record.scope == 'world'
-        ? '🌍 ${"Dünya".tr()}'
-        : '${_userCountryFlagEmoji()} ${"Ülke".tr()}';
+    // "Kazandın/Kaybettin" ve kapsam ("🌍 Dünya") rozetleri KALDIRILDI
+    // (kullanıcı isteği) — sonuç bilgisini çerçeve rengi + kupa zaten verir.
+    // Kart dikeyde de sıkılaştırıldı.
     return GestureDetector(
       onTap: onTap,
       onLongPress: onLongPress,
       child: Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
       decoration: BoxDecoration(
             color: AppPalette.card(context),
         borderRadius: BorderRadius.circular(16),
@@ -5672,41 +5728,6 @@ class _DueloRecordFullCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Üst satır: kazanma durumu + kapsam + tarih
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: accent,
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: Text(label,
-                    style: _sans(
-                        size: 10,
-                        weight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: 0.3)),
-              ),
-              SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppPalette.card(context),
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(color: AppPalette.border(context)),
-                ),
-                child: Text(scopeTxt,
-                    style: _sans(
-                        size: 10,
-                        weight: FontWeight.w800,
-                        color: AppPalette.textPrimary(context))),
-              ),
-            ],
-          ),
-          SizedBox(height: 10),
           // Ders + Konu
           Text(
             record.subjectName.isEmpty
@@ -5745,7 +5766,7 @@ class _DueloRecordFullCard extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 12),
+          SizedBox(height: 8),
           // Skor özeti — yan yana iki pill
           Row(
             children: [
@@ -5753,7 +5774,7 @@ class _DueloRecordFullCard extends StatelessWidget {
                 child: _scoreBox(
                   label: 'Sen'.tr(),
                   flag: record.myFlag,
-                  name: '@${record.myName}',
+                  name: record.myName,
                   country: record.myCountry,
                   score:
                       '${record.myCorrect}/${record.totalQuestions}',
@@ -5765,7 +5786,7 @@ class _DueloRecordFullCard extends StatelessWidget {
                 child: _scoreBox(
                   label: 'Rakip'.tr(),
                   flag: record.opponentFlag,
-                  name: '@${record.opponentName}',
+                  name: record.opponentName,
                   country: record.opponentCountry,
                   score:
                       '${record.opponentCorrect}/${record.totalQuestions}',
@@ -5774,7 +5795,7 @@ class _DueloRecordFullCard extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 12),
+          SizedBox(height: 8),
           // Aksiyon butonları — 2x2 grid.
           // Üst satır: [Yeniden Yarış] [Yanlışlarım]
           // Alt satır: [Sosyal medyada paylaş] [Arkadaşınla paylaş]
@@ -5819,15 +5840,29 @@ class _DueloRecordFullCard extends StatelessWidget {
             ],
           ),
           SizedBox(height: 6),
-          Center(
-            child: Text(
-              'Uzun basınca sil'.tr(),
-              style: _sans(
-                  size: 9,
-                  weight: FontWeight.w700,
-                  color: AppPalette.textSecondary(context),
-                  letterSpacing: 0.3),
-            ),
+          // Alt ipucu satırı: solda silme, sağda detay (dokununca kartın
+          // kendisi zaten orijinal sonuç ekranını açar).
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Uzun basınca sil'.tr(),
+                  style: _sans(
+                      size: 9,
+                      weight: FontWeight.w700,
+                      color: AppPalette.textSecondary(context),
+                      letterSpacing: 0.3),
+                ),
+              ),
+              Text(
+                'Detaylı bak'.tr(),
+                style: _sans(
+                    size: 9,
+                    weight: FontWeight.w700,
+                    color: AppPalette.textSecondary(context),
+                    letterSpacing: 0.3),
+              ),
+            ],
           ),
         ],
       ),
@@ -6286,6 +6321,9 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
     _loadRecords();
     _loadDuelColorPrefs();
     _loadDuelOrder();
+    // Eklenen / daha önce yarışılan kişiler (cihazda kayıtlı) — arkadaş
+    // listesi bunlarla birleştirilerek gösterilir.
+    _loadKnownOpponents();
     // Kalıcı özel dersler (Yeni Bir Ders Ekle) — yüklenince şerit tazelensin.
     _loadCustomSubjects().then((_) {
       if (mounted) setState(() {});
@@ -6357,6 +6395,156 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
 
   bool get _canStart => _selectedSubject != null && _selectedTopic != null;
 
+  /// Cihazda kayıtlı rakip listesini belleğe al ve liste hazır olunca
+  /// ekranı tazele (StreamBuilder yalnız Firestore'u dinliyor).
+  Future<void> _loadKnownOpponents() async {
+    await KnownOpponentsService.load();
+    if (mounted) setState(() {});
+  }
+
+  /// Onaylı arkadaşlar + cihazda kayıtlı kişiler (eklenen / daha önce
+  /// yarışılan) tek listede birleşir. Aynı kişi iki kaynakta da varsa
+  /// Firestore kaydı esas alınır. Sıralama: önce onaylı arkadaşlar, sonra
+  /// en son etkileşime göre kayıtlılar.
+  List<Friend> _mergeKnownOpponents(List<Friend> confirmed) {
+    final seen = {for (final f in confirmed) f.uid};
+    final out = [...confirmed];
+    for (final o in KnownOpponentsService.current) {
+      if (seen.contains(o.uid)) continue;
+      out.add(Friend(
+        uid: o.uid,
+        username: o.username,
+        displayName: o.displayName.isNotEmpty ? o.displayName : o.username,
+        avatar: o.avatar,
+        since: o.lastSeen,
+      ));
+    }
+    return out;
+  }
+
+  /// Dünya çapında yarış uygunluğu.
+  /// Dönüş: `null` → uygun · `'exam'` → ülkeye özgü sınav modu ·
+  /// `'subject'` → evrensel olmayan ders.
+  ///
+  /// Neden: KPSS/YKS/DGS/LGS gibi sınavlar yalnızca tek bir ülkede yapılır;
+  /// Türkçe edebiyatı, ülke tarihi gibi dersler de ülkeye/dile bağımlıdır.
+  /// Karşı taraftaki öğrencinin müfredatında bunlar bulunmadığı için adil
+  /// bir eşleşme kurulamaz. Matematik, Fizik, Kimya, Biyoloji gibi evrensel
+  /// derslerde dünya çapında yarışmak serbesttir.
+  String? _worldDuelBlockReason() {
+    if (_scope != 'world') return null;
+    final level =
+        (EduProfile.current?.level ?? _currentLevel ?? '').toLowerCase();
+    if (level == 'exam_prep' || level == 'sinav_hazirlik') return 'exam';
+    final key = _selectedSubject;
+    if (key == null) return null;
+    final universal = <String>{for (final s in _globalDueloSubjects) s.key};
+    for (final list in _facultyGlobalSubjects.values) {
+      for (final s in list) {
+        universal.add(s.key);
+      }
+    }
+    return universal.contains(key) ? null : 'subject';
+  }
+
+  /// Dünya çapında yarışılamayan seçim için açıklayıcı uyarı.
+  void _showWorldScopeWarning(String reason) {
+    final isExam = reason == 'exam';
+    final subjName = _selectedSubject == null
+        ? ''
+        : _findSubjectByKey(_selectedSubject!).name;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppPalette.card(ctx),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            const Text('🌍', style: TextStyle(fontSize: 22)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Bu seçimle dünya çapında yarışılamaz'.tr(),
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppPalette.textPrimary(ctx)),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isExam
+                  ? 'Sınav modundaki dersler (LGS, YKS · TYT/AYT, KPSS, DGS gibi) yalnızca kendi ülkende uygulanır. Başka ülkelerdeki öğrencilerin müfredatında bu sınavlar bulunmaz; bu yüzden dünya genelinde adil bir rakip eşleştirilemez.'
+                      .tr()
+                  : '“$subjName” dersi ülkeye ve dile bağlı bir ders. Her ülkenin müfredatında ortak olmadığı için dünya genelinde eşleşme yapılamıyor.'
+                      .tr(),
+              style: TextStyle(
+                  fontSize: 13.5,
+                  height: 1.45,
+                  color: AppPalette.textSecondary(ctx)),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(11),
+              decoration: BoxDecoration(
+                color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.45)),
+              ),
+              child: Text(
+                'Dünya çapında yarışmak için evrensel derslerden birini seç: Matematik, Fizik, Kimya, Biyoloji, İngilizce, Dünya Tarihi, Dünya Coğrafyası…'
+                    .tr(),
+                style: const TextStyle(
+                    fontSize: 12.5,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF10B981)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              isExam
+                  ? 'Sınav modunda yarışmak istiyorsan “Ülkemde” sekmesine geç — orada aynı sınava hazırlanan öğrencilerle eşleşirsin.'
+                      .tr()
+                  : 'Bu derste yarışmak istiyorsan “Ülkemde” sekmesine geçebilirsin.'
+                      .tr(),
+              style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.4,
+                  color: AppPalette.textSecondary(ctx)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Anladım'.tr()),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              if (mounted) {
+                setState(() {
+                  _scope = 'country';
+                  _selectedSubject = null;
+                  _selectedTopic = null;
+                });
+              }
+            },
+            child: Text('Ülkemde yarış'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
   // Inline kurulum sihirbazında "Başlat" aktif olması için: ders + konu + soru
   // sayısı seçilmiş olmalı (soru tipi hep varsayılan 'mc' ile geçerli).
   // Dünya/Ülke Çapında modunda soru TİPİ adımı yok ama soru SAYISI (5/10)
@@ -6403,6 +6591,21 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
     return null;
   }
 
+  /// Ücretsiz kullanıcının "günde 1 düello" sayacı eşleşme başında artar;
+  /// soru üretimi/eşleşme BAŞARISIZ olup kota iade edilirken bu hak da iade
+  /// edilir — eskiden AI hatasında hak yanıyor, ikinci denemede paywall
+  /// çıkıyordu.
+  Future<void> _refundDaily1v1() async {
+    if (AiQuotaService.instance.isPremium) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateTime.now().toIso8601String().substring(0, 10);
+      if ((prefs.getString('duelo_1v1_date') ?? '') != today) return;
+      final c = prefs.getInt('duelo_1v1_count') ?? 0;
+      if (c > 0) await prefs.setInt('duelo_1v1_count', c - 1);
+    } catch (_) {/* prefs hatası → iade edilemedi, kritik değil */}
+  }
+
   // Prod: gerçek Firebase matchmaking akışı. Şu an dev modda çağrılmıyor;
   // yayına alırken _findMatch içinde bu fonksiyona geçiş yapın.
   /// Kullanıcının Bilgi Ligi'nde (Dünya Sıralaması) kayıtlı şehri —
@@ -6424,6 +6627,9 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
   Future<DueloMatchResult?> _runRealMatchmaking({
     required String subjectKey,
     String? topic,
+    // 'test' | 'match' — kuyruk artık oyun tipine göre de filtreler; test
+    // arayanla eşleştirme-kartları arayan birbirine düşmez.
+    String raceType = 'test',
   }) async {
     final profile = EduProfile.current;
     final userId = await _currentUserId();
@@ -6452,6 +6658,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
       subjectKey: subjectKey,
       topic: topic,
       elo: myElo,
+      raceType: raceType,
     );
     return DueloMatchmakingService.findMatch(
       criteria,
@@ -6497,10 +6704,12 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
-              'Günlük 1 ücretsiz 1v1 yarışma hakkın var. Sınırsız yarışmak için Premium\'a geç.',
+            Text(
+              'Günlük 1 ücretsiz 1v1 yarışma hakkın var. Sınırsız yarışmak için Premium\'a geç.'
+                  .tr(),
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFFB9C2EE), fontSize: 14, height: 1.5),
+              style: const TextStyle(
+                  color: Color(0xFFB9C2EE), fontSize: 14, height: 1.5),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -6577,6 +6786,15 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
     // Ebeveyn önizlemesi: yarışma başlatılamaz.
     if (ParentPreview.guard(context)) return;
 
+    // DÜNYA ÇAPINDA UYGUNLUK: ülkeye özgü sınav modları (KPSS, YKS, DGS,
+    // LGS…) ve ülkeye/dile bağımlı dersler dünya eşleşmesine giremez —
+    // karşı taraftaki öğrencinin müfredatında o sınav/ders yok.
+    final block = _worldDuelBlockReason();
+    if (block != null) {
+      _showWorldScopeWarning(block);
+      return;
+    }
+
     // Ücretsiz kullanıcı (deneme bitti): günde 1 yarışma hakkı.
     if (!AiQuotaService.instance.isPremium) {
       final prefs = await SharedPreferences.getInstance();
@@ -6588,7 +6806,8 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
         _showDueloPremiumGate();
         return;
       }
-      // İzin verildi — sayacı güncelle.
+      // İzin verildi — sayacı güncelle. (Soru üretimi/eşleşme başarısız
+      // olursa _refundDaily1v1 ile iade edilir — eskiden hak yanıyordu.)
       await prefs.setString('duelo_1v1_date', today);
       await prefs.setInt('duelo_1v1_count', count + 1);
     }
@@ -6634,6 +6853,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
         // AI boş veya geçersiz pair üretirse kotayı iade et, snackbar göster.
         if (pairs.isEmpty) {
           await UsageQuota.decrement(QuotaKind.arenaQuiz);
+          await _refundDaily1v1();
           if (mounted) {
             setState(() => _matching = false);
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -6653,6 +6873,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
           match = await _runRealMatchmaking(
             subjectKey: subjectKey,
             topic: topic,
+            raceType: 'match',
           );
         } catch (e) {
           debugPrint('[Duelo] real matchmaking fail: $e');
@@ -6671,9 +6892,11 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
         } else {
           // Pool dinamik: dünya scope'unda kullanıcı seviyesine yakın ELO bandı,
           // ülke scope'unda kullanıcının ülkesine özel havuz.
-          final pool = _scope == 'world'
+          var pool = _scope == 'world'
               ? _worldOpponentsForLevel(_currentLevel)
               : _countryOpponentsForUser();
+          // Havuz boşsa dünya havuzuna düş — nextInt(0) crash etmesin.
+          if (pool.isEmpty) pool = _worldOpponentsForLevel(_currentLevel);
           final opp = pool[rng.nextInt(pool.length)];
           oppName = opp.username;
           oppAvatar = opp.avatar;
@@ -6705,6 +6928,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
         debugPrint('[Duelo] match pairs üretimi başarısız: $e');
         // AI/Gemini fail → kullanıcı kotasını boşa harcamasın.
         await UsageQuota.decrement(QuotaKind.arenaQuiz);
+        await _refundDaily1v1();
         if (mounted) {
           setState(() => _matching = false);
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -6761,6 +6985,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
         return await _runRealMatchmaking(
           subjectKey: subjectKey,
           topic: topic,
+          raceType: 'test',
         );
       } catch (e) {
         debugPrint('[Duelo] real matchmaking fail: $e');
@@ -6776,7 +7001,12 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
     //    artık yalnızca SON ÇARE yedeği — adım 4'e taşındı.) Havuz hazırsa
     //    (≥50 soru) AI üretimi gerekmez → ekran anında açılır; yoksa AI'ye
     //    düşülür ve AI sonucu havuza yazılarak havuz ısıtılır.
-    final bank = _questionBank[subjectKey];
+    // Statik banka içeriği Türkçe — uygulama dili Türkçe değilse yedek olarak
+    // KULLANILMAZ (havuz + AI kullanıcının dilinde üretir; yabancı kullanıcıya
+    // Türkçe soru göstermek yerine açık hata mesajı tercih edilir).
+    final bank = (LocaleService.global?.localeCode ?? 'tr') == 'tr'
+        ? _questionBank[subjectKey]
+        : null;
     final eduProfile = EduProfile.current;
     if (picks.length < targetCount && topic != null && eduProfile != null) {
       try {
@@ -6912,6 +7142,7 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
     if (picks.length < minProceedCount) {
       // AI yeterli soru üretemedi → kullanıcı kota harcamadan dön.
       await UsageQuota.decrement(QuotaKind.arenaQuiz);
+      await _refundDaily1v1();
       if (!mounted) return;
       setState(() => _matching = false);
       // AI gerçekten patladıysa daha açıklayıcı mesaj — kullanıcı "neden
@@ -6964,9 +7195,11 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
       // Pool dinamik: dünya scope = seviyeye uygun ELO bandı, ülke scope =
       // kullanıcının ülkesine özel havuz (ister TR'nin sabit listesi, ister
       // diğer ülkelerin sentetik üretimi).
-      final pool = _scope == 'world'
+      var pool = _scope == 'world'
           ? _worldOpponentsForLevel(_currentLevel)
           : _countryOpponentsForUser();
+      // Havuz boşsa dünya havuzuna düş — nextInt(0) crash etmesin.
+      if (pool.isEmpty) pool = _worldOpponentsForLevel(_currentLevel);
       final opp = pool[rng.nextInt(pool.length)];
       oppName = opp.username;
       oppAvatar = opp.avatar;
@@ -7029,6 +7262,17 @@ class _DueloLobbyScreenState extends State<DueloLobbyScreen>
     final optsExample =
         optLetters.map((l) => '"$l": "..."').join(', ');
     final letterChoices = optLetters.map((l) => '"$l"').join(' | ');
+    // ÇIKTI DİLİ: kullanıcının aktif uygulama dili — "kullanıcının dilinde"
+    // gibi belirsiz bir talimat AI'ın Türkçe/İngilizce'ye kaçmasına yol
+    // açıyordu (Bilgi Ligi'nde aynı sorun LocaleService ile düzeltilmişti,
+    // düello bu düzeltmeyi almamıştı).
+    final outLangCode = LocaleService.global?.localeCode ?? 'tr';
+    final outLangInstr = outLangCode == 'tr'
+        ? 'Soruları, şıkları, ipuçlarını ve çözümleri Türkçe yaz.'
+        : 'Soruları, şıkları, ipuçlarını ve çözümleri — HER ŞEYİ — '
+            '${GeminiService.languageNameFor(outLangCode)} dilinde yaz '
+            '(kod: "$outLangCode"). Bu dil dışında Türkçe veya İngilizce '
+            'KULLANMA.';
     final prompt = '''
 [DÜELLO SORU ÜRETİMİ — $count SORU · JSON]
 ${eduCtx.isNotEmpty ? '$eduCtx\n' : ''}Ders: ${subject.name}
@@ -7075,8 +7319,7 @@ KURALLAR:
 • Soru MUTLAKA yalnızca "$topicLabel" konusuyla ilgili olsun.
 • "opts" her zaman $optCount şık: ${optLetters.join(', ')}.
 • "ans" şık harfi: $letterChoices.
-• Soruları, şıkları ve çözümleri KULLANICININ DİLİNDE yaz (uygulama
-  dili neyse o).
+• $outLangInstr
 • MATEMATİK/KİMYA/FİZİK gösterimi DÜZ UNICODE olsun: alt indis ₀-₉ (H₂O,
   CO₂, BaCl₂), üst indis ⁰-⁹/²/³ (x², 10⁻³), ok → , çarpım × , bölme ÷ ,
   ± ≤ ≥ ≠ Δ π √ . LaTeX KULLANMA: \\text, \\(, \\), _2, ^2, \$ İŞARETİ YOK.
@@ -8466,7 +8709,7 @@ KURALLAR:
     // Dil dersi seçilirse önce dil picker'ı aç
     if (_isLanguagePickerSubject(s.key) && _selectedSubject != s.key) {
       final lang = await _showLanguagePickerSheet(context);
-      if (lang == null) return;
+      if (lang == null || !mounted) return;
       _chosenLanguage[s.key] = lang;
     }
     // Aynı ders tekrar tıklandıysa temizle.
@@ -8479,7 +8722,15 @@ KURALLAR:
     }
     // Konu listesi boşsa uyarı ver, dersi seçme.
     var topics = s.topics;
-    if (topics.isEmpty) topics = _availableTopics();
+    if (topics.isEmpty) {
+      // _availableTopics() SEÇİLİ derse göre üretir; bu noktada _selectedSubject
+      // hâlâ ESKİ ders olduğundan yeni dersin altında eski dersin konuları
+      // listelenebiliyordu. Hesap için geçici olarak tıklanan dersi seç.
+      final prev = _selectedSubject;
+      _selectedSubject = s.key;
+      topics = _availableTopics();
+      _selectedSubject = prev;
+    }
     if (topics.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -8523,7 +8774,9 @@ KURALLAR:
     } else if (_pendingFriend != null) {
       final f = _pendingFriend!;
       _pendingFriend = null;
-      _startFriendDuelWithSettings(f, s);
+      // Seçilen KONU davete taşınır — eskiden düşürülüyordu ve arkadaş
+      // düellosu hep "ders geneli" sorularla açılıyordu.
+      _startFriendDuelWithSettings(f, s, topic: topic);
     } else if (_groupMode) {
       _createGroupContest(s, topic);
     } else {
@@ -8535,8 +8788,17 @@ KURALLAR:
   /// Arkadaş 1v1: konu seçildikten sonra soru tipi + sayısı sor, sonra davet
   /// gönder. (Bu tasarım sadece arkadaş/grup için; Dünya/Ülke'de yok.)
   Future<void> _startFriendDuelWithSettings(Friend f, _Subject s,
-      {int? count, String? qType}) async {
+      {String? topic, int? count, String? qType}) async {
     if (ParentPreview.guard(context)) return;
+    // Yarışılan kişi kalıcı listeye "oynandı" olarak yazılır — bir sonraki
+    // "Arkadaşlarınla Yarış" açılışında hazır gelir.
+    unawaited(KnownOpponentsService.remember(
+      uid: f.uid,
+      username: f.username,
+      displayName: f.displayName,
+      avatar: f.avatar,
+      played: true,
+    ));
     int c;
     String t;
     if (count != null && qType != null) {
@@ -8548,9 +8810,11 @@ KURALLAR:
       c = res.$1;
       t = res.$2;
     }
-    // Seçilen ders + soru sayısı + tipi (mc/tf) davetle birlikte taşınır;
-    // kabul edilince owner bu ayarlarla soru üretir, guest aynı seti okur.
-    await _sendDuelInvite(context, f, subject: s.name, count: c, qType: t);
+    // Seçilen ders + KONU + soru sayısı + tipi (mc/tf) davetle birlikte
+    // taşınır; kabul edilince owner bu ayarlarla soru üretir, guest aynı
+    // seti okur.
+    await _sendDuelInvite(context, f,
+        subject: s.name, topic: topic, count: c, qType: t);
   }
 
   // Konu seçildikten sonra: Test Soruları / Eşleştirme Kartları seçici.
@@ -8890,18 +9154,64 @@ KURALLAR:
   Future<void> _launchExamModeQuiz(ExamModeSelection picked) async {
     final profile = EduProfile.current;
     if (profile == null || !mounted) return;
+
+    // Ücretsiz kullanıcı: günde 1 lig testi — Bilgi Ligi ekranındaki kapının
+    // birebir aynısı. Eskiden bu yol kapıyı atlıyordu.
+    if (!AiQuotaService.instance.isPremium) {
+      int playedToday = 0;
+      try {
+        playedToday =
+            await LeagueScores.attemptsInBucket(period: LeaguePeriod.daily);
+      } catch (_) {/* yerel okuma hatası → engelleme, oynasın */}
+      if (playedToday >= 1) {
+        if (!mounted) return;
+        Analytics.logPaywallShown('league_daily_limit');
+        await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => PremiumScreen()),
+        );
+        return;
+      }
+    }
+    if (!mounted) return;
+
     final synthetic = examSyntheticSubject(picked.exam, picked.subject);
-    await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => BilgiLigiQuizScreen(
+    final result = await Navigator.of(context).push<Map<String, num>>(
+      MaterialPageRoute(
+        builder: (_) => BilgiLigiQuizScreen(
+          profile: profile,
+          subjectKey: synthetic.key,
+          subjectName: synthetic.displayName,
+          subjectEmoji: synthetic.emoji,
+          topic: picked.topic,
+          examLabel: picked.exam.displayName,
+          optionCount: picked.exam.optionCount,
+        ),
+      ),
+    );
+    if (result == null) return;
+
+    // ESKİDEN pop sonucu hiç okunmuyordu → "+8 Lig Puanı" gösterilip puan
+    // ne yerel kayda ne buluta yazılıyordu (sıralamada asla görünmüyordu).
+    // Bilgi Ligi ekranındaki gönderimle aynı yol: LeagueScores.add zinciri.
+    final score = (result['score'] ?? 0).toDouble();
+    final durationSec = (result['durationSec'] ?? 0).toInt();
+    try {
+      await LeagueScores.submitQuizResult(
         profile: profile,
         subjectKey: synthetic.key,
-        subjectName: synthetic.displayName,
-        subjectEmoji: synthetic.emoji,
         topic: picked.topic,
-        examLabel: picked.exam.displayName,
-        optionCount: picked.exam.optionCount,
-      ),
-    ));
+        score: score,
+        durationSec: durationSec,
+      );
+    } catch (e) {
+      debugPrint('[Arena] lig skoru gönderilemedi: $e');
+    }
+
+    // Sonuç ekranındaki "Yeni Test" → skor işlendikten sonra aynı seçimle
+    // yeni test (kapı kontrolü dahil baştan çalışır).
+    if ((result['again'] ?? 0) == 1 && mounted) {
+      await _launchExamModeQuiz(picked);
+    }
   }
 
   // ─── DAVETLER ────────────────────────────────────────────────────────────────
@@ -8919,7 +9229,14 @@ KURALLAR:
           stream: ContestGroupService.watchGroupInvites(),
           builder: (c2, s2) {
             final grp = s2.data ?? const <GroupInvite>[];
-            final total = duel.length + grp.length;
+            // Arkadaşlık istekleri de zilde sayılır — eskiden yalnız 1v1 +
+            // grup davetleri sayılıyordu; gelen arkadaşlık isteği rozete
+            // hiç yansımıyordu ("istekler görünmüyor" şikayeti).
+            return StreamBuilder<List<FriendRequest>>(
+              stream: FriendService.watchPendingRequests(),
+              builder: (c3, s3) {
+            final freq = s3.data ?? const <FriendRequest>[];
+            final total = duel.length + grp.length + freq.length;
             final has = total > 0;
             return GestureDetector(
               onTap: _openInvitesHub,
@@ -8967,6 +9284,8 @@ KURALLAR:
                     ),
                 ],
               ),
+            );
+              },
             );
           },
         );
@@ -9032,20 +9351,47 @@ KURALLAR:
                                 '[Arena] watchInvites error: ${ds.error}');
                           }
                           final duels = ds.data ?? const <DueloInvite>[];
-                          return ListView(
-                            padding: EdgeInsets.zero,
-                            children: [
-                              if (kShowDemoMode) ...[
-                                _demoSectionLabel(
-                                    hctx, 'demo davet — cevap verip dene'),
-                                _demoDuelInviteCard(hctx),
-                                _demoGroupInviteCard(hctx),
-                              ],
-                              for (final g in groups)
-                                _groupInviteCard(hctx, g),
-                              for (final d in duels)
-                                _duelInviteCard(hctx, d),
-                            ],
+                          // Arkadaşlık istekleri de davetler merkezinde
+                          // listelenir (zil rozetiyle aynı kaynaklar).
+                          return StreamBuilder<List<FriendRequest>>(
+                            stream: FriendService.watchPendingRequests(),
+                            builder: (fc, fs) {
+                              final freqs =
+                                  fs.data ?? const <FriendRequest>[];
+                              return ListView(
+                                padding: EdgeInsets.zero,
+                                children: [
+                                  if (kShowDemoMode) ...[
+                                    _demoSectionLabel(
+                                        hctx, 'demo davet — cevap verip dene'),
+                                    _demoDuelInviteCard(hctx),
+                                    _demoGroupInviteCard(hctx),
+                                  ],
+                                  for (final r in freqs)
+                                    _friendRequestHubCard(hctx, r),
+                                  for (final g in groups)
+                                    _groupInviteCard(hctx, g),
+                                  for (final d in duels)
+                                    _duelInviteCard(hctx, d),
+                                  if (freqs.isEmpty &&
+                                      groups.isEmpty &&
+                                      duels.isEmpty &&
+                                      !kShowDemoMode)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 20),
+                                      child: Text(
+                                        'Bekleyen davet veya istek yok.'.tr(),
+                                        textAlign: TextAlign.center,
+                                        style: _sans(
+                                            size: 12.5,
+                                            color: AppPalette.textSecondary(
+                                                hctx)),
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
                           );
                         },
                       );
@@ -9056,6 +9402,89 @@ KURALLAR:
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Davetler merkezindeki arkadaşlık isteği satırı — isim + @kullanıcıadı
+  /// birlikte gösterilir; Kabul/Reddet doğrudan buradan yapılır.
+  Widget _friendRequestHubCard(BuildContext hctx, FriendRequest r) {
+    final who = r.fromDisplayName.trim().isNotEmpty
+        ? r.fromDisplayName
+        : r.fromUsername;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppPalette.card(hctx),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: const Color(0xFF10B981).withValues(alpha: 0.40)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('🤝', style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                    '$who ${'sana arkadaşlık isteği gönderdi'.tr()}',
+                    style: _sans(
+                        size: 13.5,
+                        weight: FontWeight.w800,
+                        color: AppPalette.textPrimary(hctx))),
+              ),
+              Text(_inviteTimeAgo(r.sentAt),
+                  style: _sans(
+                      size: 10.5, color: AppPalette.textSecondary(hctx))),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(r.fromUsername,
+              style: _sans(size: 12, color: AppPalette.textSecondary(hctx))),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _PrimaryButton(
+                  label: 'Kabul Et',
+                  brand: true,
+                  onTap: () async {
+                    final ok =
+                        await FriendService.acceptRequest(fromUid: r.fromUid);
+                    if (!hctx.mounted) return;
+                    ScaffoldMessenger.of(hctx).showSnackBar(SnackBar(
+                      content: Text(ok
+                          ? '${r.fromUsername} ${'artık arkadaşın'.tr()}'
+                          : 'İşlem başarısız'.tr()),
+                      behavior: SnackBarBehavior.floating,
+                    ));
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => FriendService.rejectRequest(fromUid: r.fromUid),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 15),
+                  decoration: BoxDecoration(
+                    color: AppPalette.card(hctx),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(color: AppPalette.border(hctx)),
+                  ),
+                  child: Text('Reddet'.tr(),
+                      style: _sans(
+                          size: 13,
+                          weight: FontWeight.w700,
+                          color: AppPalette.textSecondary(hctx))),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -9180,7 +9609,7 @@ KURALLAR:
               const Text('⚔️', style: TextStyle(fontSize: 20)),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('@$who ${'seni birebir yarışa davet etti'.tr()}',
+                child: Text('$who ${'seni birebir yarışa davet etti'.tr()}',
                     style: _sans(
                         size: 13.5,
                         weight: FontWeight.w800,
@@ -9256,7 +9685,7 @@ KURALLAR:
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                    '@$who grup yarışı açtı ve seni davet etti',
+                    '$who ${'grup yarışı açtı ve seni davet etti'.tr()}',
                     style: _sans(
                         size: 13.5,
                         weight: FontWeight.w800,
@@ -9280,7 +9709,7 @@ KURALLAR:
                 final grp = fs.data;
                 if (grp == null) return const SizedBox(height: 6);
                 final names = grp.members
-                    .map((m) => '@${m['username'] ?? 'oyuncu'}')
+                    .map((m) => '${m['username'] ?? 'oyuncu'}')
                     .join(', ');
                 return Padding(
                   padding: const EdgeInsets.only(top: 6),
@@ -9369,6 +9798,10 @@ KURALLAR:
         subjectName: inv.subjectKey ?? 'Genel Kültür',
         topic: inv.topic,
         opponentName: inv.fromUsername,
+        // Davet ayarları (soru sayısı/tipi) guest tarafına da taşınır —
+        // eskiden düşürülüp hep 5/'mc' varsayılıyordu.
+        questionCount: inv.questionCount,
+        questionType: inv.questionType,
       ),
     ));
   }
@@ -9403,6 +9836,63 @@ KURALLAR:
           explanation: e,
           difficulty: 'easy',
         );
+    // Statik demo seti Türkçe + Türkiye'ye özgü içerik. Uygulama dili Türkçe
+    // değilse evrensel İngilizce set kullanılır (uygulamanın global fallback
+    // dili İngilizce) — yabancı kullanıcıya Türkçe soru gösterilmez.
+    if ((LocaleService.global?.localeCode ?? 'tr') != 'tr') {
+      _QuizQuestion qe(String t, List<String> o, int c, String e) =>
+          _QuizQuestion(
+            subjectKey: 'demo',
+            subjectName: 'General Knowledge',
+            subjectEmoji: '🎯',
+            subjectColor: col,
+            topic: 'Demo',
+            text: t,
+            options: o,
+            correctIndex: c,
+            hint: 'This is a demo question.',
+            explanation: e,
+            difficulty: 'easy',
+          );
+      return [
+        qe('What is the sum of the interior angles of a triangle?',
+            ['90°', '180°', '270°', '360°'], 1,
+            'Every triangle has interior angles totalling 180°.'),
+        qe('What is the chemical formula of water?',
+            ['CO₂', 'O₂', 'H₂O', 'NaCl'], 2,
+            'Water is two hydrogen atoms and one oxygen atom → H₂O.'),
+        qe('Which is the largest planet in the Solar System?',
+            ['Earth', 'Mars', 'Jupiter', 'Venus'], 2,
+            'Jupiter is the largest planet.'),
+        qe('What is 5 × 8?', ['30', '35', '40', '45'], 2, '5 × 8 = 40.'),
+        qe('What is the largest organ of the human body?',
+            ['Liver', 'Skin', 'Lungs', 'Heart'], 1,
+            'The skin is the largest organ of the body.'),
+        qe('Which planet is known as the "Red Planet"?',
+            ['Venus', 'Mars', 'Jupiter', 'Saturn'], 1,
+            'Mars looks red because of iron oxide on its surface.'),
+        qe('How many sides does a square have?',
+            ['3', '4', '5', '6'], 1, 'A square has 4 equal sides.'),
+        qe('In which organelle is DNA mostly found?',
+            ['Ribosome', 'Nucleus', 'Mitochondrion', 'Golgi'], 1,
+            'Genetic information is stored in the cell nucleus.'),
+        qe('What is half of 120?', ['40', '50', '60', '80'], 2,
+            '120 ÷ 2 = 60.'),
+        qe('Which element is shown as "O" in the periodic table?',
+            ['Gold', 'Oxygen', 'Osmium', 'Oganesson'], 1, 'O = Oxygen.'),
+        qe('Which gas do plants absorb during photosynthesis?',
+            ['Oxygen', 'Carbon dioxide', 'Nitrogen', 'Hydrogen'], 1,
+            'Plants take in CO₂ and release oxygen.'),
+        qe('What is the closest star to Earth?',
+            ['Polaris', 'The Sun', 'Sirius', 'Alpha Centauri'], 1,
+            'The Sun is the nearest star to Earth.'),
+        qe('How many continents are there on Earth?',
+            ['5', '6', '7', '8'], 2,
+            'There are 7 continents.'),
+        qe('What is 25% of 200?', ['25', '40', '50', '75'], 2,
+            '200 × 0.25 = 50.'),
+      ];
+    }
     // Geniş demo havuzu — tekrar defteriyle her yarışta FARKLI sorular gelsin
     // (havuz tükenene kadar aynı soru gösterilmez).
     return [
@@ -9539,7 +10029,7 @@ KURALLAR:
           (name: name, avatar: avatar, isGroup: isGroup, members: members);
       _enterContestSetup(isGroup
           ? '“$name” ile demo grup yarışı'
-          : '@$name ile demo yarış');
+          : '$name ile demo yarış');
     });
   }
 
@@ -9730,7 +10220,10 @@ KURALLAR:
         opponentFlag: '🎓',
         opponentCountry: 'Demo',
         opponentElo: 1200,
-        subjectName: subjectName,
+        // Varsayılan 'Genel Kültür' etiketi çevrilir; AI/havuzdan gelen gerçek
+        // ders adları olduğu gibi geçer.
+        subjectName:
+            subjectName == 'Genel Kültür' ? 'Genel Kültür'.tr() : subjectName,
         topicName: topicName,
         scope: 'friend', // demo arkadaş yarışı → "Arkadaşımla Yarışlarım"
       ),
@@ -9790,7 +10283,7 @@ KURALLAR:
               Text(avatar, style: const TextStyle(fontSize: 20)),
               const SizedBox(width: 10),
               Expanded(
-                child: Text('@$name',
+                child: Text(name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: _sans(
@@ -9845,7 +10338,7 @@ KURALLAR:
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: Text('@${u.username}',
+              child: Text(u.username,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: _sans(
@@ -9855,12 +10348,25 @@ KURALLAR:
             ),
             GestureDetector(
               onTap: () async {
-                final ok = await FriendService.sendRequest(toUid: u.uid);
+                // Doğrudan çift-yönlü ekle → anında iki tarafın listesinde.
+                final res = await FriendService.addFriendDirect(u);
+                // Ayrıca cihazda da sakla (offline "Arkadaşlarınla Yarış").
+                await KnownOpponentsService.remember(
+                  uid: u.uid,
+                  username: u.username,
+                  displayName: u.displayName,
+                  avatar: u.avatar,
+                );
                 if (!mounted) return;
+                final msg = switch (res) {
+                  FriendReqResult.sent || FriendReqResult.alreadyFriends =>
+                    '${u.username} eklendi — artık arkadaşsınız ✓',
+                  FriendReqResult.invalid => 'Kendini ekleyemezsin',
+                  FriendReqResult.failed =>
+                    'Eklenemedi — bağlantını kontrol edip tekrar dene',
+                };
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text(ok
-                      ? '@${u.username} kullanıcısına istek gönderildi'
-                      : '@${u.username} zaten arkadaşın veya istek gönderilemedi'),
+                  content: Text(msg),
                   behavior: SnackBarBehavior.floating,
                 ));
               },
@@ -9890,7 +10396,10 @@ KURALLAR:
   Future<void> _open1v1Hub() async {
     final searchCtl = TextEditingController();
     Timer? debounce;
-    bool showSearch = false;
+    // Arkadaş ekleme bölümü — grup oluşturma sayfasındaki ARKADAŞ EKLE ile
+    // BİREBİR aynı mantık: 3 sekme (QR / Link / Kullanıcı adı), içerik
+    // seçili sekmeye göre altta açılır. Varsayılan QR.
+    int addTab = 0;
     bool searching = false;
     List<FriendUser> results = const [];
 
@@ -10005,6 +10514,30 @@ KURALLAR:
                                           builder: (c, snap) {
                                             final friends = snap.data ??
                                                 const <Friend>[];
+                                            // Arkadaş yoksa net boş-durum notu
+                                            // (demo satırları da yoksa) —
+                                            // kullanıcı "arkadaşlarım nerede"
+                                            // diye kalmasın, aşağıdan eklesin.
+                                            if (friends.isEmpty &&
+                                                !kShowDemoMode) {
+                                              return Padding(
+                                                padding: const EdgeInsets
+                                                    .symmetric(
+                                                    vertical: 16,
+                                                    horizontal: 8),
+                                                child: Text(
+                                                  'Henüz arkadaşın yok — aşağıdan QR, link veya kullanıcı adıyla ekle.'
+                                                      .tr(),
+                                                  textAlign: TextAlign.center,
+                                                  style: _sans(
+                                                      size: 12.5,
+                                                      height: 1.4,
+                                                      color: AppPalette
+                                                          .textSecondary(
+                                                              dctx)),
+                                                ),
+                                              );
+                                            }
                                             return Column(
                                               children: [
                                                 for (final f in friends)
@@ -10033,30 +10566,122 @@ KURALLAR:
                               ),
                               Row(
                                 children: [
-                                  Expanded(
-                                    child: _addMethodBtn('📲',
-                                        'QR ile ekle'.tr(),
-                                        () => _showFriendQrSheet(context)),
-                                  ),
+                                  _addMethodTab(dctx, Icons.qr_code_rounded,
+                                      'QR ile'.tr(), addTab == 0,
+                                      () => setD(() => addTab = 0)),
                                   const SizedBox(width: 8),
-                                  Expanded(
-                                    child: _addMethodBtn('🔗',
-                                        'Link ile ekle'.tr(),
-                                        _shareFriendInviteLink),
-                                  ),
+                                  _addMethodTab(dctx, Icons.link_rounded,
+                                      'Link ile'.tr(), addTab == 1,
+                                      () => setD(() => addTab = 1)),
                                   const SizedBox(width: 8),
-                                  Expanded(
-                                    child: _addMethodBtn(
-                                      '👤',
-                                      'Kullanıcı adı'.tr(),
-                                      () => setD(
-                                          () => showSearch = !showSearch),
-                                      active: showSearch,
-                                    ),
-                                  ),
+                                  _addMethodTab(dctx,
+                                      Icons.alternate_email_rounded,
+                                      'Kullanıcı adı'.tr(), addTab == 2,
+                                      () => setD(() => addTab = 2)),
                                 ],
                               ),
-                              if (showSearch) ...[
+                              const SizedBox(height: 10),
+                              if (addTab == 0) ...[
+                                // QR: tara → doğrudan arkadaş ekle; kendi
+                                // QR'ını da gösterebilirsin (grup sayfası
+                                // ile aynı).
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _PrimaryButton(
+                                        label: '📷 QR Tara ve Ekle',
+                                        brand: true,
+                                        onTap: () {
+                                          showDialog(
+                                            context: dctx,
+                                            builder: (_) => _QrScanDialog(
+                                              onUsername: (uname) async {
+                                                final u = await FriendService
+                                                    .getUserByUsername(uname
+                                                        .trim()
+                                                        .replaceAll(
+                                                            '@', ''));
+                                                String msg;
+                                                if (u == null) {
+                                                  msg =
+                                                      'Bu kullanıcı adı bulunamadı';
+                                                } else {
+                                                  final res =
+                                                      await FriendService
+                                                          .addFriendDirect(
+                                                              u);
+                                                  await KnownOpponentsService
+                                                      .remember(
+                                                    uid: u.uid,
+                                                    username: u.username,
+                                                    displayName:
+                                                        u.displayName,
+                                                    avatar: u.avatar,
+                                                  );
+                                                  msg = switch (res) {
+                                                    FriendReqResult.sent ||
+                                                    FriendReqResult
+                                                        .alreadyFriends =>
+                                                      '${u.username} eklendi — artık arkadaşsınız ✓',
+                                                    FriendReqResult
+                                                        .invalid =>
+                                                      'Kendini ekleyemezsin',
+                                                    FriendReqResult
+                                                        .failed =>
+                                                      'Eklenemedi — bağlantını kontrol edip tekrar dene',
+                                                  };
+                                                }
+                                                if (!mounted) return;
+                                                ScaffoldMessenger.of(
+                                                        context)
+                                                    .showSnackBar(SnackBar(
+                                                  content: Text(msg.tr()),
+                                                  behavior: SnackBarBehavior
+                                                      .floating,
+                                                ));
+                                              },
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: _SecondaryButton(
+                                        label: 'QR Kodumu Göster'.tr(),
+                                        onTap: () =>
+                                            _showFriendQrSheet(context),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                    'Arkadaşının profilindeki QR kodu tara; anında arkadaş olarak eklenir.'
+                                        .tr(),
+                                    style: _sans(
+                                        size: 11,
+                                        height: 1.3,
+                                        color: AppPalette.textSecondary(
+                                            dctx))),
+                              ] else if (addTab == 1) ...[
+                                _PrimaryButton(
+                                  label:
+                                      '🔗 ${'Davet Linkini Paylaş'.tr()}',
+                                  brand: true,
+                                  onTap: _shareFriendInviteLink,
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                    'Linki kabul eden arkadaş listene düşer; sonra dokunup yarışabilirsin.'
+                                        .tr(),
+                                    style: _sans(
+                                        size: 11,
+                                        height: 1.3,
+                                        color: AppPalette.textSecondary(
+                                            dctx))),
+                              ],
+                              if (addTab == 2) ...[
                                 const SizedBox(height: 10),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
@@ -10173,7 +10798,7 @@ KURALLAR:
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text('@$name',
+                child: Text(name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: _sans(
@@ -10240,7 +10865,9 @@ KURALLAR:
 
   /// Davet linkini paylaş (link ile ekle).
   Future<void> _shareFriendInviteLink() async {
-    final uname = _inviteUsername();
+    // Kullanıcı adı yoksa oracıkta belirlet (boş dönerse vazgeçti).
+    final uname = await _ensureInviteUsername(context);
+    if (uname.isEmpty || !mounted) return;
     final link = 'https://qualsar.app/davet/$uname';
     try {
       // Arama kutusunun klavyesi açıkken paylaşım intent'i fırlatmak bazı
@@ -10487,7 +11114,7 @@ KURALLAR:
                       const Text('🎓', style: TextStyle(fontSize: 18)),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text('@$m',
+                        child: Text(m,
                             style: _sans(
                                 size: 13.5,
                                 weight: FontWeight.w700,
@@ -10718,7 +11345,7 @@ KURALLAR:
   static String _addMemberMsg(String res, String uname) {
     switch (res) {
       case 'ok':
-        return '@$uname gruba eklendi ✅';
+        return '$uname gruba eklendi ✅';
       case 'notfound':
         return 'Bu kullanıcı adı bulunamadı';
       case 'self':
@@ -10790,78 +11417,120 @@ KURALLAR:
                         height: 1.35,
                         color: AppPalette.textSecondary(ctx))),
                 const SizedBox(height: 16),
-                Text('Grup Profili'.tr(),
+                // Başlık + sağda yeşil "sağa-sola kaydır" ipucu (parmak +
+                // iki yönlü ok) — kullanıcı sağda daha fazla simge olduğunu
+                // anlasın.
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Grup Profili'.tr(),
+                          style: _sans(
+                              size: 11,
+                              weight: FontWeight.w700,
+                              color: AppPalette.textSecondary(ctx),
+                              letterSpacing: 0.06)),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF22C55E)
+                            .withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(100),
+                        border: Border.all(
+                            color: const Color(0xFF22C55E)
+                                .withValues(alpha: 0.55)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.arrow_back_rounded,
+                              size: 12, color: Color(0xFF16A34A)),
+                          SizedBox(width: 2),
+                          Icon(Icons.swipe_rounded,
+                              size: 15, color: Color(0xFF16A34A)),
+                          SizedBox(width: 2),
+                          Icon(Icons.arrow_forward_rounded,
+                              size: 12, color: Color(0xFF16A34A)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Yatay kaydırmalı 2 sıralı emoji bandı — YEŞİL çerçeve
+                // içinde; sola kaydırdıkça 30 hayvan + zengin set devam eder.
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppPalette.card(ctx),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                        color: const Color(0xFF22C55E), width: 1.6),
+                  ),
+                  child: SizedBox(
+                    height: 44.0 * 2 + 8,
+                    child: GridView.builder(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        childAspectRatio: 1,
+                      ),
+                      itemCount: _kGroupEmojis.length,
+                      itemBuilder: (_, i) {
+                        final e = _kGroupEmojis[i];
+                        return GestureDetector(
+                          onTap: () => setSheet(() => emoji = e),
+                          child: Container(
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: emoji == e
+                                  ? _kGroupPurple.withValues(alpha: 0.14)
+                                  : AppPalette.card(ctx),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: emoji == e
+                                    ? _kGroupPurple
+                                    : AppPalette.border(ctx),
+                                width: emoji == e ? 2 : 1,
+                              ),
+                            ),
+                            child: Text(e,
+                                style: const TextStyle(fontSize: 22)),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _groupField(ctx, nameCtl, 'Grup adı'.tr(),
+                    'Örn: Sınıf Kankalar'),
+                const SizedBox(height: 12),
+                // Seçilen simge — "Grup adı" ile "Durum mesajı" arasında
+                // kendi başlığı altında gösterilir (kullanıcı isteği).
+                Text('Grup Simgesi'.tr(),
                     style: _sans(
                         size: 11,
                         weight: FontWeight.w700,
                         color: AppPalette.textSecondary(ctx),
                         letterSpacing: 0.06)),
-                const SizedBox(height: 8),
-                // Yatay kaydırmalı 2 sıralı emoji bandı — sola kaydırdıkça
-                // 30 hayvan + zengin (WhatsApp benzeri) set devam eder.
-                SizedBox(
-                  height: 44.0 * 2 + 8,
-                  child: GridView.builder(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 8,
-                      crossAxisSpacing: 8,
-                      childAspectRatio: 1,
-                    ),
-                    itemCount: _kGroupEmojis.length,
-                    itemBuilder: (_, i) {
-                      final e = _kGroupEmojis[i];
-                      return GestureDetector(
-                        onTap: () => setSheet(() => emoji = e),
-                        child: Container(
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: emoji == e
-                                ? _kGroupPurple.withValues(alpha: 0.14)
-                                : AppPalette.card(ctx),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: emoji == e
-                                  ? _kGroupPurple
-                                  : AppPalette.border(ctx),
-                              width: emoji == e ? 2 : 1,
-                            ),
-                          ),
-                          child:
-                              Text(e, style: const TextStyle(fontSize: 22)),
-                        ),
-                      );
-                    },
+                const SizedBox(height: 6),
+                Container(
+                  width: 52,
+                  height: 52,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: _kGroupPurple.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _kGroupPurple, width: 1.6),
                   ),
-                ),
-                const SizedBox(height: 16),
-                // Grup adı + SEÇİLİ SİMGE — simge, adın hemen sağında durur;
-                // bantta hangi karakter seçildiyse burada anında görünür
-                // (kullanıcı isteği: seçilen simge belli olsun).
-                Row(
-                  children: [
-                    Expanded(
-                      child: _groupField(ctx, nameCtl, 'Grup adı'.tr(),
-                          'Örn: Sınıf Kankalar'),
-                    ),
-                    const SizedBox(width: 10),
-                    Container(
-                      width: 46,
-                      height: 46,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: _kGroupPurple.withValues(alpha: 0.12),
-                        shape: BoxShape.circle,
-                        border:
-                            Border.all(color: _kGroupPurple, width: 1.6),
-                      ),
-                      child: Text(emoji,
-                          style: const TextStyle(fontSize: 24)),
-                    ),
-                  ],
+                  child:
+                      Text(emoji, style: const TextStyle(fontSize: 26)),
                 ),
                 const SizedBox(height: 12),
                 _groupField(ctx, statusCtl, 'Durum mesajı'.tr(),
@@ -10961,7 +11630,8 @@ KURALLAR:
                       label: '🔗 ${'Davet Linkini Paylaş'.tr()}',
                       brand: true,
                       onTap: () async {
-                        final uname = _inviteUsername();
+                        final uname = await _ensureInviteUsername(ctx);
+                        if (uname.isEmpty || !ctx.mounted) return;
                         final link = 'https://qualsar.app/davet/$uname';
                         try {
                           await Share.share(
@@ -11092,7 +11762,7 @@ KURALLAR:
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                    '@${f.username.trim().isNotEmpty ? f.username : f.displayName}',
+                                    f.username.trim().isNotEmpty ? f.username : f.displayName,
                                     style: _sans(
                                         size: 12,
                                         weight: FontWeight.w700,
@@ -11126,7 +11796,11 @@ KURALLAR:
                     child: StreamBuilder<List<Friend>>(
                       stream: FriendService.watchFriends(),
                       builder: (fctx, snap) {
-                        final friends = snap.data ?? const <Friend>[];
+                        // Onaylı arkadaşlar + cihazda kayıtlı (eklenen /
+                        // daha önce yarışılan) kişiler birleştirilir; böylece
+                        // liste her açılışta dolu gelir ve kimse kaybolmaz.
+                        final friends = _mergeKnownOpponents(
+                            snap.data ?? const <Friend>[]);
                         if (friends.isEmpty) {
                           return Container(
                             padding: const EdgeInsets.all(14),
@@ -11198,9 +11872,17 @@ KURALLAR:
         ),
       ),
     );
-    nameCtl.dispose();
-    statusCtl.dispose();
-    unameCtl.dispose();
+    // DİKKAT: showModalBottomSheet future'ı pop ANINDA tamamlanır ama sheet
+    // çıkış animasyonu ~300 ms daha sürer; TextField'lar hâlâ controller'lara
+    // bağlıdır. Hemen dispose edilince "A TextEditingController was used
+    // after being disposed" fırlıyor ve ekran çöküyordu (üye ekleyip kaydet /
+    // grup adını değiştir sonrası çökme şikayeti). Animasyon bittikten sonra
+    // temizlenir.
+    Future.delayed(const Duration(milliseconds: 800), () {
+      nameCtl.dispose();
+      statusCtl.dispose();
+      unameCtl.dispose();
+    });
 
     // Sheet kapandıktan SONRA Firestore yazımı — güvenli.
     if (result == null) return;
@@ -11296,7 +11978,7 @@ KURALLAR:
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text('@$name',
+                child: Text(name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: _sans(
@@ -11370,6 +12052,9 @@ KURALLAR:
 
   /// Grup profili — bilgi + üyeler + "Yeni Yarış Başlat" / düzenle / çık.
   Future<void> _openGroupProfile(ContestGroup g) async {
+    // Kendi üye kaydını onar: eski sürümde 'Oyuncu' yazılmış ad, artık
+    // çözülebilen gerçek adla değiştirilir (idempotent; sağlam kayda dokunmaz).
+    unawaited(ContestGroupService.joinGroup(g.id));
     final myUid = fb_auth.FirebaseAuth.instance.currentUser?.uid;
     final isOwner = g.ownerUid == myUid;
     await showModalBottomSheet<void>(
@@ -11478,7 +12163,7 @@ KURALLAR:
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                              child: Text('@${m['username'] ?? 'oyuncu'}',
+                              child: Text('${m['username'] ?? 'oyuncu'}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: _sans(
@@ -11487,7 +12172,7 @@ KURALLAR:
                                       color: AppPalette.textPrimary(ctx))),
                             ),
                             if ((m['uid'] ?? '') == g.ownerUid)
-                              Text('sahip'.tr(),
+                              Text('Grup Yöneticisi'.tr(),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: _sans(
@@ -11560,7 +12245,12 @@ KURALLAR:
       _groupMode = false;
       _activeGroup = null;
       _pendingFriend = f;
-      _enterContestSetup('@$name ile yarış');
+      // Ders listesi _scope'a göre üretilir; en son Dünya/Ülke sekmesinde
+      // ne kaldıysa o sızıyordu (aynı arkadaş akışı iki farklı ders seti
+      // gösterebiliyordu). Arkadaş yarışı DAİMA kullanıcının kendi müfredatı
+      // (ülke) üzerinden kurulur.
+      _scope = 'country';
+      _enterContestSetup('$name ${'ile yarış'.tr()}');
     });
   }
 
@@ -11675,7 +12365,7 @@ KURALLAR:
         ),
       ),
     );
-    if (picked == null) return;
+    if (picked == null || !mounted) return;
     setState(() => _contestCount = picked);
     await _finishContestSetup();
   }
@@ -11722,7 +12412,7 @@ KURALLAR:
       }
     } else if (friend != null) {
       await _startFriendDuelWithSettings(friend, s,
-          count: count, qType: qType);
+          topic: topic, count: count, qType: qType);
     } else if (groupMode) {
       await _createGroupContest(s, topic,
           presetCount: count, presetType: qType);
@@ -11730,11 +12420,10 @@ KURALLAR:
   }
 
   // ── Inline yarış kurulum paneli (tam ekran overlay) ─────────────────────────
-  // Arkadaş/grup/demo yarışı için: ders (yatay şerit) → konu → soru tipi →
-  // soru sayısı → Başlat. Popup yok; hepsi aynı ekranda sırayla açılır.
+  // Arkadaş/grup/demo yarışı için: ders (yatay şerit) → konu; konu seçilince
+  // soru tipi + sayısı ORTADA açılan pencerede sorulur (_askContestCount).
   Widget _buildContestSetupOverlay() {
     const green = Color(0xFF22C55E);
-    const purple = Color(0xFF7C3AED);
     final subjects = _orderedSubjects(_availableSubjects());
     final subjKey = _selectedSubject;
     final _Subject? subj = subjKey == null ? null : _findSubjectByKey(subjKey);
@@ -11749,7 +12438,10 @@ KURALLAR:
               style: _sans(
                   size: 11,
                   weight: FontWeight.w900,
-                  color: AppPalette.textPrimary(context),
+                  // Sihirbaz zemini sabit AÇIK renk (0xFFF7F7F5) — koyu
+                  // temada AppPalette.textPrimary beyaza dönüp okunmaz
+                  // oluyordu; etiket de sabit koyu.
+                  color: const Color(0xFF111111),
                   letterSpacing: 0.04)),
         );
 
@@ -11763,69 +12455,8 @@ KURALLAR:
           child: child,
         );
 
-    // Birleşik (segmented) buton yarımı — seçili olan mor dolgulu + beyaz yazı,
-    // diğerleri şeffaf + mor yazı. Aralarında çerçeve/boşluk yok (bitişik).
-    Widget typeBtn(String key, String txt) {
-      final active = _contestQType == key;
-      return Expanded(
-        child: GestureDetector(
-          onTap: () => setState(() => _contestQType = key),
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            alignment: Alignment.center,
-            color: active ? purple : Colors.transparent,
-            child: Text(txt.tr(),
-                style: _sans(
-                    size: 12.5,
-                    weight: FontWeight.w800,
-                    color: active ? Colors.white : purple)),
-          ),
-        ),
-      );
-    }
-
-    Widget countPill(int n) {
-      final active = _contestCount == n;
-      return Expanded(
-        child: GestureDetector(
-          onTap: () => setState(() => _contestCount = n),
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            alignment: Alignment.center,
-            color: active ? purple : Colors.transparent,
-            child: Text('$n',
-                style: _serif(
-                    size: 18,
-                    weight: FontWeight.w900,
-                    color:
-                        active ? Colors.white : AppPalette.textPrimary(context))),
-          ),
-        ),
-      );
-    }
-
-    // Yarımları TEK bitişik çerçevede birleştirir (aralarında ince mor çizgi).
-    Widget segmented(List<Widget> halves) {
-      final row = <Widget>[];
-      for (var i = 0; i < halves.length; i++) {
-        if (i > 0) {
-          row.add(Container(width: 1.2, color: purple.withValues(alpha: 0.4)));
-        }
-        row.add(halves[i]);
-      }
-      return Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: purple.withValues(alpha: 0.5), width: 1.4),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(11),
-          child: IntrinsicHeight(child: Row(children: row)),
-        ),
-      );
-    }
+    // NOT: Soru tipi/sayısı segmented kontrolleri kaldırıldı — tüm akışlar
+    // konu seçilince ortada açılan pencereyi kullanır (_askContestCount).
 
     // Ders şeridi (başlık + yatay kayan çerçeve) — hem "ortada" hem "yukarıda"
     // aynı widget kullanılır.
@@ -12026,16 +12657,29 @@ KURALLAR:
               ),
               Expanded(
                 child: subj == null
-                    // Ders seçilmeden ÖNCE: ders şeridi ekranın ORTASINDA.
-                    ? Center(
+                    // Ders seçilmeden ÖNCE: hero kartı varsa içerik ÜSTTEN
+                    // başlar (kart başlığın hemen altında dursun — ortalama
+                    // büyük boşluk bırakıyordu); hero yoksa ortalanır.
+                    ? Align(
+                        alignment: setupHero != null
+                            ? Alignment.topCenter
+                            : Alignment.center,
                         child: SingleChildScrollView(
                           padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               subjectSection,
-                              const SizedBox(height: 18),
-                              _examModeAlternativeSection(),
+                              // Dünya Çapında sihirbazında sınav modu
+                              // GÖSTERİLMEZ: ülkeye özgü sınavlar dünya
+                              // eşleşmesinde _worldDuelBlockReason ile zaten
+                              // reddediliyor — kullanıcı tüm seçimi bitirip
+                              // sonda "yarışılamaz" duvarına çarpıyordu.
+                              if (!(_worldCountryContestMode &&
+                                  _scope == 'world')) ...[
+                                const SizedBox(height: 18),
+                                _examModeAlternativeSection(),
+                              ],
                             ],
                           ),
                         ),
@@ -12074,7 +12718,7 @@ KURALLAR:
                                                 ? 0
                                                 : 4),
                                         child: GestureDetector(
-                                          onTap: () {
+                                          onTap: () async {
                                             setState(() =>
                                                 _selectedTopic = topics[i]);
                                             // Dünya/Ülke akışı: konu seçilir
@@ -12082,6 +12726,22 @@ KURALLAR:
                                             // penceresi açılır.
                                             if (_worldCountryContestMode) {
                                               _askQuestionCount();
+                                            } else {
+                                              // Grup VE arkadaş/1v1 (demo
+                                              // dahil): konu seçilince soru
+                                              // tipi + sayısı ORTADA açılan
+                                              // pencerede sorulur (kontroller
+                                              // sayfanın altında kalıyordu,
+                                              // kullanıcı göremiyordu) ve
+                                              // seçilince yarış/davet başlar.
+                                              final res =
+                                                  await _askContestCount();
+                                              if (res == null || !mounted) {
+                                                return;
+                                              }
+                                              _contestCount = res.$1;
+                                              _contestQType = res.$2;
+                                              await _finishContestSetup();
                                             }
                                           },
                                           child: Container(
@@ -12141,33 +12801,12 @@ KURALLAR:
                               ),
                             ),
                           ),
-                          // Dünya/Ülke Çapında: soru sayısı (5/10) artık
-                          // sayfanın altında değil — konuya dokununca ortada
-                          // açılan küçük beyaz pencerede sorulur
-                          // (_askQuestionCount).
-                          if (_selectedTopic != null &&
-                              !_worldCountryContestMode) ...[
-                            const SizedBox(height: 14),
-                            label('SORU TİPİNİ VE SORU SAYISINI SEÇ'),
-                            // Tek büyük çerçeve: ÜSTTE soru tipleri, ALTTA soru
-                            // sayısı (her ikisi de bitişik segmented).
-                            frame(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  segmented([
-                                    typeBtn('mc', 'Çoktan seçmeli'),
-                                    typeBtn('tf', 'Doğru / Yanlış'),
-                                  ]),
-                                  const SizedBox(height: 10),
-                                  segmented([
-                                    for (final n in const [5, 10, 15, 20])
-                                      countPill(n),
-                                  ]),
-                                ],
-                              ),
-                            ),
-                          ],
+                          // Soru sayısı/tipi TÜM akışlarda artık sayfanın
+                          // altında değil — konuya dokununca ortada açılan
+                          // pencerede sorulur (_askQuestionCount /
+                          // _askContestCount). Eskiden arkadaş/1v1 akışında
+                          // burada inline duruyordu ve ekranın altında
+                          // kalıp görünmüyordu.
                         ],
                       ),
               ),
@@ -12270,7 +12909,7 @@ KURALLAR:
             _startDemoDuelWithSettings(demo.name, demo.avatar, examSubject, topic);
           }
         } else if (friend != null) {
-          _startFriendDuelWithSettings(friend, examSubject);
+          _startFriendDuelWithSettings(friend, examSubject, topic: topic);
         } else if (worldCountry) {
           _findMatch();
         } else {
@@ -12291,7 +12930,9 @@ KURALLAR:
     String qType = 'mc';
     return showDialog<(int, String)>(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.35),
+      // Arka plan BULANIK olsun: barrier'ı biz çiziyoruz (şeffaf bırakıp
+      // altına BackdropFilter koyuyoruz), kart da ekranın tam ortasında durur.
+      barrierColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) {
           Widget typeBtn(String label, String key) {
@@ -12356,7 +12997,21 @@ KURALLAR:
             );
           }
 
-          return Dialog(
+          return Stack(
+            children: [
+              // Bulanık + hafif karartılmış arka plan (dışarı dokunuşta kapanır)
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () => Navigator.of(ctx).pop(),
+                  child: BackdropFilter(
+                    filter: ui.ImageFilter.blur(sigmaX: 7, sigmaY: 7),
+                    child: Container(
+                        color: Colors.black.withValues(alpha: 0.28)),
+                  ),
+                ),
+              ),
+              Center(
+                child: Dialog(
             backgroundColor: AppPalette.card(ctx),
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20)),
@@ -12406,6 +13061,9 @@ KURALLAR:
                 ],
               ),
             ),
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -12427,14 +13085,15 @@ KURALLAR:
       final shown = rng.nextInt(opts.length);
       final isTrue = shown == correct;
       out.add({
-        'text': '${q['text']}\n\n📌 İddia: Doğru cevap “${opts[shown]}”.',
+        'text':
+            '${q['text']}\n\n📌 ${'İddia: Doğru cevap'.tr()} “${opts[shown]}”.',
         if (q['formula'] != null && (q['formula'] as String).isNotEmpty)
           'formula': q['formula'],
-        'options': ['Doğru', 'Yanlış'],
+        'options': ['Doğru'.tr(), 'Yanlış'.tr()],
         'correctIndex': isTrue ? 0 : 1,
         'hint': (q['hint'] ?? '').toString(),
         'explanation':
-            'Doğru cevap: “${opts[correct]}”. ${(q['explanation'] ?? '').toString()}',
+            '${'Doğru cevap:'.tr()} “${opts[correct]}”. ${(q['explanation'] ?? '').toString()}',
         'difficulty': (q['difficulty'] ?? 'medium').toString(),
       });
     }
@@ -12577,7 +13236,11 @@ KURALLAR:
       }
     }
 
-    final bank = _questionBank[subject.key];
+    // Statik banka Türkçe — uygulama dili Türkçe değilse yedek dışı
+    // (havuz + AI kullanıcının dilinde üretir).
+    final bank = (LocaleService.global?.localeCode ?? 'tr') == 'tr'
+        ? _questionBank[subject.key]
+        : null;
 
     // 1) Havuz (hızlı, müfredata özel)
     final eduProfile = EduProfile.current;
@@ -12828,34 +13491,38 @@ KURALLAR:
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 3),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                _isLanguagePickerSubject(s.key) &&
-                        _chosenLanguage[s.key] != null
-                    ? _chosenLanguage[s.key]!.emoji
-                    : s.emoji,
-                // 92px karoya sığması için küçültüldü (32 → 26) — 2 satır
-                // ders adıyla birlikte taşma (overflow) yapmıyor.
-                style: TextStyle(fontSize: 26),
-              ),
-              SizedBox(height: 4),
-              Text(
-                _isLanguagePickerSubject(s.key) &&
-                        _chosenLanguage[s.key] != null
-                    ? _chosenLanguage[s.key]!.label
-                    : s.name.tr(),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: _sans(
-                    size: 10.5,
-                    weight: FontWeight.w700,
-                    height: 1.15,
-                    color: fg),
-              ),
-            ],
+          // Sistem yazı ölçeği büyütüldüğünde (erişilebilirlik) 92px karo
+          // alttan taşıyordu ("BOTTOM OVERFLOWED") — karo içi metin ölçeği
+          // 1.15 ile sınırlandı; emoji 26→24 ve ara boşluk 4→3 ile pay açıldı.
+          child: MediaQuery.withClampedTextScaling(
+            maxScaleFactor: 1.15,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  _isLanguagePickerSubject(s.key) &&
+                          _chosenLanguage[s.key] != null
+                      ? _chosenLanguage[s.key]!.emoji
+                      : s.emoji,
+                  style: TextStyle(fontSize: 24),
+                ),
+                SizedBox(height: 3),
+                Text(
+                  _isLanguagePickerSubject(s.key) &&
+                          _chosenLanguage[s.key] != null
+                      ? _chosenLanguage[s.key]!.label
+                      : s.name.tr(),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: _sans(
+                      size: 10.5,
+                      weight: FontWeight.w700,
+                      height: 1.15,
+                      color: fg),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -12880,9 +13547,12 @@ KURALLAR:
               },
               feedback: Material(
                 color: Colors.transparent,
+                // 72×72 kutu karo içeriğinden KÜÇÜKTÜ — derse basılı tutup
+                // sürükler sürüklemez RenderFlex overflow basıyordu. Karo
+                // grid hücresiyle aynı boyutta (92) taşınır.
                 child: SizedBox(
-                  width: 72,
-                  height: 72,
+                  width: 92,
+                  height: 92,
                   child: tile(false),
                 ),
               ),
@@ -13338,10 +14008,14 @@ KURALLAR:
       opaque: true,
       barrierDismissible: false,
       transitionDuration: const Duration(milliseconds: 150),
-      pageBuilder: (_, __, ___) => PopScope(
+      // ÖNEMLİ: tema/renk aramasında rotanın KENDİ context'i kullanılmalı.
+      // Dıştaki State context'i kullanıldığında, rota hâlâ ayaktayken bu ekran
+      // değiştirilirse (grup yarışı kurulumunun son adımı) Flutter
+      // '_dependents.isEmpty' doğrulamasıyla çakıyordu.
+      pageBuilder: (routeCtx, __, ___) => PopScope(
         canPop: false,
         child: Scaffold(
-          backgroundColor: AppPalette.card(context),
+          backgroundColor: AppPalette.card(routeCtx),
           body: QuAlsarNumericLoader(
             primaryText: 'Sorular Hazırlanıyor'.tr(),
             staticLabel: true,
@@ -13356,9 +14030,10 @@ KURALLAR:
     // Dünya: "Dünyada Rakip Aranıyor"
     // Ülke: "<Ülke>de Rakip Aranıyor" (örn. Türkiye'de)
     final country = _userCountryName();
-    final label = _scope == 'world'
-        ? 'Dünyada Rakip Aranıyor'
-        : '${country}de Rakip Aranıyor';
+    // BÜYÜK başlık: ülke adı (dünya modunda "Dünya"); altında ayrı satırda
+    // "Rakip Aranıyor" — dil-nötr, hal eki yok.
+    final headline =
+        _scope == 'world' ? '🌍 ${'Dünya'.tr()}' : country;
     // Seçili derse göre loader varyantı — sayısal dersler formül akışı,
     // sözel/sosyal dersler harf + kelime akışı gösterir.
     final variant = _isNumericSubjectKey(_selectedSubject)
@@ -13369,7 +14044,8 @@ KURALLAR:
       body: Stack(
         children: [
           QuAlsarNumericLoader(
-            primaryText: label.tr(),
+            headline: headline,
+            primaryText: 'Rakip Aranıyor'.tr(),
             staticLabel: true,
             variant: variant,
           ),
@@ -13799,6 +14475,16 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
   // Bekleme ekranı göstermek için.
   bool _waitingForOpponent = false;
 
+  // Rakip-bekleme emniyeti: rakip bağlantısı koptuysa/çıktıysa 120 sn sonra
+  // MEVCUT ilerlemesiyle sonuç gösterilir — eskiden çıkışsız sonsuz kilitti.
+  Timer? _waitTimeout;
+  // Beklerken periyodik sunucu okuması (stream takılmasına karşı).
+  Timer? _waitPoll;
+  // Guest emniyeti: owner soruları hiç yazamazsa sonsuz spinner kalmasın.
+  Timer? _questionsTimeout;
+  // Sonuç ekranına tek geçiş + kayıt tek yazım garantisi.
+  bool _resultsShown = false;
+
   // ── Gerçek senkron düello state'i ────────────────────────────────────
   // _questions: fiilen oynanan liste. Owner/bot → widget.questions; GUEST →
   // owner'ın session'a yazdığı sorular (aynı set garantisi).
@@ -13834,12 +14520,51 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
     } else {
       // Guest: owner'ın yazacağı soruları bekle (aşağıda _onSession yükler).
       _questionsReady = false;
+      // Owner soru üretemeyip çıkarsa session'a hiçbir sinyal yazılmıyor —
+      // guest süresiz spinner'da kalıyordu. 45 sn emniyet: bilgilendir + çık.
+      _questionsTimeout = Timer(const Duration(seconds: 45), () {
+        if (!mounted || _questionsReady) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content:
+              Text('Düello başlatılamadı — rakip soruları hazırlayamadı.'.tr()),
+          behavior: SnackBarBehavior.floating,
+        ));
+        Navigator.of(context).maybePop();
+      });
     }
+    _subscribeSession();
+  }
+
+  /// Session stream aboneliği. Firestore snapshot stream'i bir hata alınca
+  /// (ağ kopması vb.) SONLANIR — eskiden onError yutuluyor, yeniden abone
+  /// olunmuyordu: rakibin "bitirdi" sinyali bir daha HİÇ ulaşmıyor, karşı
+  /// taraf "testi bitiremiyorum" kilidinde kalıyordu. Artık hata → 2 sn
+  /// sonra yeniden abone.
+  void _subscribeSession() {
+    _sessionSub?.cancel();
     _sessionSub =
         DueloMatchmakingService.sessionStream(widget.sessionId!).listen(
       _onSession,
-      onError: (_) {/* stream hatası → mevcut state korunur */},
+      onError: (_) {
+        if (!mounted || _resultsShown) return;
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted && !_resultsShown) _subscribeSession();
+        });
+      },
     );
+  }
+
+  /// Session doc'unu SUNUCUDAN bir kez taze oku — stream takılmışsa bile
+  /// rakibin gerçek durumu görülsün. Bitir onayı ve bekleme döngüsü kullanır.
+  Future<void> _refreshSessionOnce() async {
+    if (!_isReal) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('duelo_sessions')
+          .doc(widget.sessionId!)
+          .get();
+      if (mounted) _onSession(snap);
+    } catch (_) {/* offline → stream'e güven */}
   }
 
   void _onSession(DocumentSnapshot<Map<String, dynamic>> snap) {
@@ -13855,6 +14580,7 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
             .map((e) => _quizQuestionFromJson(Map<String, dynamic>.from(e)))
             .toList();
         if (loaded.isNotEmpty) {
+          _questionsTimeout?.cancel();
           setState(() {
             _questions = loaded;
             _questionsReady = true;
@@ -13893,11 +14619,26 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
     DueloMatchmakingService.updateProgress(
       sessionId: widget.sessionId!,
       userId: widget.myUserId!,
-      solved: finished ? _questions.length : _mySolved,
+      // GERÇEK cevaplanan sayı yazılır. Eskiden bitişte _questions.length
+      // yazılıyordu → erken bitirmede boş bırakılan sorular rakibin
+      // ekranında/kaydında "yanlış" sayılıyor, aynı maç iki cihazda farklı
+      // istatistikle görünüyordu.
+      solved: finished ? _myAnswered : _mySolved,
       elapsedSeconds: _watch.elapsed.inSeconds,
       finished: finished,
       correct: correct,
     );
+  }
+
+  /// Rakip beklemesini zorla bitir — rakibin MEVCUT ilerlemesiyle sonuç
+  /// gösterilir. Hem 120 sn zaman aşımı hem overlay'deki buton bunu kullanır.
+  void _finishWaitingNow() {
+    if (!mounted || _opponentFinished) return;
+    setState(() {
+      _opponentFinished = true;
+      _waitingForOpponent = false;
+    });
+    _tryShowResults();
   }
 
   void _scheduleOpponent() {
@@ -13953,12 +14694,32 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
     });
     // Gerçek modda bitişi + skoru rakibe bildir (rakip "bekliyor"dan çıkar).
     _pushMyProgress(finished: true, correct: correctCount);
+    // Rakip hiç bitirmezse sonsuz bekleme olmasın — 120 sn emniyet.
+    if (_isReal && !_opponentFinished) {
+      _waitTimeout?.cancel();
+      _waitTimeout = Timer(const Duration(seconds: 120), _finishWaitingNow);
+      // Stream takılmasına karşı ek emniyet: beklerken her 8 sn'de bir
+      // session doc'u sunucudan taze okunur — rakip bitirdiyse anında çıkılır.
+      _waitPoll?.cancel();
+      _waitPoll = Timer.periodic(const Duration(seconds: 8), (_) {
+        if (!mounted || _opponentFinished || _resultsShown) {
+          _waitPoll?.cancel();
+          return;
+        }
+        _refreshSessionOnce();
+      });
+    }
     // hintsUsed, comboMax şu an kullanılmıyor; signature korundu.
     _tryShowResults();
   }
 
   Future<bool> _confirmFinishEarly() async {
     // Rakip hala devam ediyorsa kullanıcıya uyarı dialog'u.
+    if (_opponentFinished) return true;
+    // Stream takılmış olabilir — dialog göstermeden önce sunucudan taze oku:
+    // rakip aslında bitirdiyse gereksiz "rakip hâlâ çözüyor" uyarısı çıkmaz.
+    await _refreshSessionOnce();
+    if (!mounted) return false;
     if (_opponentFinished) return true;
     final remaining =
         _questions.length - _opponentProgress;
@@ -13984,10 +14745,11 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
               ),
               SizedBox(height: 8),
               Text(
-                '@${widget.opponentName} cevaplamaya devam ediyor '
-                        '($remaining ${"soru kaldı".tr()}). '
-                        'Bitirirsen beklemeye geçersin.'
-                    .tr(),
+                // İsim/sayı interpolasyonu .tr() DIŞINDA tutulur (dinamik
+                // anahtar sözlükte eşleşmez, çeviri hiç çalışmıyordu).
+                '${widget.opponentName} ${'cevaplamaya devam ediyor'.tr()} '
+                '($remaining ${"soru kaldı".tr()}). '
+                '${'Bitirirsen beklemeye geçersin.'.tr()}',
                 textAlign: TextAlign.center,
                 style: _sans(
                     size: 13,
@@ -14053,24 +14815,41 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
 
   void _tryShowResults() {
     if (!_iFinished || !_opponentFinished) return;
-    // Küçük gecikme — "bekliyor" animasyonundan hemen sonra geçiş.
-    Future.delayed(Duration(milliseconds: 600), () {
-      if (!mounted) return;
-      final total = _questions.length;
-      final myWrong = (_myAnswered - _myCorrect).clamp(0, total);
-      final myEmpty = (total - _myAnswered).clamp(0, total);
-      // Gerçek modda rakibin GERÇEK çözüm sayısından hesapla; bot modda
-      // rakibin tüm soruları cevapladığı varsayılır (empty=0).
-      final int oppWrong;
-      final int oppEmpty;
-      if (_isReal) {
-        oppWrong = (_opponentSolved - _opponentCorrect).clamp(0, total);
-        oppEmpty = (total - _opponentSolved).clamp(0, total);
-      } else {
-        oppWrong = (total - _opponentCorrect).clamp(0, total);
-        oppEmpty = 0;
-      }
+    // Tek geçiş garantisi — hem timeout hem stream hem buton aynı anda
+    // tetiklerse çifte kayıt/çifte navigasyon olmasın.
+    if (_resultsShown) return;
+    _resultsShown = true;
+    _waitTimeout?.cancel();
+    _waitPoll?.cancel();
+    final total = _questions.length;
+    final myWrong = (_myAnswered - _myCorrect).clamp(0, total);
+    final myEmpty = (total - _myAnswered).clamp(0, total);
+    // Gerçek modda rakibin GERÇEK çözüm sayısından hesapla; bot modda
+    // rakibin tüm soruları cevapladığı varsayılır (empty=0).
+    final int oppWrong;
+    final int oppEmpty;
+    if (_isReal) {
+      oppWrong = (_opponentSolved - _opponentCorrect).clamp(0, total);
+      oppEmpty = (total - _opponentSolved).clamp(0, total);
+    } else {
+      oppWrong = (total - _opponentCorrect).clamp(0, total);
+      oppEmpty = 0;
+    }
 
+    // Kayıt HEMEN yazılır (eskiden 600ms gecikmenin içindeydi — o pencerede
+    // geri basılırsa maç kaydı hiç yazılmıyordu); yalnız geçiş gecikmeli.
+    _saveRecordAndNavigate(
+        total: total, myWrong: myWrong, myEmpty: myEmpty,
+        oppWrong: oppWrong, oppEmpty: oppEmpty);
+  }
+
+  void _saveRecordAndNavigate(
+      {required int total,
+      required int myWrong,
+      required int myEmpty,
+      required int oppWrong,
+      required int oppEmpty}) {
+    {
       // Lobide gösterilmek üzere yerel kayıt — best-effort.
       _DueloRecordStore.save(_DueloRecord(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -14099,7 +14878,10 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
         myAnswers: Map<int, int>.from(_myAnswers),
       ));
 
-      Navigator.of(context).pushReplacement(
+      // Küçük gecikme — "bekliyor" animasyonundan hemen sonra geçiş.
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => _DueloResultsScreen(
             subjectName: widget.subjectName ?? '',
@@ -14128,27 +14910,29 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
             myUid: widget.myUserId,
           ),
         ),
-      );
-    });
+        );
+      });
+    }
   }
 
-  // Kullanıcının mevcut ülke adını — _DueloLobbyScreenState.userCountryName
-  // burada private, yeniden küçük helper: EduProfile'dan basit eşleme.
+  // Kullanıcının mevcut ülke adı. Eski hâli 16 sabit ülke dışında HERKESİ
+  // "Türkiye" gösteriyordu (GLOBAL-FIRST ihlali) — artık kAllCountries'teki
+  // yerel (native) ada bakılır; bulunamazsa ülke kodunun büyük hâli döner.
   String _userCountryName() {
-    final code = EduProfile.current?.country ?? 'tr';
-    const tr = {
-      'tr': 'Türkiye', 'us': 'ABD', 'uk': 'Birleşik Krallık',
-      'de': 'Almanya', 'fr': 'Fransa', 'jp': 'Japonya', 'cn': 'Çin',
-      'kr': 'Kore', 'in': 'Hindistan', 'ru': 'Rusya', 'br': 'Brezilya',
-      'mx': 'Meksika', 'es': 'İspanya', 'it': 'İtalya', 'pl': 'Polonya',
-      'ua': 'Ukrayna',
-    };
-    return tr[code] ?? 'Türkiye';
+    final code = (EduProfile.current?.country ?? '').toLowerCase();
+    if (code.isEmpty) return '';
+    for (final c in kAllCountries) {
+      if (c.key == code) return c.name;
+    }
+    return code.toUpperCase();
   }
 
   @override
   void dispose() {
     _opponentTimer?.cancel();
+    _waitTimeout?.cancel();
+    _waitPoll?.cancel();
+    _questionsTimeout?.cancel();
     _sessionSub?.cancel();
     _watch.stop();
     super.dispose();
@@ -14156,7 +14940,46 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // GERÇEK maçta sistem-geri korumasız çıkışa izin veriyordu: maç yarıda
+    // terk edilince rakibe hiçbir sinyal gitmiyor, karşı taraf çıkışsız
+    // bekleme ekranında kilitleniyordu. Artık: bekleme ekranındayken geri =
+    // beklemeyi bitir; oyun sırasında geri = onay + rakibe bitiş sinyali.
+    return PopScope(
+      canPop: !_isReal || !_questionsReady,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        if (_iFinished) {
+          _finishWaitingNow();
+          return;
+        }
+        final navigator = Navigator.of(context);
+        final exit = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: AppPalette.card(ctx),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18)),
+            title: Text('Yarıştan çıkılsın mı?'.tr()),
+            content: Text(
+                'Çıkarsan bu düello rakibin lehine sonuçlanır.'.tr()),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text('Devam Et'.tr()),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: Text('Çık'.tr()),
+              ),
+            ],
+          ),
+        );
+        if (exit != true || !mounted) return;
+        // Rakip kilitte kalmasın: mevcut durumla bitiş sinyali gönder.
+        _pushMyProgress(finished: true, correct: _myCorrect);
+        navigator.pop();
+      },
+      child: Scaffold(
       backgroundColor: AppPalette.bg(context),
       body: Column(
         children: [
@@ -14281,9 +15104,12 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                                       weight: FontWeight.w900,
                                       color: AppPalette.textPrimary(context)),
                                 ),
-                                TextSpan(text: '\'dan '),
+                                // "'dan" eki hem çevrilemiyor hem TR ünlü
+                                // uyumunu bozuyordu ("Türkiye'dan") — ekle
+                                // kurulan cümle yerine ayraç kullanılır.
+                                TextSpan(text: ' — '),
                                 TextSpan(
-                                  text: '@${widget.opponentName}',
+                                  text: widget.opponentName,
                                   style: _sans(
                                       size: 14,
                                       weight: FontWeight.w800,
@@ -14312,13 +15138,19 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                     children: [
                       _DueloAvatar(
                         name: _displayUsername(),
-                        avatar: _displayUsername()
-                            .substring(0, 1)
-                            .toUpperCase(),
+                        // Boş kullanıcı adında substring(0,1) RangeError
+                        // fırlatıyordu; boşsa '?' göster.
+                        avatar: _displayUsername().isEmpty
+                            ? '?'
+                            : _displayUsername()[0].toUpperCase(),
                         // Profil fotoğrafı varsa harf yerine o görünür.
                         avatarData:
                             UserProfileService.instance.avatarData,
-                        progress: _mySolved / _questions.length,
+                        // Guest, sorular yüklenene dek boş listeyle başlar —
+                        // 0/0 = NaN progress bar'ı çiziyordu.
+                        progress: _questions.isEmpty
+                            ? 0.0
+                            : _mySolved / _questions.length,
                         color: _Palette.brand,
                         flag: _userCountryFlagEmoji(),
                       ),
@@ -14383,8 +15215,9 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                       _DueloAvatar(
                         name: widget.opponentName,
                         avatar: widget.opponentAvatar,
-                        progress:
-                            _opponentProgress / _questions.length,
+                        progress: _questions.isEmpty
+                            ? 0.0
+                            : _opponentProgress / _questions.length,
                         color: _Palette.accent,
                         flag: widget.opponentFlag,
                         mirror: true,
@@ -14434,27 +15267,9 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                     },
                   )
                 else
-                  // Guest: owner soruları session'a yazana kadar bekle.
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const SizedBox(
-                          width: 30, height: 30,
-                          child: CircularProgressIndicator(strokeWidth: 2.4),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          '@${widget.opponentName} sorular hazırlanıyor…'.tr(),
-                          textAlign: TextAlign.center,
-                          style: _sans(
-                              size: 14,
-                              weight: FontWeight.w600,
-                              color: AppPalette.textSecondary(context)),
-                        ),
-                      ],
-                    ),
-                  ),
+                  // Guest: owner soruları session'a yazana kadar bekle —
+                  // dönen QuAlsar logosu + 3 sn'de bir değişen durum mesajı.
+                  const Center(child: _DueloPrepWait()),
                 if (_waitingForOpponent)
                   _DueloWaitingOverlay(
                     opponentName: widget.opponentName,
@@ -14462,12 +15277,100 @@ class _DueloQuizScreenState extends State<_DueloQuizScreen> {
                     opponentCountry: widget.opponentCountry,
                     opponentProgress: _opponentProgress,
                     total: _questions.length,
+                    onFinishNow: _finishWaitingNow,
                   ),
               ],
             ),
           ),
         ],
       ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  _DueloPrepWait — misafir taraf, rakip soruları hazırlarken gösterilir.
+//  Dönen QuAlsar logosu + 3 saniyede bir değişen durum mesajı; son mesajda
+//  ("Testin neredeyse hazır…") durur.
+// ═══════════════════════════════════════════════════════════════════════════════
+class _DueloPrepWait extends StatefulWidget {
+  const _DueloPrepWait();
+  @override
+  State<_DueloPrepWait> createState() => _DueloPrepWaitState();
+}
+
+class _DueloPrepWaitState extends State<_DueloPrepWait>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spin = AnimationController(
+      vsync: this, duration: const Duration(seconds: 2))
+    ..repeat();
+
+  static const List<String> _msgs = [
+    'Sorular hazırlanıyor…',
+    'İkiniz için aynı sorular eşitleniyor…',
+    'Arena kuruluyor…',
+    'Testin neredeyse hazır…',
+  ];
+  int _msgIndex = 0;
+  Timer? _msgTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _msgTimer = Timer.periodic(const Duration(seconds: 3), (t) {
+      if (!mounted) return;
+      if (_msgIndex >= _msgs.length - 1) {
+        t.cancel(); // son mesajda kal
+        return;
+      }
+      setState(() => _msgIndex++);
+    });
+  }
+
+  @override
+  void dispose() {
+    _msgTimer?.cancel();
+    _spin.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        RotationTransition(
+          turns: _spin,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Image.asset(
+              'assets/app_icon.png',
+              width: 64,
+              height: 64,
+              // Asset yüklenemezse (beklenmedik) spinner'a düş.
+              errorBuilder: (_, __, ___) => const SizedBox(
+                width: 40,
+                height: 40,
+                child: CircularProgressIndicator(strokeWidth: 2.6),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 350),
+          child: Text(
+            _msgs[_msgIndex].tr(),
+            key: ValueKey(_msgIndex),
+            textAlign: TextAlign.center,
+            style: _sans(
+                size: 14.5,
+                weight: FontWeight.w700,
+                color: AppPalette.textSecondary(context)),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -14481,12 +15384,17 @@ class _DueloWaitingOverlay extends StatelessWidget {
   final String opponentCountry;
   final int opponentProgress;
   final int total;
+  /// "Beklemeyi Bitir" — rakibin mevcut ilerlemesiyle sonuca geç. Eskiden
+  /// overlay'de HİÇBİR çıkış yoktu; rakip bağlantısı kopunca kullanıcı
+  /// sonsuza dek kilitli kalıyordu.
+  final VoidCallback onFinishNow;
   const _DueloWaitingOverlay({
     required this.opponentName,
     required this.opponentFlag,
     required this.opponentCountry,
     required this.opponentProgress,
     required this.total,
+    required this.onFinishNow,
   });
 
   @override
@@ -14514,27 +15422,31 @@ class _DueloWaitingOverlay extends StatelessWidget {
             SizedBox(height: 10),
             Text.rich(
               TextSpan(
+                // Zemin sabit BEYAZ (%96) — yazılar da sabit koyu olmalı;
+                // koyu temada AppPalette açık renge dönüp okunmaz oluyordu.
                 style: _sans(
                     size: 14,
                     weight: FontWeight.w500,
-                    color: AppPalette.textSecondary(context),
+                    color: Colors.black54,
                     height: 1.5),
                 children: [
                   TextSpan(text: '$opponentFlag '),
                   TextSpan(
-                      text: '@$opponentName',
+                      text: opponentName,
                       style: _sans(
                           size: 14,
                           weight: FontWeight.w800,
                           color: _Palette.brand)),
-                  TextSpan(text: ' · $opponentCountry\n'),
+                  if (opponentCountry.trim().isNotEmpty)
+                    TextSpan(text: ' · $opponentCountry'),
+                  TextSpan(text: '\n'),
                   TextSpan(text: 'henüz testi bitirmedi. '.tr()),
                   TextSpan(
                       text: '$remaining ${"soru kaldı".tr()}.',
                       style: _sans(
                           size: 14,
                           weight: FontWeight.w700,
-                          color: AppPalette.textPrimary(context))),
+                          color: Colors.black87)),
                 ],
               ),
               textAlign: TextAlign.center,
@@ -14560,6 +15472,35 @@ class _DueloWaitingOverlay extends StatelessWidget {
                   size: 12,
                   weight: FontWeight.w700,
                   color: AppPalette.textSecondary(context)),
+            ),
+            SizedBox(height: 24),
+            TextButton(
+              onPressed: onFinishNow,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(100),
+                  side: BorderSide(
+                      color: Colors.black.withValues(alpha: 0.25)),
+                ),
+              ),
+              child: Text(
+                'Beklemeyi Bitir'.tr(),
+                style: _sans(
+                    size: 13,
+                    weight: FontWeight.w800,
+                    color: Colors.black87),
+              ),
+            ),
+            SizedBox(height: 6),
+            Text(
+              'Rakibin mevcut skoruyla sonuç gösterilir.'.tr(),
+              style: _sans(
+                  size: 11,
+                  weight: FontWeight.w500,
+                  color: Colors.black45),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -14665,6 +15606,10 @@ class _DueloResultsScreenState extends State<_DueloResultsScreen> {
   // Kullanıcının gerçek ELO'su (Firestore'dan; yoksa 1000). Sonuç kartında
   // gösterilir; gerçek maçta güncellenip geri yazılır.
   int _myElo = 1000;
+  // ELO okuması tamamlandı mı? Delta pill'i ancak gerçek değer geldikten
+  // sonra gösterilir — eskiden ilk frame 1000 bazıyla çizilip zıplıyordu,
+  // okuma hata verirse kalıcı yanlış delta kalıyordu.
+  bool _eloLoaded = false;
 
   @override
   void initState() {
@@ -14693,7 +15638,12 @@ class _DueloResultsScreenState extends State<_DueloResultsScreen> {
       final ref = FirebaseFirestore.instance.collection('users').doc(uid);
       final snap = await ref.get();
       final cur = (snap.data()?['dueloElo'] as num?)?.toInt() ?? 1000;
-      if (mounted) setState(() => _myElo = cur);
+      if (mounted) {
+        setState(() {
+          _myElo = cur;
+          _eloLoaded = true;
+        });
+      }
 
       final win = _winner; // 1 / 0 / -1
       final myScore = win == 1 ? 1.0 : (win == 0 ? 0.5 : 0.0);
@@ -14716,10 +15666,10 @@ class _DueloResultsScreenState extends State<_DueloResultsScreen> {
   }
 
   String _fmtTime(int s) {
-    if (s <= 0) return '0 sn';
+    if (s <= 0) return '0 ${'sn'.tr()}';
     final m = s ~/ 60;
     final r = s % 60;
-    if (m == 0) return '$r sn';
+    if (m == 0) return '$r ${'sn'.tr()}';
     return "$m:${r.toString().padLeft(2, '0')}";
   }
 
@@ -14873,6 +15823,12 @@ class _DueloResultsScreenState extends State<_DueloResultsScreen> {
                       final int myDelta =
                           (32 * (myScore - myExpected)).round();
                       final int oppDelta = -myDelta;
+                      // Bot maçında ELO YAZILMAZ (_persistElo return eder) —
+                      // pill de gösterilmez, yoksa "ELO'm neden artmadı"
+                      // tutarsızlığı oluşuyordu. Gerçek maçta da pill ancak
+                      // gerçek ELO okunduktan sonra çizilir (zıplama yok).
+                      final bool showDelta =
+                          widget.isRealMatch && _eloLoaded;
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -14891,7 +15847,7 @@ class _DueloResultsScreenState extends State<_DueloResultsScreen> {
                               elapsed: _fmtTime(myElapsed),
                               color: _Palette.brand,
                               speedAdvantageSeconds: mySpeedAdv,
-                              eloDelta: myDelta,
+                              eloDelta: showDelta ? myDelta : 0,
                             ),
                           ),
                           SizedBox(width: 10),
@@ -14910,7 +15866,7 @@ class _DueloResultsScreenState extends State<_DueloResultsScreen> {
                               elapsed: _fmtTime(opponentElapsed),
                               color: _Palette.accent,
                               speedAdvantageSeconds: oppSpeedAdv,
-                              eloDelta: oppDelta,
+                              eloDelta: showDelta ? oppDelta : 0,
                             ),
                           ),
                         ],
@@ -15021,9 +15977,9 @@ class _DueloResultsScreenState extends State<_DueloResultsScreen> {
 
   String _shareCaption() {
     // Paylaşım mesajı: kazanç/kayıp detayı veya skor karşılaştırması yok.
-    // Sadece sade bir davet — sonucun görseli zaten kartta.
-    return 'QuAlsar uygulamasını indir — sen de istediğin derste, '
-        'istediğin konuda, dünyada veya ülkende yarış!\nqualsar.app';
+    // Sadece sade bir davet — sonucun görseli zaten kartta. .tr() ile —
+    // eskiden sabit Türkçe gidiyordu (GLOBAL-FIRST).
+    return '${'QuAlsar uygulamasını indir — sen de istediğin derste, istediğin konuda, dünyada veya ülkende yarış!'.tr()}\nqualsar.app';
   }
 
   void _openShareMode(BuildContext context, {required bool friendMode}) {
@@ -15075,28 +16031,27 @@ class _DueloResultsScreenState extends State<_DueloResultsScreen> {
     );
   }
 
-  // Rövanş iste — aynı rakibe bildirim (Firestore üzerinden). Şu an dev
-  // modunda olduğumuz için kullanıcıya "istek gönderildi" teyidi gösterip
-  // lobi ekranına yönlendiriyoruz. Backend açılınca push notification da
-  // eklenir.
+  // Rövanş iste — artık GERÇEK düello daveti gönderilir (usernames kaydından
+  // uid çözülür, duelo_invites inbox + bildirim yolu). Eski hâli kimsenin
+  // dinlemediği koleksiyona yazıp her durumda "gönderildi" diyordu.
   Future<void> _requestRematch(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
-    // Best-effort: opponent'a Firestore "rematch_requests" koleksiyonuna doc
-    // yaz. Hata olursa sessiz geç.
+    bool sent = false;
     try {
-      // ignore: avoid_dynamic_calls
-      await DueloMatchmakingService.requestRematch(
+      sent = await DueloMatchmakingService.requestRematch(
         opponentUsername: opponentName,
         subjectName: subjectName,
         topicName: topicName,
       );
     } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'qualsar_arena_screen'); }
     messenger.showSnackBar(SnackBar(
-      content: Text(
-          '@$opponentName kullanıcısına rövanş isteği gönderildi.'.tr()),
+      content: Text(sent
+          // İsim .tr() DIŞINDA — interpolasyonlu anahtar çevrilemiyordu.
+          ? '$opponentName — ${'rövanş daveti gönderildi.'.tr()}'
+          : 'Rövanş daveti gönderilemedi (kullanıcı bulunamadı).'.tr()),
       behavior: SnackBarBehavior.floating,
     ));
-    if (!context.mounted) return;
+    if (!context.mounted || !sent) return;
     await Future<void>.delayed(Duration(milliseconds: 900));
     if (!context.mounted) return;
     Navigator.of(context).pushReplacement(
@@ -15203,7 +16158,7 @@ class _DueloMistakesScreen extends StatelessWidget {
                           Text(
                             isEmpty
                                 ? '${"Boş".tr()} · ${"Doğru".tr()}: $correctLetter'
-                                : 'Senin: $pickedLetter · ${"Doğru".tr()}: $correctLetter',
+                                : '${'Senin'.tr()}: $pickedLetter · ${"Doğru".tr()}: $correctLetter',
                             style: _sans(
                                 size: 11,
                                 weight: FontWeight.w700,
@@ -15378,7 +16333,7 @@ class _DueloPlayerCard extends StatelessWidget {
           ),
           SizedBox(height: 1),
           Text(
-            '@$name',
+            name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
@@ -16309,7 +17264,13 @@ class _DueloShareModePageState extends State<_DueloShareModePage> {
   }
 
   Widget _sheetSwatch(Color c, {required VoidCallback onPick}) {
-    final selected = _bg == c;
+    // Seçili işareti AKTİF hedefin rengine göre — eskiden hedef "Kendi
+    // Çerçeven"/"Rakip Çerçeve" iken bile tik büyük çerçeveye bakıyordu.
+    final selected = switch (_target) {
+      'me' => _myBoxBg == c,
+      'opp' => _oppBoxBg == c,
+      _ => _bg == c,
+    };
     final lum = (0.299 * c.r + 0.587 * c.g + 0.114 * c.b);
     final dark = lum < 0.6;
     return GestureDetector(
@@ -16784,7 +17745,7 @@ class _DueloShareUserBox extends StatelessWidget {
                 color: _boxInk),
           ),
           Text(
-            '@$name',
+            name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
@@ -17244,16 +18205,16 @@ class _FriendCard extends StatelessWidget {
     if (data == null) return 'Henüz aktivite yok'.tr();
     final score = (data['score'] as num?)?.toDouble() ?? 0;
     final subject = (data['subjectKey'] ?? '').toString();
-    return '$subject • ${score.toStringAsFixed(0)} puan';
+    return '$subject • ${score.toStringAsFixed(0)} ${'puan'.tr()}';
   }
 
   String _ago(Timestamp? ts) {
     if (ts == null) return '';
     final diff = DateTime.now().difference(ts.toDate());
-    if (diff.inMinutes < 1) return 'şimdi';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} dk';
-    if (diff.inHours < 24) return '${diff.inHours} sa';
-    return '${diff.inDays} g';
+    if (diff.inMinutes < 1) return 'şimdi'.tr();
+    if (diff.inMinutes < 60) return '${diff.inMinutes} ${'dk'.tr()}';
+    if (diff.inHours < 24) return '${diff.inHours} ${'sa'.tr()}';
+    return '${diff.inDays} ${'g'.tr()}';
   }
 
   @override
@@ -17282,7 +18243,11 @@ class _FriendCard extends StatelessWidget {
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  friend.avatar.isNotEmpty
+                  // http URL / uzun değer avatar olarak BASILMAZ (36px
+                  // dairede "https://…" metni görünüyordu) — harfe düş.
+                  (friend.avatar.isNotEmpty &&
+                          !friend.avatar.startsWith('http') &&
+                          friend.avatar.length <= 4)
                       ? friend.avatar
                       : (friend.displayName.isNotEmpty
                           ? friend.displayName[0].toUpperCase()
@@ -17297,7 +18262,7 @@ class _FriendCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '@${friend.username}',
+                      friend.username,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: _sans(
@@ -17423,6 +18388,10 @@ class _DueloInvitesSheet extends StatelessWidget {
         subjectName: inv.subjectKey ?? 'Genel Kültür',
         topic: inv.topic,
         opponentName: inv.fromUsername,
+        // Davet ayarları (soru sayısı/tipi) guest tarafına da taşınır —
+        // eskiden düşürülüp hep 5/'mc' varsayılıyordu.
+        questionCount: inv.questionCount,
+        questionType: inv.questionType,
       ),
     ));
   }
@@ -17463,11 +18432,14 @@ class _DueloInvitesSheet extends StatelessWidget {
                     size: 22, weight: FontWeight.w600, letterSpacing: -0.02)),
             const SizedBox(height: 4),
             Text(
-              'Kabul edersen anında soruları çözmeye başlarsınız.'.tr(),
+              'Arkadaşlarının sana gönderdiği yarışma davetleri burada listelenir. '
+                      '"Yarışa Başla"ya dokunduğunda ikiniz de aynı anda aynı soruları '
+                      'çözersiniz — en çok doğruyu en kısa sürede yapan kazanır.'
+                  .tr(),
               style: _sans(
-                  size: 12,
+                  size: 12.5,
                   color: AppPalette.textSecondary(context),
-                  height: 1.4),
+                  height: 1.45),
             ),
             const SizedBox(height: 18),
             StreamBuilder<List<DueloInvite>>(
@@ -17534,7 +18506,10 @@ class _DueloInvitesSheet extends StatelessWidget {
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
-                                  inv.fromAvatar.isNotEmpty
+                                  // URL/uzun avatar metin olarak basılmaz.
+                                  (inv.fromAvatar.isNotEmpty &&
+                                          !inv.fromAvatar.startsWith('http') &&
+                                          inv.fromAvatar.length <= 4)
                                       ? inv.fromAvatar
                                       : (inv.fromDisplayName.isNotEmpty
                                           ? inv.fromDisplayName[0]
@@ -17554,7 +18529,7 @@ class _DueloInvitesSheet extends StatelessWidget {
                                   children: [
                                     Text(
                                       inv.fromDisplayName.isEmpty
-                                          ? '@${inv.fromUsername}'
+                                          ? inv.fromUsername
                                           : inv.fromDisplayName,
                                       style: _sans(
                                           size: 13,
@@ -17563,13 +18538,34 @@ class _DueloInvitesSheet extends StatelessWidget {
                                               context)),
                                     ),
                                     Text(
-                                      '@${inv.fromUsername}',
+                                      inv.fromUsername,
                                       style: _sans(
                                           size: 11,
                                           color:
                                               AppPalette.textSecondary(
                                                   context)),
                                     ),
+                                    // Ders • Konu · N soru — alıcı neyde
+                                    // yarışacağını kabul etmeden görsün.
+                                    if ((inv.subjectKey ?? '')
+                                        .trim()
+                                        .isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                            top: 2),
+                                        child: Text(
+                                          '${inv.subjectKey}'
+                                          '${(inv.topic ?? '').trim().isNotEmpty ? ' • ${inv.topic}' : ''}'
+                                          ' · ${inv.questionCount} ${'soru'.tr()}',
+                                          maxLines: 2,
+                                          overflow:
+                                              TextOverflow.ellipsis,
+                                          style: _sans(
+                                              size: 11,
+                                              weight: FontWeight.w600,
+                                              color: _Palette.brand),
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ),
@@ -17599,7 +18595,7 @@ class _DueloInvitesSheet extends StatelessWidget {
                                           color: Colors.white),
                                       const SizedBox(width: 4),
                                       Text(
-                                        'Yarış'.tr(),
+                                        'Yarışa Başla'.tr(),
                                         style: _sans(
                                             size: 11,
                                             weight: FontWeight.w800,
@@ -17757,7 +18753,10 @@ class _FriendRequestsSheet extends StatelessWidget {
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
-                                  r.fromAvatar.isNotEmpty
+                                  // URL/uzun avatar metin olarak basılmaz.
+                                  (r.fromAvatar.isNotEmpty &&
+                                          !r.fromAvatar.startsWith('http') &&
+                                          r.fromAvatar.length <= 4)
                                       ? r.fromAvatar
                                       : (r.fromDisplayName.isNotEmpty
                                           ? r.fromDisplayName[0]
@@ -17777,7 +18776,7 @@ class _FriendRequestsSheet extends StatelessWidget {
                                   children: [
                                     Text(
                                       r.fromDisplayName.isEmpty
-                                          ? '@${r.fromUsername}'
+                                          ? r.fromUsername
                                           : r.fromDisplayName,
                                       style: _sans(
                                           size: 13,
@@ -17786,7 +18785,7 @@ class _FriendRequestsSheet extends StatelessWidget {
                                               context)),
                                     ),
                                     Text(
-                                      '@${r.fromUsername}',
+                                      r.fromUsername,
                                       style: _sans(
                                           size: 11,
                                           color:
@@ -17883,6 +18882,14 @@ Future<List<_QuizQuestion>> _genDueloQuestions({
 }) async {
   final topicLabel = (topic == null || topic.trim().isEmpty) ? subjectName : topic;
   final eduCtx = educationContext(EduProfile.current);
+  // ÇIKTI DİLİ: kullanıcının aktif uygulama dili (bkz. _generateAiQuestions).
+  final outLangCode = LocaleService.global?.localeCode ?? 'tr';
+  final outLangInstr = outLangCode == 'tr'
+      ? 'Soruları, şıkları, ipuçlarını ve çözümleri Türkçe yaz.'
+      : 'Soruları, şıkları, ipuçlarını ve çözümleri — HER ŞEYİ — '
+          '${GeminiService.languageNameFor(outLangCode)} dilinde yaz '
+          '(kod: "$outLangCode"). Bu dil dışında Türkçe veya İngilizce '
+          'KULLANMA.';
   final prompt = '''
 [DÜELLO SORU ÜRETİMİ — $count SORU · JSON]
 ${eduCtx.isNotEmpty ? '$eduCtx\n' : ''}Ders: $subjectName
@@ -17900,7 +18907,7 @@ KURALLAR:
 • ZORLUK KARIŞIK: ~%40 kolay, ~%40 orta, ~%20 zor.
 • "sol" ADIM ADIM çözüm: her adım ayrı satırda "Adım 1: …" biçiminde,
   son satır "Doğru cevap: <harf> — kısa gerekçe".
-• Soruları, şıkları ve çözümleri KULLANICININ DİLİNDE yaz.
+• $outLangInstr
 • MATEMATİK/KİMYA/FİZİK gösterimi DÜZ UNICODE: alt indis ₀-₉ (H₂O),
   üst indis ²/³ (x², 10⁻³), → × ÷ ± ≤ ≥ ≠ Δ π √ . LaTeX KULLANMA:
   \\text, \\(, \\), _2, ^2, \$ işareti YOK.
@@ -17981,8 +18988,8 @@ List<_QuizQuestion> _dueloToTrueFalse(List<_QuizQuestion> mc) {
       subjectEmoji: q.subjectEmoji,
       subjectColor: q.subjectColor,
       topic: q.topic,
-      text: '${q.text}\n\n📌 İddia: Doğru cevap “${q.options[shown]}”.',
-      options: const ['Doğru', 'Yanlış'],
+      text: '${q.text}\n\n📌 ${'İddia: Doğru cevap'.tr()} “${q.options[shown]}”.',
+      options: ['Doğru'.tr(), 'Yanlış'.tr()],
       correctIndex: isTrue ? 0 : 1,
       hint: q.hint,
       explanation:
@@ -18063,18 +19070,27 @@ Future<String?> _waitInviteAccepted(String me, String friendUid,
         .where('type', isEqualTo: 'duelo_invite')
         .snapshots()
         .listen((snap) {
-      if (first) {
-        first = false;
-        return; // mevcut bildirimleri atla, yalnız YENİ kabulü yakala
-      }
+      // NOT: eskiden İLK snapshot komple atlanıyordu — CF kabulü listener
+      // bağlanmadan ÖNCE yazdıysa (çok hızlı kabul) sid ilk snapshot'ta
+      // gelip ATLANIYOR, owner 2 dk boşuna bekleyip zaman aşımı alıyordu.
+      // Artık ilk snapshot da işlenir; eski bildirimler tazelik filtresiyle
+      // (son 3 dk) elenir.
+      final freshCutoff =
+          DateTime.now().subtract(const Duration(minutes: 3));
+      final isFirst = first;
+      first = false;
       for (final ch in snap.docChanges) {
         if (ch.type != DocumentChangeType.added) continue;
         final d = ch.doc.data() ?? const {};
         final sid = d['sessionId']?.toString();
         final from = d['fromUid']?.toString();
-        if (sid != null && sid.isNotEmpty && from == friendUid) {
-          if (!completer.isCompleted) completer.complete(sid);
+        if (sid == null || sid.isEmpty || from != friendUid) continue;
+        if (isFirst) {
+          final ts = d['when'];
+          final when = ts is Timestamp ? ts.toDate() : null;
+          if (when == null || when.isBefore(freshCutoff)) continue;
         }
+        if (!completer.isCompleted) completer.complete(sid);
       }
     }, onError: (_) {
       if (!completer.isCompleted) completer.complete(null);
@@ -18147,9 +19163,18 @@ class _DueloConnectScreen extends StatefulWidget {
 
 class _DueloConnectScreenState extends State<_DueloConnectScreen> {
   bool _cancelled = false;
+  // Rakibin gerçek adı-soyadı (users doc'undan) — bekleme ekranında kalın
+  // yazılır; yüklenene/bulunamayana dek kullanıcı adına düşülür.
+  String _oppDisplay = '';
+
   @override
   void initState() {
     super.initState();
+    FriendService.getUserByUid(widget.opponentUid).then((u) {
+      if (!mounted || u == null) return;
+      final dn = u.displayName.trim();
+      if (dn.isNotEmpty) setState(() => _oppDisplay = dn);
+    });
     _run();
   }
 
@@ -18181,38 +19206,144 @@ class _DueloConnectScreenState extends State<_DueloConnectScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final display =
+        _oppDisplay.isNotEmpty ? _oppDisplay : widget.opponentName;
+    final topic = (widget.topic ?? '').trim();
+    final subjectLine = topic.isEmpty
+        ? widget.subjectName
+        : '${widget.subjectName} • $topic';
+    final initial = display.isEmpty ? '?' : display[0].toUpperCase();
+    final ink = AppPalette.textPrimary(context);
+    final muted = AppPalette.textSecondary(context);
+
     return Scaffold(
       backgroundColor: AppPalette.bg(context),
       body: SafeArea(
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(
-                  width: 34,
-                  height: 34,
-                  child: CircularProgressIndicator(strokeWidth: 2.6)),
-              const SizedBox(height: 18),
-              Text(widget.title.tr(),
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppPalette.textPrimary(context))),
-              const SizedBox(height: 6),
-              Text('@${widget.opponentName}',
-                  style: GoogleFonts.poppins(
-                      fontSize: 13,
-                      color: AppPalette.textSecondary(context))),
-              const SizedBox(height: 24),
-              TextButton(
-                onPressed: () {
-                  _cancelled = true;
-                  Navigator.of(context).maybePop();
-                },
-                child: Text('İptal'.tr()),
-              ),
-            ],
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Rakip avatarı — büyük, marka renkli halka.
+                Container(
+                  width: 84,
+                  height: 84,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _Palette.brand.withValues(alpha: 0.12),
+                    border: Border.all(color: _Palette.brand, width: 2.2),
+                  ),
+                  child: Text(initial,
+                      style: _serif(
+                          size: 36,
+                          weight: FontWeight.w800,
+                          color: _Palette.brand)),
+                ),
+                const SizedBox(height: 14),
+                Text(display,
+                    textAlign: TextAlign.center,
+                    style:
+                        _serif(size: 24, weight: FontWeight.w800, color: ink)),
+                Text(widget.opponentName,
+                    style: _sans(size: 13.5, color: muted)),
+                const SizedBox(height: 22),
+                if (widget.isOwner) ...[
+                  // Davet gönderildi mesajı — ad-soyad ve ders/konu KALIN.
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                    decoration: BoxDecoration(
+                      color: AppPalette.card(context),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                          color: _Palette.brand.withValues(alpha: 0.35),
+                          width: 1.4),
+                    ),
+                    child: Column(
+                      children: [
+                        Text('⚔️', style: const TextStyle(fontSize: 30)),
+                        const SizedBox(height: 10),
+                        RichText(
+                          textAlign: TextAlign.center,
+                          text: TextSpan(
+                            style: _sans(size: 15.5, color: ink, height: 1.55),
+                            children: [
+                              TextSpan(
+                                  text: display,
+                                  style: _sans(
+                                      size: 15.5,
+                                      weight: FontWeight.w800,
+                                      color: ink)),
+                              TextSpan(text: ' ${'adlı arkadaşına'.tr()} '),
+                              TextSpan(
+                                  text: subjectLine,
+                                  style: _sans(
+                                      size: 15.5,
+                                      weight: FontWeight.w800,
+                                      color: _Palette.brand)),
+                              TextSpan(
+                                  text:
+                                      ' ${'konusunda düello daveti gönderildi.'.tr()}'),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Daveti kabul ettiğinde sana bildirim gelecek ve yarış ikiniz için de aynı sorularla otomatik başlayacak.'
+                              .tr(),
+                          textAlign: TextAlign.center,
+                          style: _sans(size: 13, color: muted, height: 1.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2.2)),
+                      const SizedBox(width: 10),
+                      Text('Arkadaşın kabul etmesi bekleniyor…'.tr(),
+                          style: _sans(
+                              size: 13.5,
+                              weight: FontWeight.w700,
+                              color: muted)),
+                    ],
+                  ),
+                ] else ...[
+                  // Kabul eden taraf: bağlanma durumu.
+                  const SizedBox(
+                      width: 34,
+                      height: 34,
+                      child: CircularProgressIndicator(strokeWidth: 2.6)),
+                  const SizedBox(height: 16),
+                  Text(widget.title.tr(),
+                      textAlign: TextAlign.center,
+                      style: _sans(
+                          size: 15, weight: FontWeight.w700, color: ink)),
+                  const SizedBox(height: 6),
+                  Text(subjectLine,
+                      textAlign: TextAlign.center,
+                      style: _sans(
+                          size: 13.5,
+                          weight: FontWeight.w700,
+                          color: _Palette.brand)),
+                ],
+                const SizedBox(height: 18),
+                TextButton(
+                  onPressed: () {
+                    _cancelled = true;
+                    Navigator.of(context).maybePop();
+                  },
+                  child: Text('İptal'.tr(),
+                      style: _sans(size: 14.5, weight: FontWeight.w700)),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -18256,7 +19387,43 @@ class _DueloSessionEntryScreenState extends State<_DueloSessionEntryScreen> {
     _enter();
   }
 
+  // Rakibin profili — isim/kullanıcı adı/ülke bayrağı için users doc'undan
+  // çekilir. Eskiden bayrak sabit '🏳️', ülke boş geçiliyordu; sonuç
+  // tablosunda rakibin bayrağı/ülkesi hiç görünmüyordu.
+  String _oppName = '';
+  String _oppFlag = '🏳️';
+  String _oppCountry = '';
+  String _oppAvatar = '';
+
+  Future<void> _loadOpponentProfile() async {
+    _oppName = widget.opponentName;
+    try {
+      final u = await FriendService.getUserByUid(widget.opponentUid);
+      if (u == null) return;
+      // Rövanş daveti kullanıcı adıyla çözüldüğü için username öncelikli;
+      // davet kaydında ad boş geldiyse buradan tamamlanır.
+      if (u.username.trim().isNotEmpty) _oppName = u.username.trim();
+      final cc = (u.country ?? '').trim();
+      if (cc.isNotEmpty) {
+        _oppFlag = _flagForCountry(cc);
+        final code = cc.toLowerCase();
+        for (final c in kAllCountries) {
+          if (c.key == code) {
+            _oppCountry = c.name;
+            break;
+          }
+        }
+        if (_oppCountry.isEmpty) _oppCountry = cc.toUpperCase();
+      }
+      final av = u.avatar.trim();
+      if (av.isNotEmpty && !av.startsWith('http') && av.length <= 4) {
+        _oppAvatar = av;
+      }
+    } catch (_) {/* profil çekilemezse davetteki bilgilerle devam */}
+  }
+
   Future<void> _enter() async {
+    await _loadOpponentProfile();
     var questions = const <_QuizQuestion>[];
     if (widget.isOwner) {
       if (mounted) setState(() => _status = 'Sorular üretiliyor…');
@@ -18280,20 +19447,21 @@ class _DueloSessionEntryScreenState extends State<_DueloSessionEntryScreen> {
     }
     if (!mounted) return;
     final cfg = _WizardConfig()
-      ..count = questions.isEmpty ? 5 : questions.length
+      ..count = questions.isEmpty ? widget.questionCount : questions.length
       ..selectedSubjects = {widget.subjectName.toLowerCase()}
       ..timeMode = 'race';
-    final av = widget.opponentName.isEmpty
-        ? '?'
-        : widget.opponentName[0].toUpperCase();
+    final oppName = _oppName.isNotEmpty ? _oppName : widget.opponentName;
+    final av = _oppAvatar.isNotEmpty
+        ? _oppAvatar
+        : (oppName.isEmpty ? '?' : oppName[0].toUpperCase());
     Navigator.of(context).pushReplacement(MaterialPageRoute(
       builder: (_) => _DueloQuizScreen(
         cfg: cfg,
         questions: questions, // guest: boş → session'dan yükler
-        opponentName: widget.opponentName,
+        opponentName: oppName,
         opponentAvatar: av,
-        opponentFlag: '🏳️',
-        opponentCountry: '',
+        opponentFlag: _oppFlag,
+        opponentCountry: _oppCountry,
         opponentElo: 1000,
         subjectName: widget.subjectName,
         topicName: widget.topic,
@@ -18334,7 +19502,7 @@ class _DueloSessionEntryScreenState extends State<_DueloSessionEntryScreen> {
 }
 
 Future<void> _sendDuelInvite(BuildContext context, Friend friend,
-    {String? subject, int count = 5, String qType = 'mc'}) async {
+    {String? subject, String? topic, int count = 5, String qType = 'mc'}) async {
   final me = fb_auth.FirebaseAuth.instance.currentUser?.uid;
   if (me == null) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -18351,6 +19519,7 @@ Future<void> _sendDuelInvite(BuildContext context, Friend friend,
     targetUid: friend.uid,
     targetUsername: friend.username,
     subjectKey: chosen,
+    topic: topic,
     questionCount: count,
     questionType: qType,
   );
@@ -18371,7 +19540,9 @@ Future<void> _sendDuelInvite(BuildContext context, Friend friend,
       myUid: me,
       opponentUid: friend.uid,
       subjectName: chosen,
-      topic: null,
+      // Owner soru üretimi seçilen konuyla yapılır — eskiden null geçilip
+      // konu kayboluyordu.
+      topic: topic,
       opponentName: friend.username,
       questionCount: count,
       questionType: qType,
@@ -18488,8 +19659,10 @@ void _showAddFriendSheet(BuildContext context) {
 }
 
 /// Kendi QR kodunu göster + arkadaşın QR'ını tara (1v1 merkezinden çağrılır).
-void _showFriendQrSheet(BuildContext context) {
-  final uname = _inviteUsername();
+Future<void> _showFriendQrSheet(BuildContext context) async {
+  // Kullanıcı adı yoksa oracıkta belirlet (boş dönerse vazgeçti).
+  final uname = await _ensureInviteUsername(context);
+  if (uname.isEmpty || !context.mounted) return;
   showModalBottomSheet(
     context: context,
     backgroundColor: Colors.transparent,
@@ -18515,7 +19688,9 @@ void _showFriendQrSheet(BuildContext context) {
               style:
                   _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.02)),
           const SizedBox(height: 4),
-          Text('Arkadaşın okutsun, ekleme isteği gelsin'.tr(),
+          // Metin güncellendi: ekleme artık ONAYSIZ ve anında (addFriendDirect) —
+            // eski "istek gelsin" ifadesi gerçek davranışla çelişiyordu.
+            Text('Arkadaşın okutsun, anında arkadaş olun'.tr(),
               style: _sans(size: 11, color: AppPalette.textSecondary(context))),
           const SizedBox(height: 18),
           Container(
@@ -18540,7 +19715,7 @@ void _showFriendQrSheet(BuildContext context) {
             ),
           ),
           const SizedBox(height: 14),
-          Text('@$uname', style: _sans(size: 16, weight: FontWeight.w800)),
+          Text(uname, style: _sans(size: 16, weight: FontWeight.w800)),
           const SizedBox(height: 18),
           _PrimaryButton(
             label: '📷 Arkadaşının QR Kodunu Tara'.tr(),
@@ -18628,18 +19803,28 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
 
   Future<void> _sendRequest(BuildContext context, FriendUser user) async {
     Navigator.pop(context);
-    final ok = await FriendService.sendRequest(toUid: user.uid);
+    // Doğrudan çift-yönlü ekle → anında iki tarafın listesinde arkadaş.
+    final res = await FriendService.addFriendDirect(user);
     if (!context.mounted) return;
+    final (emoji, msg) = switch (res) {
+      FriendReqResult.sent || FriendReqResult.alreadyFriends => (
+          '✓',
+          '${user.username} eklendi — artık arkadaşsınız'
+        ),
+      FriendReqResult.invalid => ('⚠️', 'Kendini ekleyemezsin'),
+      FriendReqResult.failed => (
+          '⚠️',
+          'Eklenemedi — bağlantını kontrol edip tekrar dene'
+        ),
+    };
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
           children: [
-            Text(ok ? '📨' : '⚠️', style: const TextStyle(fontSize: 16)),
+            Text(emoji, style: const TextStyle(fontSize: 16)),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(ok
-                  ? '@${user.username} adlı kullanıcıya istek gönderildi'
-                  : '@${user.username} zaten arkadaşın veya istek gönderilemedi'),
+              child: Text(msg),
             ),
           ],
         ),
@@ -18724,7 +19909,9 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                       label: 'Davet Linki'.tr(),
                       sub: 'Paylaş'.tr(),
                       onTap: () async {
-                        final uname = _inviteUsername();
+                        final uname =
+                            await _ensureInviteUsername(context);
+                        if (uname.isEmpty || !context.mounted) return;
                         final link =
                             'https://qualsar.app/davet/$uname';
                         try {
@@ -18872,9 +20059,11 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
     );
   }
 
-  void _showQRSheet(BuildContext context) {
+  Future<void> _showQRSheet(BuildContext context) async {
+    // Kullanıcı adı yoksa oracıkta belirlet (boş dönerse vazgeçti).
+    final uname = await _ensureInviteUsername(context);
+    if (uname.isEmpty || !context.mounted) return;
     Navigator.pop(context);
-    final uname = _inviteUsername();
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -18897,7 +20086,9 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
             Text('Senin QR Kodun'.tr(),
                 style: _serif(size: 20, weight: FontWeight.w600, letterSpacing: -0.02)),
             SizedBox(height: 4),
-            Text('Arkadaşın okutsun, ekleme isteği gelsin'.tr(),
+            // Metin güncellendi: ekleme artık ONAYSIZ ve anında (addFriendDirect) —
+            // eski "istek gelsin" ifadesi gerçek davranışla çelişiyordu.
+            Text('Arkadaşın okutsun, anında arkadaş olun'.tr(),
                 style: _sans(size: 11, color: AppPalette.textSecondary(context))),
             SizedBox(height: 18),
             Container(
@@ -18927,7 +20118,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
               ),
             ),
             SizedBox(height: 14),
-            Text('@$uname',
+            Text(uname,
                 style: _sans(size: 16, weight: FontWeight.w800)),
             SizedBox(height: 18),
             _PrimaryButton(
@@ -19313,7 +20504,7 @@ class _SuggestionRow extends StatelessWidget {
                     Text(flag, style: TextStyle(fontSize: 11)),
                     SizedBox(width: 4),
                     Flexible(
-                      child: Text('@$username',
+                      child: Text(username,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: _sans(size: 13, weight: FontWeight.w700, color: AppPalette.textPrimary(context))),
@@ -20443,7 +21634,7 @@ class _RankRow extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    '@${entry.username}',
+                    entry.username,
                     maxLines: 1,
                     softWrap: false,
                     style: _sans(
@@ -20946,7 +22137,10 @@ final List<_Subject> _allSubjects = [
 String _currentGrade = 'Lise 10. Sınıf';
 String _currentCountry = 'Türkiye';
 String _currentCountryKey = 'tr';
-String _currentUsername = 'ahmet';
+// Placeholder YOK: eskiden 'ahmet' idi ve kullanıcı adı boşsa davet
+// linkleri 'davet/ahmet' (var olmayan kullanıcı) üretiyordu. Boş default +
+// paylaşım öncesi gerçek kullanıcı adı kontrolü ile düzeltildi.
+String _currentUsername = '';
 
 /// Davet linki / QR kodu / paylaşım için kullanılacak kullanıcı adı.
 /// Önce canlı UserProfileService değerini dener (kullanıcı oturum içinde
@@ -20954,6 +22148,145 @@ String _currentUsername = 'ahmet';
 String _inviteUsername() {
   final u = UserProfileService.instance.username.trim();
   return u.isNotEmpty ? u : _currentUsername;
+}
+
+/// QR/davet linki paylaşımı için kullanıcı adını GARANTİ eder:
+///   1) Yerel profil cache'i (gerekirse init edilir),
+///   2) Bulut profili (users/{uid} — yerel cache boş kalmış olabilir),
+///   3) Hâlâ yoksa oracıkta "kullanıcı adı belirle" penceresi açılır.
+/// Boş dönerse kullanıcı vazgeçmiştir (çağıran sessizce çıkar). Eskiden
+/// yalnızca "önce profilinden kullanıcı adı belirle" snackbar'ı gösterip
+/// kullanıcıyı çıkmaza sokuyordu.
+Future<String> _ensureInviteUsername(BuildContext context) async {
+  var u = _inviteUsername();
+  if (u.isNotEmpty) return u;
+  try {
+    await UserProfileService.instance.init();
+  } catch (_) {}
+  u = UserProfileService.instance.username.trim();
+  if (u.isNotEmpty) {
+    _currentUsername = u;
+    return u;
+  }
+  try {
+    final uid = fb_auth.FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      final me = await FriendService.getUserByUid(uid);
+      final un = (me?.username ?? '').trim();
+      if (un.isNotEmpty) {
+        _currentUsername = un;
+        unawaited(
+            UserProfileService.instance.updateLocalCache(username: un));
+        return un;
+      }
+    }
+  } catch (_) {}
+  if (!context.mounted) return '';
+  return await _askAndClaimUsername(context) ?? '';
+}
+
+/// Küçük "kullanıcı adı belirle" penceresi — adı atomik rezerve eder
+/// (FriendService.claimUsername), profile yazar ve yerel cache'i günceller.
+/// Kaydedilen adı döner; iptalde null.
+Future<String?> _askAndClaimUsername(BuildContext context) async {
+  final ctl = TextEditingController();
+  String? err;
+  bool busy = false;
+  final result = await showDialog<String>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setD) => AlertDialog(
+        backgroundColor: AppPalette.card(ctx),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('Kullanıcı adı belirle'.tr()),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Davet linki ve QR kod, arkadaşlarının seni bulabilmesi için '
+                      'kullanıcı adını kullanır. Bir kez belirle, hep kullan.'
+                  .tr(),
+              style: _sans(
+                  size: 12.5,
+                  color: AppPalette.textSecondary(ctx),
+                  height: 1.4),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctl,
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                prefixText: '@',
+                hintText: 'kullanici_adi'.tr(),
+                errorText: err,
+                isDense: true,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Vazgeç'.tr()),
+          ),
+          FilledButton(
+            onPressed: busy
+                ? null
+                : () async {
+                    final clean = ctl.text
+                        .trim()
+                        .toLowerCase()
+                        .replaceAll(RegExp(r'[^a-z0-9_]'), '');
+                    if (clean.length < 3) {
+                      setD(() =>
+                          err = 'En az 3 karakter: harf, rakam, _'.tr());
+                      return;
+                    }
+                    setD(() {
+                      busy = true;
+                      err = null;
+                    });
+                    final ok = await FriendService.claimUsername(clean);
+                    if (!ctx.mounted) return;
+                    if (!ok) {
+                      setD(() {
+                        busy = false;
+                        err = 'Bu ad alınmış — başka bir tane dene'.tr();
+                      });
+                      return;
+                    }
+                    final p = UserProfileService.instance;
+                    await FriendService.upsertMyProfile(
+                      username: clean,
+                      displayName: p.displayName.trim().isNotEmpty
+                          ? p.displayName
+                          : clean,
+                      avatar: p.avatar,
+                    );
+                    await p.updateLocalCache(username: clean);
+                    _currentUsername = clean;
+                    if (ctx.mounted) Navigator.of(ctx).pop(clean);
+                  },
+            child: busy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : Text('Kaydet'.tr()),
+          ),
+        ],
+      ),
+    ),
+  );
+  // Dialog kapanış animasyonu bitmeden dispose etme (grup sheet'indeki
+  // çökme dersinin aynısı).
+  Future.delayed(const Duration(milliseconds: 600), ctl.dispose);
+  return result;
 }
 
 /// Bot rakipler için deterministik şehir — kullanıcı adı hash'i ile seçilir,
@@ -20978,7 +22311,7 @@ String _displayUsername() {
   if (dn.isNotEmpty) return dn;
   final un = p.username.trim();
   if (un.isNotEmpty) return un;
-  return _currentUsername != 'ahmet' ? _currentUsername : 'Sen'.tr();
+  return _currentUsername.isNotEmpty ? _currentUsername : 'Sen'.tr();
 }
 String? _currentLevel; // 'ilkokul' | 'ortaokul' | 'lise' | 'universite' | 'yuksek_lisans' | 'doktora' | 'sinav_hazirlik'
 String? _currentFaculty; // 'muhendislik', 'insaat_muh', 'tip' vb.
@@ -25270,7 +26603,7 @@ class _ShareCardPreview extends StatelessWidget {
               SizedBox(width: 4),
               Flexible(
                 child: Text(
-                  '@$_currentUsername',
+                  _currentUsername,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: _sans(
@@ -25856,7 +27189,7 @@ class _DueloMatchingScreenState extends State<_DueloMatchingScreen> {
           ),
           SizedBox(height: 3),
           Text(
-            '$matched/$_totalPairs · $moves hamle',
+            '$matched/$_totalPairs · $moves ${'hamle'.tr()}',
             style: _sans(
                 size: 11,
                 weight: FontWeight.w700,
@@ -25949,7 +27282,7 @@ class _MatchTileRace extends StatelessWidget {
               borderRadius: BorderRadius.circular(50),
             ),
             child: Text(
-              isTerm ? 'TERİM' : 'TANIM',
+              isTerm ? 'TERİM'.tr() : 'TANIM'.tr(),
               style: _sans(
                   size: 9,
                   weight: FontWeight.w800,

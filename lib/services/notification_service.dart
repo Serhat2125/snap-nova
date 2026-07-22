@@ -138,15 +138,21 @@ class AppNotification {
   String get message {
     final who = fromDisplayName?.isNotEmpty == true
         ? fromDisplayName!
-        : (fromUsername?.isNotEmpty == true ? '@$fromUsername' : '');
+        : (fromUsername?.isNotEmpty == true ? fromUsername! : '');
     switch (type) {
       case AppNotifType.friendRequest:
         return '$who sana arkadaşlık isteği gönderdi';
       case AppNotifType.friendAccepted:
         return '$who arkadaşlık isteğini kabul etti';
       case AppNotifType.dueloInvite:
-        final t = (targetUsername ?? '');
-        return 'Düello daveti${t.isEmpty ? "" : " (@$t)"}';
+        // GÖNDERENİN adı gösterilir. Eskiden targetUsername (yani ALICININ
+        // KENDİ adı) basılıyordu — "bildirimde kendi adım çıkıyor" hatası.
+        final st = [subjectKey, topic]
+            .where((e) => e != null && e.trim().isNotEmpty)
+            .map((e) => e!.trim())
+            .join(' • ');
+        return '$who seninle yarışmak istiyor'
+            '${st.isEmpty ? '' : ' — $st'}';
       case AppNotifType.rankPassed:
         return '$who seni sıralamada geçti';
       case AppNotifType.streakMilestone:

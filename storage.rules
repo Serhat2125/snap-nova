@@ -22,6 +22,15 @@ service firebase.storage {
       allow delete: if request.auth != null;
     }
 
+    // İndirilebilir dil paketleri (3D ders + UI offline çevirisi).
+    //   Sunucu (lesson_pack_generator, admin SDK) yazar; kurallar admin
+    //   yazımına karışmaz. İçerik hassas DEĞİL (uygulamanın kendi çevrilmiş
+    //   metinleri) → herkese okuma açık; yazma istemciden kapalı.
+    match /lesson_i18n/{fileName} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Diğer her şey kapalı.
     match /{allPaths=**} {
       allow read, write: if false;

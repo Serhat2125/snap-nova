@@ -8,11 +8,12 @@
 //    • Period   : daily / weekly / monthly / all  → istemci tarafı when filtresi
 //
 //  Strateji:
-//    1) Firestore query: scope eşleşmesi + (varsa) subject/topic eşleşmesi
-//       + score DESC + limit 200.
-//    2) İstemci tarafı: kullanıcı bazında en yüksek skor (per-uid dedupe),
-//       periyot penceresi filtresi, top-N kesimi.
-//    3) Auth yok / location yok / Firestore boş → mock fallback.
+//    1) ÖNCE league_totals (kullanıcı × kova × mod hazır TOPLAMLAR):
+//       scope + bucket + modeKey eşitliği + score DESC → kesin sıralama.
+//    2) Totals boşsa legacy attempts yolu: attempt'ler çekilir, istemcide
+//       kullanıcı bazında TOPLANIR (dedupe değil — puanlar birikir),
+//       periyot kovası filtrelenir, top-N kesilir.
+//    3) Auth yok / location yok / Firestore boş → UI demo dolgusuna düşer.
 //
 //  Backend büyüdükçe Cloud Functions ile pre-aggregate edilebilir
 //  (`leaderboards/{scopeKey_period_subject_topic}`). Şu an basit ve yeterli.
@@ -59,6 +60,26 @@ class LeagueLeaderRow {
 }
 
 class LeagueLeaderboardService {
+  /// Şehir slug normalizasyonu — yazım tarafı (league_scores payload + CF)
+  /// ile birebir: trim + lowercase. Farklı kaynaklardan gelen
+  /// "Istanbul"/"istanbul " varyantları aynı şehir havuzunda birleşsin.
+  static String _normCity(String c) => c.trim().toLowerCase();
+
+  /// Totals satırlarının görüntü sıralaması — legacy yol ve ekran tarafındaki
+  /// demo birleşimiyle AYNI kural: puan DESC → puan başı süre ASC (verimlilik;
+  /// 0 puanda ham süre) → uid (deterministik, liste "titremesin").
+  static int compareRows(LeagueLeaderRow a, LeagueLeaderRow b) {
+    final cmpScore = b.score.compareTo(a.score);
+    if (cmpScore != 0) return cmpScore;
+    final aEff = a.score == 0 ? double.infinity : a.durationSec / a.score;
+    final bEff = b.score == 0 ? double.infinity : b.durationSec / b.score;
+    final cmpEff = aEff.compareTo(bEff);
+    if (cmpEff != 0) return cmpEff;
+    final cmpDur = a.durationSec.compareTo(b.durationSec);
+    if (cmpDur != 0) return cmpDur;
+    return a.uid.compareTo(b.uid);
+  }
+
   /// Liderlik tablosu çek.
   /// `subjectKey` mode=subject veya topic için zorunlu, overall'da görmezden gelinir.
   /// `topic` mode=topic için zorunlu, diğerlerinde görmezden gelinir.
@@ -131,7 +152,7 @@ class LeagueLeaderboardService {
         q = q.where(
           'scopeCity',
           isEqualTo:
-              '${location.countryCode}|${location.cityCode}|${profile.level}|${profile.grade}',
+              '${location.countryCode}|${_normCity(location.cityCode)}|${profile.level}|${profile.grade}',
         );
         break;
       case LeagueScope.country:
@@ -166,8 +187,16 @@ class LeagueLeaderboardService {
     }
 
     // 3) Order + limit (skor DESC). Periyot client-side, çünkü when range
-    //    + score order birlikte ek index gerektirir; bu mimaride basit tutuyoruz.
-    q = q.orderBy('score', descending: true).limit(limit * 4);
+    //    + score order birlikte ek composite index gerektirir.
+    //    DİKKAT: Günlük/haftalık/aylıkta periyot filtresi limit'ten SONRA
+    //    uygulandığından pencere geniş tutulur (min 400) — dar pencerede
+    //    (eski limit*4=80) bugünün attempt'leri all-time top-80'e giremeyip
+    //    günlük tablo boş/eksik kalıyordu. Bu yol yalnızca totals boşken
+    //    çalışan geçiş-dönemi fallback'idir; kalıcı çözüm totals yoludur.
+    final window = period == LeaguePeriod.allTime
+        ? limit * 4
+        : (limit * 4 > 400 ? limit * 4 : 400);
+    q = q.orderBy('score', descending: true).limit(window);
 
     // Timeout + hata yutmama. Offline veya yavaş bağlantıda UI donmasın.
     QuerySnapshot<Map<String, dynamic>> snap;
@@ -218,7 +247,7 @@ class LeagueLeaderboardService {
         q = q.where(
           'scopeCity',
           isEqualTo:
-              '${location.countryCode}|${location.cityCode}|${profile.level}|${profile.grade}',
+              '${location.countryCode}|${_normCity(location.cityCode)}|${profile.level}|${profile.grade}',
         );
         break;
       case LeagueScope.country:
@@ -276,7 +305,9 @@ class LeagueLeaderboardService {
             durationSec: (m['durationSec'] as num?)?.toInt() ?? 0,
             isMe: (m['uid'] ?? '').toString() == myUid,
           );
-        }).toList();
+        }).toList()
+          // Eşit puanda deterministik görüntü sırası (bkz. compareRows).
+          ..sort(compareRows);
       }
       // Totals boş (eski veri / index bekliyor) → legacy attempts'ten tek
       // seferlik doldur; totals dolmaya başlayınca akış otomatik oraya döner.
@@ -323,7 +354,7 @@ class LeagueLeaderboardService {
         q = q.where(
           'scopeCity',
           isEqualTo:
-              '${location.countryCode}|${location.cityCode}|${profile.level}|${profile.grade}',
+              '${location.countryCode}|${_normCity(location.cityCode)}|${profile.level}|${profile.grade}',
         );
         break;
       case LeagueScope.country:
@@ -375,7 +406,11 @@ class LeagueLeaderboardService {
         durationSec: (m['durationSec'] as num?)?.toInt() ?? 0,
         isMe: (m['uid'] ?? '').toString() == myUid,
       );
-    }).toList();
+    }).toList()
+      // Eşit puanda deterministik görüntü sırası — Firestore eşit skorda
+      // doc-id sırası döndürüyordu; legacy yol ve demo birleşimiyle aynı
+      // "hızlı çözen üstte" kuralı burada da uygulanır.
+      ..sort(compareRows);
   }
 
   /// Doc map listesini periyot penceresi + uid başına dedupe + sıralama
@@ -506,7 +541,7 @@ class LeagueLeaderboardService {
         if (location.cityCode.isEmpty) return null;
         scopeField = 'scopeCity';
         scopeValue =
-            '${location.countryCode}|${location.cityCode}|${profile.level}|${profile.grade}';
+            '${location.countryCode}|${_normCity(location.cityCode)}|${profile.level}|${profile.grade}';
         break;
       case LeagueScope.country:
         scopeField = 'scopeCountry';
@@ -538,18 +573,29 @@ class LeagueLeaderboardService {
     }
 
     try {
-      final my = await LeagueScores.myCloudTotal(
-        modeKey: modeKey,
-        period: period,
-      );
-      if (my == null || my.score <= 0) return null;
+      // Kendi dokümanım DOĞRUDAN okunur (myCloudTotal yalnız skor döndürür;
+      // burada scope alanına da bakmamız gerekiyor).
+      final myDoc = await FirebaseFirestore.instance
+          .collection('league_totals')
+          .doc(LeagueScores.totalsDocId(
+              uid: myUid, modeKey: modeKey, period: period))
+          .get()
+          .timeout(_leagueFetchTimeout);
+      final myData = myDoc.data();
+      final myScore = (myData?['score'] as num?)?.toDouble() ?? 0.0;
+      if (myData == null || myScore <= 0) return null;
+      // Dokümanım SEÇİLİ kapsama ait mi? Konum/sınıf değiştirip henüz yeni
+      // test çözmemiş kullanıcının toplamı hâlâ ESKİ kapsamdadır: o kapsamın
+      // listesinde görünmezken burada sıra döndürmek "sıran 3 ama listede
+      // yoksun" tutarsızlığı üretiyordu. Uyuşmuyorsa bu kapsamda sıra yok.
+      if ((myData[scopeField] ?? '').toString() != scopeValue) return null;
 
       final agg = await FirebaseFirestore.instance
           .collection('league_totals')
           .where(scopeField, isEqualTo: scopeValue)
           .where('bucket', isEqualTo: LeagueScores.bucketFor(period))
           .where('modeKey', isEqualTo: modeKey)
-          .where('score', isGreaterThan: my.score)
+          .where('score', isGreaterThan: myScore)
           .count()
           .get()
           .timeout(_leagueFetchTimeout);
@@ -617,7 +663,7 @@ class LeagueLeaderboardService {
         if (location.cityCode.isEmpty) return null;
         scopeField = 'scopeCity';
         scopeValue =
-            '${location.countryCode}|${location.cityCode}|${profile.level}|${profile.grade}';
+            '${location.countryCode}|${_normCity(location.cityCode)}|${profile.level}|${profile.grade}';
         break;
       case LeagueScope.country:
         scopeField = 'scopeCountry';
@@ -659,6 +705,9 @@ class LeagueLeaderboardService {
       final myData = myDoc.data();
       final myScore = (myData?['score'] as num?)?.toDouble() ?? 0.0;
       if (myData == null || myScore <= 0) return null;
+      // myRank ile aynı kapsam kontrolü: toplamım seçili kapsama ait değilse
+      // (konum/sınıf değişti, henüz yeni test yok) komşu bölümü çizilmez.
+      if ((myData[scopeField] ?? '').toString() != scopeValue) return null;
 
       Query<Map<String, dynamic>> base = col
           .where(scopeField, isEqualTo: scopeValue)

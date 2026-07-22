@@ -23,6 +23,12 @@ export {
   refreshOldPools,
 } from "./question_pool_generator";
 export {
+  onLabirentPoolCreated,
+  scheduledLabirentPoolFill,
+} from "./labirent_pool_generator";
+export { dailyReportDigest } from "./daily_report_digest";
+export { ensureLessonPack, scheduledLessonPackFill } from "./lesson_pack_generator";
+export {
   onQuestionInserted,
   rejudgeUnchecked,
 } from "./question_judge";

@@ -1854,8 +1854,8 @@ const COLORS = {
 // ============== INIT ==============
 function init() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xE3E7ED);
-  scene.fog = new THREE.Fog(0x1e2740, 45, 110);
+  scene.background = new THREE.Color(0xFAFAFA);
+  scene.fog = new THREE.Fog(0xe4ecf6, 45, 110);
 
   const W = window.innerWidth, H = window.innerHeight;
   camera = new THREE.PerspectiveCamera(55, W / H, 0.1, 200);
@@ -2641,63 +2641,89 @@ const INFO_DATA = {
     '⬆️ Suya tuz eklenince sıvı yoğunlaşır; tam batık bir cisme uygulanan kaldırma kuvveti artar.',
     '🛟 Yüzen bir cisim, yoğun sıvıda daha az batar (batık oranı azalır).',
     '🔢 F_kaldırma = d_sıvı × V_batık × g; d_sıvı arttıkça F artar.',
-    '🌊 Ölü Deniz çok tuzlu (yoğun) olduğu için insanlar kolayca yüzer.'
+    '🌊 Ölü Deniz çok tuzlu (yoğun) olduğu için insanlar kolayca yüzer.',
+    '🥚 Yumurta saf suda batar; suya tuz eklendikçe önce askıda kalır, sonra yüzer.',
+    '⚖️ Askıda kalma anı, sıvı ile cismin yoğunluklarının eşitlendiği andır.'
   ]}},
   gazBasincGunluk: { ortaokul: { emoji:'🌀', title:'Gaz Basıncının Günlük Hayat Örnekleri', points:[
     '🌬️ Açık hava basıncı her yöne etki eder; birçok günlük araç bu basınçla çalışır.',
     '🟣 Vantuz: içindeki hava sıkıştırılıp atılır, dış basınç vantuzu yüzeye yapıştırır.',
     '🥤 Pipet: ağzımızla içerideki havayı çekeriz, dış basınç sıvıyı yukarı iter.',
     '💧 Damacana pompası: pompayla hava basıncı oluşturulur, su musluktan akar.',
-    '🧹 Elektrik süpürgesi: içeride hava boşaltılır (düşük basınç), dış hava tozu içeri sürükler.'
+    '🧹 Elektrik süpürgesi: içeride hava boşaltılır (düşük basınç), dış hava tozu içeri sürükler.',
+    '💉 Şırınga: piston çekilince iç basınç düşer, ilaç dış basınçla içeri dolar.',
+    '🎈 Balonu şişirdiğimizde iç basınç dış basıncı geçer, lastik gerilir.',
+    '🥫 Konserve kapağı vakumludur; delince hava girer ve kapak kolay açılır.'
   ]}},
   yuzeyGerilimFaktor: { lise: { emoji:'🌡️', title:'Yüzey Gerilimini Etkileyen Faktörler', points:[
     '🌡️ Sıcaklık arttıkça su moleküllerinin hareketi artar, yüzey gerilimi AZALIR.',
     '🧼 Deterjan/sabun bir yüzey aktif maddedir; yüzey gerilimini hızla düşürür.',
     '🧂 Çözünmüş tuz (iyonlar) suyun yüzey gerilimini bir miktar ARTIRABİLİR.',
     '📎 Yüzey gerilimi yüksekken ataş/su böceği yüzeyde durur; düşünce batar.',
-    '🌊 Özet: sıcaklık ↑ ve kirletici (deterjan) ↑ → yüzey gerilimi zayıflar.'
+    '🌊 Özet: sıcaklık ↑ ve kirletici (deterjan) ↑ → yüzey gerilimi zayıflar.',
+    '📐 Yüzey gerilimi γ, birim uzunluğa düşen kuvvettir; birimi N/m’dir.',
+    '💧 Saf suda 20 °C’de γ ≈ 0,072 N/m; sabunlu suda yarıya kadar düşer.',
+    '🧼 Sabun temizler çünkü gerilimi düşürüp suyun kumaşa nüfuz etmesini sağlar.'
   ]}},
   kaldirmaAgirlasma: { lise: { emoji:'⚖️', title:'Kaldırma Kuvveti ve Kabın Toplam Ağırlığı', points:[
     '⚖️ Bir kaptaki sıvıya cisim eklenince terazinin gösterdiği toplam değer değişebilir.',
     '🛟 Kabın içinde YÜZEN ya da DİBE BATAN cisim: terazi, cismin ağırlığı kadar artar (kapalı sistem).',
     '🪢 Dışarıdan iple tutulup sıvıya batırılan cisim: terazi yalnız KALDIRMA KUVVETİ kadar artar.',
     '🔢 Dış iple batık: ΔTartı = F_kaldırma = d_sıvı·V_batık·g.',
-    '🎯 TYT klasiği: cismin nasıl tutulduğu (kapta mı, iple mi) sonucu belirler.'
+    '🎯 TYT klasiği: cismin nasıl tutulduğu (kapta mı, iple mi) sonucu belirler.',
+    '↩️ Nedeni Newton’un 3. yasasıdır: sıvı cismi iterken cisim de sıvıyı aşağı iter.',
+    '🚫 Sık hata: iple tutulan cisimde terazi artışını cismin ağırlığı sanmak.',
+    '💧 Sıvı taşmıyorsa su seviyesi yükselir, ama taban basıncı da artmış olur.'
   ]}},
   gazYasasi: { lise: { emoji:'🎈', title:'İdeal Gaz Basıncı (P·V = n·R·T)', points:[
     '🎈 Kapalı kaptaki gazın basıncı hacim, sıcaklık ve mol sayısına bağlıdır: P·V = n·R·T.',
     '⬇️ Sıcaklık sabitken hacim azalırsa basınç artar (Boyle): P ile V ters orantılı.',
     '🔥 Hacim sabitken sıcaklık artarsa basınç artar (Gay-Lussac): P ile T doğru orantılı.',
     '⚡ Gaz molekülleri kabın çeperlerine çarparak basınç oluşturur.',
-    '🔢 Küçük hacim + yüksek sıcaklık → yüksek basınç.'
+    '🔢 Küçük hacim + yüksek sıcaklık → yüksek basınç.',
+    '🌡️ Sıcaklık formülde MUTLAKA Kelvin alınır: T(K) = t(°C) + 273.',
+    '⚗️ Basınç sabitken hacim sıcaklıkla artar (Charles): V ∝ T.',
+    '🎯 Sınav tuzağı: °C ile oran kurmak; 20 °C’den 40 °C’ye hacim iki katına çıkmaz.'
   ]}},
   esnekBalon: { lise: { emoji:'🎈', title:'Akışkanlarda Esnek Balon ve Piston', points:[
     '🎈 Kabın tabanına bağlı esnek balonun içinde gaz vardır.',
     '💧 Kaba sıvı eklenince tabandaki sıvı basıncı artar (P = h·d·g).',
     '⬇️ Artan dış basınç balonu sıkıştırır; gazın hacmi AZALIR.',
     '⬆️ Hacim azaldıkça balon içindeki gaz basıncı ARTAR (Boyle: P·V sabit).',
-    '🔢 P_iç · V_iç = sabit; dış basınç ↑ → V ↓ ve P_iç ↑.'
+    '🔢 P_iç · V_iç = sabit; dış basınç ↑ → V ↓ ve P_iç ↑.',
+    '⚖️ Esnek zarda denge şartı: P_iç = P_dış (zarın kendi gerilimi ihmal edilir).',
+    '🤿 Dalgıcın ciğerlerindeki hava da derine indikçe aynı nedenle sıkışır.',
+    '🎈 Balon tabandan yukarı taşınırsa üstündeki sıvı azalır, hacmi büyür.'
   ]}},
   piezoelektrik: { lise: { emoji:'⚡', title:'Katı Basıncında Piezoelektrik Olay', points:[
     '⚡ Bazı kristaller basınç (mekanik gerilme) altında elektrik üretir: piezoelektrik olay.',
     '🔨 Kristale kuvvet uygulanınca yüzeylerinde zıt yükler birikir, gerilim oluşur.',
     '🔥 Çakmaklarda piezo kristale vurulur → kıvılcım çıkar.',
     '📱 Dokunmatik ekranlar, mikrofonlar ve baskı sensörleri piezoelektrik etkiyi kullanır.',
-    '🔢 Uygulanan basınç arttıkça üretilen gerilim artar.'
+    '🔢 Uygulanan basınç arttıkça üretilen gerilim artar.',
+    '🔁 Olay terslenebilir: kristale gerilim uygulanırsa titreşir (ters piezo).',
+    '⌚ Kuvars saatler, kristalin sabit frekanslı titreşimiyle zaman ölçer.',
+    '🩺 Ultrason cihazları ses dalgasını piezo kristallerle üretir ve algılar.'
   ]}},
   kilcalBitki: { lise: { emoji:'🌳', title:'Kılcallık ve Bitkilerde Taşıma', points:[
     '🌳 Bitkiler kökten yaprağa suyu kılcal borular (ksilem) ile taşır.',
     '🌱 Kılcallık: ince borularda su, adhezyon-kohezyon sayesinde kendiliğinden tırmanır.',
     '⬆️ Kök basıncı suyu aşağıdan iter; ince ksilem boruları ile yükselir.',
     '☀️ Yapraklardan terleme (su buharlaşması) yukarıdan çekme kuvveti oluşturur.',
-    '🌲 Bu üç etki birlikte suyu ağacın tepesine (onlarca metre) kadar taşır.'
+    '🌲 Bu üç etki birlikte suyu ağacın tepesine (onlarca metre) kadar taşır.',
+    '🔗 Su sütunu kohezyonla kopmadan tutunur; bu sürekli su sütunu teorisidir.',
+    '📏 Tırmanma yüksekliği boru yarıçapı ile ters orantılıdır: h ∝ 1/r.',
+    '🚫 Tek başına açık hava basıncı suyu ancak ≈10 m yükseltebilirdi.'
   ]}},
   batmaYuzme: {
     ilkokul: { emoji:'🪵', title:'Batma ve Yüzme', points:[
       '💧 Bazı cisimler suda yüzer, bazıları batar.',
       '🪵 Tahta, mantar gibi hafif cisimler suyun üstünde kalır (yüzer).',
       '🪨 Taş, demir gibi ağır cisimler dibe çöker (batar).',
-      '🎈 Bir cismin yüzüp batması ağırlığına ve şekline bağlıdır.'
+      '🎈 Bir cismin yüzüp batması ağırlığına ve şekline bağlıdır.',
+      '🍎 Elma suda yüzer ama üzüm batar; boyutları benzer olsa bile.',
+      '🧊 Buz suda yüzer, bu yüzden göl yüzeyinde buz tabakası görürüz.',
+      '🚢 Kocaman gemiler bile içi boş olduğu için suyun üstünde durur.'
     ]}
   },
   suyunItmesi: {
@@ -2705,7 +2731,10 @@ const INFO_DATA = {
       '💧 Su, içine giren cisimleri yukarı doğru iter.',
       '🏊 Havuza girince kendimizi daha hafif hissetmemizin nedeni budur.',
       '⬆️ Bu yukarı itme kuvvetine kaldırma kuvveti denir.',
-      '🪨 Suda taşıdığımız taş, havada taşıdığımızdan daha hafif gelir.'
+      '🪨 Suda taşıdığımız taş, havada taşıdığımızdan daha hafif gelir.',
+      '🏐 Topu suya batırmaya çalışınca su onu geri yukarı iter.',
+      '🛟 Can simidi bizi bu itme kuvveti sayesinde yüzeyde tutar.',
+      '💨 Hava da iter: uçan balonlar bu sayede yukarı çıkar.'
     ]}
   },
   tasanSu: {
@@ -2713,7 +2742,10 @@ const INFO_DATA = {
       '🪨 Suya bir cisim batırınca su seviyesi yükselir.',
       '📏 Cisim ne kadar büyükse o kadar çok su taşar/yükselir.',
       '🛁 Küvete girince suyun yükselmesi buna örnektir.',
-      '💧 Yükselen su miktarı, cismin kapladığı yer (hacim) kadardır.'
+      '💧 Yükselen su miktarı, cismin kapladığı yer (hacim) kadardır.',
+      '⚖️ Ağır ama küçük bir cisim, hafif ama büyük olandan az su taşırır.',
+      '📐 Şekli düzgün olmayan taşın hacmini böyle ölçebiliriz.',
+      '🧪 Bardak ağzına kadar doluysa taşan suyu bir kapta toplarız.'
     ]}
   },
   farkliSivilar: {
@@ -2721,7 +2753,10 @@ const INFO_DATA = {
       '🧂 Tuzlu su, normal sudan daha "ağır" (yoğun) bir sıvıdır.',
       '🥚 Bir yumurta saf suda batar ama tuzlu suda yüzer.',
       '🫒 Zeytinyağı sudan hafiftir, suyun üstünde kalır.',
-      '⚖️ Sıvının cinsi, cisimlerin yüzüp batmasını değiştirir.'
+      '⚖️ Sıvının cinsi, cisimlerin yüzüp batmasını değiştirir.',
+      '🍯 Bal çok yoğundur; bardağın en dibinde toplanır.',
+      '🌊 Deniz suyunda yüzmek, havuz suyunda yüzmekten daha kolaydır.',
+      '🥤 Şekerli su da saf sudan yoğundur, cisimleri daha çok kaldırır.'
     ]}
   },
   dinamometre: {
@@ -2730,7 +2765,10 @@ const INFO_DATA = {
       '🌬️ Bir cisim havada tartılınca yay çok uzar (tam ağırlık).',
       '💧 Aynı cisim suya batırılınca yay daha az uzar (cisim hafifler).',
       '➗ Bu ağırlık kaybı, suyun uyguladığı kaldırma kuvvetine eşittir.',
-      '🔢 Kaldırma Kuvveti = Havadaki ağırlık − Sudaki ağırlık.'
+      '🔢 Kaldırma Kuvveti = Havadaki ağırlık − Sudaki ağırlık.',
+      '🧂 Cisim tuzlu suya batırılırsa uzama daha da azalır (yoğunluk arttı).',
+      '📏 Cisim tam batıkken daha derine indirilirse dinamometre değişmez.',
+      '⚖️ Cismin kütlesi değişmez; değişen yalnızca ölçülen görünen ağırlıktır.'
     ]}
   },
   ozkutle: {
@@ -2739,7 +2777,10 @@ const INFO_DATA = {
       '💧 Suyun özkütlesi 1 g/cm³ kabul edilir.',
       '🪵 Özkütlesi sudan küçük cisimler yüzer (d_cisim < d_su).',
       '🪨 Özkütlesi sudan büyük cisimler batar (d_cisim > d_su).',
-      '⚖️ Özkütlesi suya eşit cisimler sıvı içinde askıda kalır.'
+      '⚖️ Özkütlesi suya eşit cisimler sıvı içinde askıda kalır.',
+      '📐 Özkütle maddenin ayırt edici özelliğidir; miktarla değişmez.',
+      '✂️ Bir cismi ikiye bölsek kütle ve hacim yarılanır, özkütle aynı kalır.',
+      '🧊 Buzun özkütlesi 0,92 g/cm³ olduğu için suda yüzer.'
     ]}
   },
   arsimet: {
@@ -2747,7 +2788,10 @@ const INFO_DATA = {
       '🌊 Arşimet Prensibi: Bir cisme etki eden kaldırma kuvveti, taşırdığı sıvının ağırlığına eşittir.',
       '💧 Cismin batık hacmi arttıkça kaldırma kuvveti de artar.',
       '⚓ Gemiler ağır olmalarına rağmen, çok su taşırdıkları için yüzer.',
-      '🔢 F_kaldırma = sıvının özkütlesi × batık hacim × yerçekimi (d·V·g).'
+      '🔢 F_kaldırma = sıvının özkütlesi × batık hacim × yerçekimi (d·V·g).',
+      '📏 Formülde cismin TAMAMI değil, yalnızca batık hacmi kullanılır.',
+      '🛟 Yüzen cisimde denge şarttır: kaldırma kuvveti = cismin ağırlığı.',
+      '💨 Gazlar da kaldırma kuvveti uygular; balonlar havada bu yüzden yükselir.'
     ]}
   },
   basincPascal: {
@@ -2756,7 +2800,10 @@ const INFO_DATA = {
       '🌊 Bir barajın dibi, üst kısmından daha kalın yapılır çünkü orada basınç fazladır.',
       '🔧 Pascal Prensibi: Kapalı bir kaptaki sıvıya uygulanan basınç her yöne eşit iletilir.',
       '🚗 Hidrolik sistemlerde (fren, lift) küçük bir kuvvetle büyük yükler kaldırılır.',
-      '🔢 Hidrolik: F₁/A₁ = F₂/A₂.'
+      '🔢 Hidrolik: F₁/A₁ = F₂/A₂. Geniş pistondan büyük kuvvet alınır.',
+      '📏 Kuvvet kazancı olur ama işten kazanç olmaz; küçük piston çok yol alır.',
+      '💉 Şırınga, kaldıraçlı oto lifti ve iş makineleri bu ilkeyle çalışır.',
+      '🌊 Sıvı basıncı kabın şekline değil, yalnızca derinlik ve yoğunluğa bağlıdır.'
     ]}
   },
   yuzeyGerilimi: {
@@ -2765,7 +2812,10 @@ const INFO_DATA = {
       '🌊 Yüzeydeki moleküller bir "zar" gibi gerilim oluşturur (yüzey gerilimi).',
       '📎 Bu gerilim, su yüzeyine konan hafif bir ataşı veya böceği taşıyabilir.',
       '🧼 Deterjan/sabun yüzey gerilimini düşürür, ataş batar.',
-      '🌱 Kılcal borularda sıvının tırmanması (kılcallık) adhezyon ve kohezyon dengesidir.'
+      '🌱 Kılcal borularda sıvının tırmanması (kılcallık) adhezyon ve kohezyon dengesidir.',
+      '📐 Yüzey gerilimi γ birim uzunluğa düşen kuvvettir; birimi N/m’dir.',
+      '⚪ Serbest damlanın küre olması, yüzey alanını en aza indirme eğilimidir.',
+      '🌡️ Sıcaklık arttıkça moleküller arası çekim zayıflar, γ azalır.'
     ]}
   },
   hidrostatik: {
@@ -2774,7 +2824,10 @@ const INFO_DATA = {
       '🪢 Tabana iple bağlı yüzen bir cisimde kaldırma kuvveti ağırlık ile ip gerilmesini dengeler.',
       '🔢 Denge denklemi: F_kaldırma = G (ağırlık) + T (ip gerilmesi).',
       '⚖️ Tüm kuvvetler vektörel olarak toplanır; sistem dengede ise net kuvvet sıfırdır.',
-      '🌡️ Toricelli ve barometre, açık hava basıncını bu denge ile ölçer.'
+      '🌡️ Toricelli ve barometre, açık hava basıncını bu denge ile ölçer.',
+      '📏 U borusunda ortak yüzeyden itibaren yükseklikler ölçülür, tabandan değil.',
+      '⬇️ Cisim tavana iple bağlı ve batıksa: T = G − F_k şeklinde yazılır.',
+      '🧪 Yoğun sıvı her zaman altta kalır; hafif sıvı kolonu daha yüksek olur.'
     ]}
   },
   ivmeliAkiskan: {
@@ -2783,7 +2836,10 @@ const INFO_DATA = {
       '📐 Yüzey eğiminin açısı: tan(α) = a / g (a: ivme, g: yerçekimi).',
       '⬆️ Dikey ivmelenen asansörde sıvı basıncı (etkin yerçekimi) değişir.',
       '🌊 İvme arttıkça yüzey daha çok eğilir; durağan kapta yüzey düzdür.',
-      '🔢 Etkin yerçekimi: yukarı ivmede g+a, aşağı ivmede g−a.'
+      '🔢 Etkin yerçekimi: yukarı ivmede g+a, aşağı ivmede g−a.',
+      '🌀 Serbest düşen kapta a = g olur; sıvı basıncı sıfırlanır (ağırlıksızlık).',
+      '📐 Yatay ivmede arka duvardaki sıvı yükselir, ön duvarda alçalır.',
+      '⚖️ Eğik yüzeyde basınç, yüzeye dik ölçülen derinlikle hesaplanır.'
     ]}
   },
   bernoulli: {
@@ -2792,7 +2848,10 @@ const INFO_DATA = {
       '📉 Bernoulli İlkesi: Akışkanın hızı arttığında basıncı azalır.',
       '✈️ Uçak kanadının üstünde hava hızlı akar (düşük basınç), altında yavaş (yüksek basınç) → kaldırma kuvveti (lift) doğar.',
       '🔢 Bernoulli: P + ½·d·v² + d·g·h = sabit.',
-      '🚰 Toricelli teoremi: bir delikten boşalan sıvının hızı v = √(2·g·h).'
+      '🚰 Toricelli teoremi: bir delikten boşalan sıvının hızı v = √(2·g·h).',
+      '📏 Süreklilik, sıkışmayan akışkanda debinin sabit kalmasıdır: Q = A·v.',
+      '🌬️ İki kâğıt arasına üflenince hızlanan hava basıncı düşürür, kâğıtlar birbirine yapışır.',
+      '🚿 Duş perdesinin içeri çekilmesi ve rüzgârda çatı uçması aynı ilkedir.'
     ]}
   }
   ,
@@ -2800,91 +2859,136 @@ const INFO_DATA = {
     '⛵ Aynı maddeden yapılmış bir cisim, şekline göre yüzebilir veya batabilir.',
     '🔩 Metal bir top suya atılınca batar (az yer kaplar).',
     '🚢 Aynı metal tekne şekline getirilirse yüzer (çok yer kaplar, çok su iter).',
-    '💡 Bu yüzden ağır demir gemiler suda yüzebilir.'
+    '💡 Bu yüzden ağır demir gemiler suda yüzebilir.',
+    '🥣 Alüminyum folyoyu kâse yaparsak yüzer, top yaparsak batar.',
+    '🕳️ İçi boş şekiller çok hava taşır, bu yüzden hafif kalır.',
+    '🕳️ Teknenin içine su dolarsa hava kaçar ve tekne batmaya başlar.'
   ]}},
   yuzeyDirenci: { ilkokul: { emoji:'🤲', title:'Sıvı Yüzey Direnci', points:[
     '💧 Su, içine giren bir cisme karşı bir direnç gösterir.',
     '🤲 Suya yavaşça girersek su az direnç gösterir.',
     '💥 Suya hızlıca vurursak su sert bir direnç gösterir (acıtır).',
-    '🏊 Yüzücüler bu yüzden suya düzgün bir şekilde dalış yaparlar.'
+    '🏊 Yüzücüler bu yüzden suya düzgün bir şekilde dalış yaparlar.',
+    '🤚 Elimizi suda hızlı hareket ettirirsek daha çok zorlanırız.',
+    '🐟 Balıkların vücudu sivridir, bu yüzden suda kolay ilerler.',
+    '🚤 Tekne ve gemilerin burnu da suyu yarmak için sivri yapılır.'
   ]}},
   dereceliKap: { ilkokul: { emoji:'🧪', title:'Dereceli Kapta Yükselme', points:[
     '🧪 Dereceli kap, sıvı miktarını ölçmeye yarayan çizgili bir kaptır.',
     '🪨 İçine cisim attıkça su seviyesi yükselir.',
     '➕ Her eklenen cisim suyu biraz daha yükseltir.',
-    '📏 Yükselen miktar, atılan cisimlerin kapladığı yer (hacim) kadardır.'
+    '📏 Yükselen miktar, atılan cisimlerin kapladığı yer (hacim) kadardır.',
+    '🔢 Cismin hacmi = son okuma − ilk okuma şeklinde bulunur.',
+    '👀 Ölçüm yaparken göz, sıvı yüzeyiyle aynı hizada olmalıdır.',
+    '🎈 Yüzen cisim tam batmadığı için hacmi bu yolla doğru ölçülemez.'
   ]}},
   suYag: { ilkokul: { emoji:'🫒', title:'Su ve Yağ', points:[
     '🫒 Yağ ve su birbirine karışmaz.',
     '⬆️ Zeytinyağı sudan daha hafif (az yoğun) olduğu için üstte kalır.',
     '⬇️ Su daha yoğun olduğu için altta toplanır.',
-    '🥗 Salata soslarında yağ ve sirkenin ayrılması buna örnektir.'
+    '🥗 Salata soslarında yağ ve sirkenin ayrılması buna örnektir.',
+    '🥄 Karıştırınca kısa süre karışır gibi olur, sonra yine ayrılırlar.',
+    '🌊 Denize dökülen petrol de aynı nedenle su yüzeyinde yayılır.',
+    '🧼 Bulaşık deterjanı yağı sudan ayırmamıza yardım eder.'
   ]}},
   yogunlukKulesi: { ilkokul: { emoji:'🏗️', title:'Yoğunluk Kulesi', points:[
     '🏗️ Farklı sıvıları üst üste koyduğumuzda yoğunluklarına göre dizilirler.',
     '🍯 En yoğun olan bal en altta kalır.',
     '💧 Su ortada, en hafif olan yağ en üstte durur.',
-    '🎨 Bu renkli katmanlara "yoğunluk kulesi" denir.'
+    '🎨 Bu renkli katmanlara "yoğunluk kulesi" denir.',
+    '🪙 Katmanların arasına bırakılan cisimler kendi katmanında durur.',
+    '🍇 Bir üzüm yağda batar, balın üstünde ise durur.',
+    '🥄 Sıvıları yavaşça dökersek katmanlar karışmadan güzel görünür.'
   ]}},
   farkliAkiskanYay: { ortaokul: { emoji:'🌈', title:'Farklı Akışkanlarda Yay Uzaması', points:[
     '🌈 Bir cisim farklı sıvılara batırıldığında dinamometredeki uzama değişir.',
     '🧂 Yoğun sıvılarda (tuzlu su) kaldırma kuvveti büyüktür, yay az uzar.',
     '🫒 Daha hafif sıvılarda (yağ) kaldırma azdır, yay daha çok uzar.',
-    '🔢 Kaldırma kuvveti sıvının özkütlesiyle doğru orantılıdır.'
+    '🔢 Kaldırma kuvveti sıvının özkütlesiyle doğru orantılıdır.',
+    '📏 Yay uzaması, cismin sıvı içindeki görünen ağırlığını gösterir.',
+    '➖ Görünen ağırlık = gerçek ağırlık − kaldırma kuvveti.',
+    '⚖️ Cisim tam batıksa daha derine indirmek uzamayı değiştirmez.'
   ]}},
   hacimOlcumu: { ortaokul: { emoji:'🪨', title:'Düzgün Olmayan Katı Hacmi', points:[
     '🪨 Taş gibi şekilsiz cisimlerin hacmi formülle hesaplanamaz.',
     '💧 Cisim suya batırılır ve taşan/yükselen su ölçülür.',
     '📏 Taşan suyun hacmi, cismin hacmine eşittir.',
-    '🔢 Hacim bulununca özkütle hesaplanır: d = m / V.'
+    '🔢 Hacim bulununca özkütle hesaplanır: d = m / V.',
+    '🧪 Bu yöntemin adı taşırma kabı (Arşimet) yöntemidir.',
+    '⚠️ Cisim suda çözünmemeli ve su emmemelidir, yoksa ölçüm yanlış çıkar.',
+    '🎈 Yüzen cisimler için cisim bir tel ile tamamen batırılmalıdır.'
   ]}},
   siviOzkutle: { ortaokul: { emoji:'🔄', title:'Sıvı Özkütlesi Değişimi', points:[
     '🔄 Aynı cisim, farklı yoğunluktaki sıvılarda farklı davranır.',
     '⬆️ Sıvının özkütlesi cisimden büyükse cisim yüzer.',
     '⬇️ Sıvının özkütlesi cisimden küçükse cisim batar.',
-    '🧂 Bir cismi batırmak için sıvıyı (örn. tuz ekleyerek) yoğunlaştırabiliriz.'
+    '🧂 Bir cismi batırmak için sıvıyı (örn. tuz ekleyerek) yoğunlaştırabiliriz.',
+    '⚖️ İki özkütle eşitse cisim sıvı içinde her derinlikte askıda kalır.',
+    '📏 Yüzen cismin batık oranı: V_batık / V_cisim = d_cisim / d_sıvı.',
+    '💧 Buz suda hacminin yaklaşık 9/10’u batacak şekilde yüzer.'
   ]}},
   batikGrafik: { ortaokul: { emoji:'📈', title:'Batık Hacim-Kaldırma İlişkisi', points:[
     '📈 Bir cismin batık hacmi ile kaldırma kuvveti doğru orantılıdır.',
     '➕ Batık hacim iki katına çıkarsa kaldırma kuvveti de iki katına çıkar.',
     '📉 Bu ilişki grafikte düz bir doğru olarak görülür.',
-    '🔢 F_kaldırma = sıvı özkütlesi × batık hacim × g.'
+    '🔢 F_kaldırma = sıvı özkütlesi × batık hacim × g.',
+    '📐 Grafiğin eğimi d·g değerini verir; yoğun sıvıda eğim daha diktir.',
+    '🎯 Doğru orijinden başlar: batık hacim sıfırken kaldırma kuvveti de sıfırdır.',
+    '⏹️ Cisim tamamen battıktan sonra grafik yatay bir doğruya döner.'
   ]}},
   gemi: { ortaokul: { emoji:'🚢', title:'Gemilerin Yüzmesi', points:[
     '🚢 Gemiler tonlarca ağırlıkta olmalarına rağmen suda yüzer.',
     '📦 Geniş gövdeleri çok miktarda su taşırır (büyük kaldırma kuvveti).',
     '⚖️ Geminin ağırlığı, taşırdığı suyun ağırlığına eşit olduğunda dengede yüzer.',
-    '🏗️ Yük arttıkça gemi biraz daha batar ama yüzmeye devam eder.'
+    '🏗️ Yük arttıkça gemi biraz daha batar ama yüzmeye devam eder.',
+    '⚖️ Geminin ortalama yoğunluğu, içindeki hava boşlukları sayesinde sudan küçüktür.',
+    '📏 Gövdedeki Plimsoll çizgisi, güvenli yükleme sınırını gösterir.',
+    '🧂 Aynı gemi tuzlu denizde, tatlı su limanına göre daha az batar.'
   ]}},
   denizalti: { ortaokul: { emoji:'🛥️', title:'Denizaltı Safra Tankı', points:[
     '🛥️ Denizaltılar safra tankları sayesinde dalıp yüzeye çıkar.',
     '💧 Tanklara su alınınca denizaltı ağırlaşır ve batar.',
     '💨 Tanklara hava basılıp su boşaltılınca hafifler ve yükselir.',
-    '⚖️ Ortalama yoğunluğu ayarlayarak istenen derinlikte askıda kalabilir.'
+    '⚖️ Ortalama yoğunluğu ayarlayarak istenen derinlikte askıda kalabilir.',
+    '📏 Denizaltının hacmi sabittir; değişen yalnızca toplam kütlesidir.',
+    '🐟 Balıklar da hava keseleriyle aynı yöntemi kullanır.',
+    '⬇️ Askıda kalma şartı: denizaltının yoğunluğu = deniz suyunun yoğunluğu.'
   ]}},
   adhezyon: { lise: { emoji:'💧', title:'Adhezyon ve Kohezyon', points:[
     '💧 Kohezyon: aynı tür moleküllerin (su-su) birbirini çekmesi.',
     '🪟 Adhezyon: farklı tür moleküllerin (su-cam) birbirini çekmesi.',
     '🪟 Cam yüzeyde adhezyon güçlüdür, su yayılır (ıslatır).',
-    '🟦 Plastik/yağlı yüzeyde kohezyon baskındır, su top şeklinde toplanır.'
+    '🟦 Plastik/yağlı yüzeyde kohezyon baskındır, su top şeklinde toplanır.',
+    '📐 Islatma derecesi temas açısı θ ile ölçülür: θ < 90° ıslatır, θ > 90° ıslatmaz.',
+    '🌿 Lotus yaprağı ve yağmurluk kumaşı su iticidir (adhezyon çok zayıf).',
+    '🖊️ Mürekkebin kâğıda yayılması ve boyanın tutunması adhezyon sayesindedir.'
   ]}},
   kilcalBoru: { lise: { emoji:'🌱', title:'Kılcal Boru', points:[
     '🌱 İnce borularda sıvı kendiliğinden yukarı tırmanır (kılcallık).',
     '📏 Boru ne kadar ince ise sıvı o kadar yükseğe çıkar.',
     '🌳 Bitkilerin kökten yaprağa su taşıması bu olaya dayanır.',
-    '🔢 Tırmanma yüksekliği boru yarıçapıyla ters orantılıdır.'
+    '🔢 Tırmanma yüksekliği boru yarıçapıyla ters orantılıdır: h ∝ 1/r.',
+    '⬆️ Yükselmenin nedeni adhezyonun kohezyondan baskın olmasıdır.',
+    '⬇️ Cıva camı ıslatmaz; kılcal boruda yükselmek yerine ALÇALIR.',
+    '🧻 Havlu kâğıdın suyu emmesi ve mumun fitili de kılcallık örneğidir.'
   ]}},
   meniskus: { lise: { emoji:'⚪', title:'Menisküs (Su/Cıva)', points:[
     '⚪ Sıvının kap kenarındaki kavisli yüzeyine menisküs denir.',
     '💧 Su camı ıslatır (adhezyon baskın), içbükey menisküs oluşur.',
     '⚪ Cıva camı ıslatmaz (kohezyon baskın), dışbükey menisküs oluşur.',
-    '📏 Ölçüm yaparken menisküsün dibinden (suda) okuma yapılır.'
+    '📏 Ölçüm yaparken menisküsün dibinden (suda) okuma yapılır.',
+    '⚪ Cıvada tam tersi geçerlidir: okuma tepe noktasından yapılır.',
+    '📐 Menisküsün yönünü belirleyen, sıvı-cam temas açısıdır.',
+    '👁️ Paralaks hatasını önlemek için göz menisküs hizasında tutulmalıdır.'
   ]}},
   toricelli: { lise: { emoji:'🌡️', title:'Toricelli ve Barometre', points:[
     '🌡️ Toricelli deneyi açık hava basıncını ölçer (barometre).',
     '⬆️ Açık hava basıncı, ters cıva tüpündeki cıvayı yukarı iter.',
     '📏 Deniz seviyesinde cıva yaklaşık 76 cm yükselir.',
-    '⛰️ Rakım arttıkça hava basıncı azalır, cıva sütunu kısalır.'
+    '⛰️ Rakım arttıkça hava basıncı azalır, cıva sütunu kısalır.',
+    '🔢 76 cmHg ≈ 1 atm ≈ 101325 Pa değerine karşılık gelir.',
+    '🔑 Yükseklik, tüpün kesit alanına ve eğikliğine BAĞLI DEĞİLDİR.',
+    '💧 Cıva yerine su kullanılsaydı sütun yaklaşık 10,3 m olurdu.'
   ]}},
   manometre: { lise: { emoji:'📊', title:'Manometre ve Kapalı Gaz Basıncı', points:[
     '📊 Manometre, kapalı bir kaptaki gaz basıncını ölçen U borulu araçtır; içinde genelde cıva bulunur.',
@@ -2900,7 +3004,10 @@ const INFO_DATA = {
     '📦 Sıvı içindeki bir küpün alt yüzeyi üst yüzeyinden daha derindedir.',
     '⬆️ Derinlik fazla olduğu için alt yüzeye etki eden basınç kuvveti daha büyüktür.',
     '➖ Alt ve üst yüzey kuvvetlerinin farkı net yukarı kuvveti verir.',
-    '🔢 Bu net kuvvet kaldırma kuvvetidir: F_kaldırma = F_alt - F_üst.'
+    '🔢 Bu net kuvvet kaldırma kuvvetidir: F_kaldırma = F_alt − F_üst.',
+    '📐 Yan yüzeylerdeki basınç kuvvetleri simetrik olduğu için birbirini götürür.',
+    '🔢 Türetme: F = d·g·(h₂ − h₁)·A = d·g·V → Arşimet bağıntısı çıkar.',
+    '🔑 Derinlik artsa da h₂ − h₁ farkı sabittir; kaldırma kuvveti değişmez.'
   ]}},
   asiliDenge: { lise: { emoji:'⚖️', title:'Asılı Dinamometreli Denge', points:[
     '⚖️ Tavana asılı dinamometreye bağlı cisim sıvıya batırılır.',
@@ -2914,31 +3021,46 @@ const INFO_DATA = {
     '🥤 Birbirine karışmayan iki sıvıda (yağ-su) yüzen cisim sınırda durabilir.',
     '🌊 Cismin bir kısmı yoğun sıvıda, bir kısmı hafif sıvıda batık kalır.',
     '⬆️ Her sıvı ayrı bir kaldırma kuvveti uygular.',
-    '🔢 Toplam kaldırma: F_k1 + F_k2 = cismin ağırlığı (G).'
+    '🔢 Toplam kaldırma: F_k1 + F_k2 = cismin ağırlığı (G).',
+    '📐 Açık yazılışı: d₁·V₁·g + d₂·V₂·g = d_cisim·V_toplam·g.',
+    '⚖️ Denge için cismin yoğunluğu iki sıvının yoğunlukları arasında olmalıdır.',
+    '🎯 Sık hata: kaldırma kuvvetini yalnız alttaki yoğun sıvıya göre hesaplamak.'
   ]}},
   dikeyIvme: { lise: { emoji:'🛗', title:'Dikey İvmeli Sistemler', points:[
     '🛗 İvmelenen bir asansördeki sıvının basıncı değişir.',
     '⬆️ Asansör yukarı ivmelenirse etkin yerçekimi artar (g+a), basınç artar.',
     '⬇️ Aşağı ivmelenirse etkin yerçekimi azalır (g-a), basınç azalır.',
-    '🔢 Sıvı basıncı: P = d·(g +/- a)·h.'
+    '🔢 Sıvı basıncı: P = d·(g ± a)·h.',
+    '🌀 Serbest düşmede a = g olur, basınç sıfırlanır (ağırlıksızlık ortamı).',
+    '⬆️ Kaldırma kuvveti de etkin yerçekimiyle değişir: F_k = d·V·(g ± a).',
+    '🎯 Sabit hızla giden asansörde ivme sıfırdır; basınç normal kalır.'
   ]}},
   balonIrtifa: { lise: { emoji:'🎈', title:'Atmosfer Yoğunluğu ve Balon', points:[
     '🎈 Yükseğe çıkıldıkça atmosfer yoğunluğu ve basıncı azalır.',
     '⬆️ Dış basınç azalınca esnek bir balon genleşir (şişer).',
     '🌍 Yer seviyesinde hava yoğun, yüksek irtifada seyrektir.',
-    '🔢 İrtifa artarsa dış basınç azalır, balon hacmi artar.'
+    '🔢 İrtifa artarsa dış basınç azalır, balon hacmi artar.',
+    '🌍 Deniz seviyesinde hava yoğunluğu ≈ 1,2 kg/m³ kadardır.',
+    '⚖️ Balon, kaldırma kuvveti toplam ağırlığa eşitlendiği irtifada dengelenir.',
+    '🎈 Hacim artsa da havanın seyrelmesi nedeniyle kaldırma kuvveti sonunda düşer.'
   ]}},
   sicakBalon: { lise: { emoji:'🔥', title:'Termodinamik Genleşme', points:[
     '🔥 Sıcak hava balonunda içerideki hava ısıtılır.',
     '🌡️ Isınan gaz genleşir, yoğunluğu azalır.',
     '⬆️ Yoğunluğu düşen balon, dışarıdaki soğuk havadan hafif kalır ve yükselir.',
-    '🔢 Sıcaklık artarsa gaz yoğunluğu azalır, kaldırma kuvveti artar.'
+    '🔢 Sıcaklık artarsa gaz yoğunluğu azalır: d ∝ 1/T (basınç sabitken).',
+    '⚖️ Yükselme şartı: d_iç·V·g + m_sepet·g < d_dış·V·g.',
+    '⬇️ Alçalmak için brülör kısılır; hava soğur ve yoğunluk yeniden artar.',
+    '🌡️ Balon içi hava genelde 100 °C civarına ısıtılır.'
   ]}},
   toricelliBosalma: { lise: { emoji:'🚰', title:'Toricelli Teoremi (Boşalma)', points:[
     '🚰 Bir kabın yan tarafındaki delikten su fışkırır.',
     '⬇️ Delik ne kadar derindeyse (üstündeki su yüksekse) su o kadar hızlı fışkırır.',
     '🌊 Fışkıran su parabolik bir yörünge izler.',
-    '🔢 Boşalma hızı: v = karekök(2·g·h).'
+    '🔢 Boşalma hızı: v = √(2·g·h). Bu, h yüksekliğinden düşen cismin hızıdır.',
+    '🔑 Hız yalnızca deliğin üstündeki sıvı yüksekliğine bağlıdır, kap genişliğine değil.',
+    '📐 Menzil, delik kabın tam ortasındayken en büyük değerini alır.',
+    '⏳ Kap boşaldıkça h azalır, fışkırma hızı ve menzil giderek düşer.'
   ]}},
   katiBasincOrta: {
     ortaokul: { emoji:'📌', title:'Katı Basıncı (Yüzey Etkisi)', points:[
@@ -2946,14 +3068,20 @@ const INFO_DATA = {
       '⚖️ Basınç, cismin ağırlığı (kuvvet) ile DOĞRU orantılıdır: ağırlık artarsa basınç artar.',
       '📐 Basınç, temas yüzeyi alanı ile TERS orantılıdır: alan küçülürse basınç artar.',
       '🔪 Bıçak, çivi, iğne ucu sivridir → küçük alan → büyük basınç → keser/batar.',
-      '🛷 Kar ayakkabısı, palet, deve tabanı geniştir → büyük alan → küçük basınç → batmaz.'
+      '🛷 Kar ayakkabısı, palet, deve tabanı geniştir → büyük alan → küçük basınç → batmaz.',
+      '🔢 Formül: P = F / A. Basıncın birimi Pascal (Pa) yani N/m² dir.',
+      '📦 Aynı tuğla farklı yüzü üstünde durunca ağırlığı değişmez, basıncı değişir.',
+      '🧱 Binalarda geniş temel yapılır; böylece zemine yapılan basınç azalır.'
     ]},
     lise: { emoji:'📌', title:'Katı Basıncı', points:[
       '📌 Katı basıncı, ağırlığın temas alanına oranıdır: P = G / A.',
       '🔢 Birim Pascal (Pa) = N/m². Basınç kuvveti ise yüzeye dik etkiyen kuvvettir (F = P·A).',
       '📐 Aynı cisim farklı yüzü üstünde durduğunda ağırlık değişmez ama A değişir → P değişir.',
       '⬇️ En küçük yüzeyi üstünde duran cisim, zemine en büyük basıncı uygular.',
-      '🧱 Katılar uygulanan kuvveti aynen iletir, fakat basıncı aynen iletmez (alan değişir).'
+      '🧱 Katılar uygulanan kuvveti aynen iletir, fakat basıncı aynen iletmez (alan değişir).',
+      '📐 Eğik düzlemde basıncı yapan, ağırlığın yüzeye dik bileşeni G·cos α’dır.',
+      '⬆️ Cismin üstüne başka cisim konursa zemine yapılan basınç artar.',
+      '🎯 Sık hata: kesilip küçültülen küpte basıncın azaldığını sanmak; boy oranı korunursa P düşer.'
     ]}
   },
   acikHavaBasinci: {
@@ -2962,56 +3090,83 @@ const INFO_DATA = {
       '🥤 Ağzı kapatılmış ters bardakta karton düşmez: alttan gelen hava basıncı suyu tutar.',
       '🔴 Magdeburg yarımkürelerinin içi boşaltılınca dış hava basıncı onları öyle sıkıştırır ki atlar bile ayıramaz.',
       '🥡 Pipetle içerken, içerideki havayı çekeriz; dışarıdaki hava basıncı sıvıyı yukarı iter.',
-      '⛰️ Yükseklere çıkıldıkça hava seyrekleşir ve açık hava basıncı azalır.'
+      '⛰️ Yükseklere çıkıldıkça hava seyrekleşir ve açık hava basıncı azalır.',
+      '🌡️ Bu basıncı ölçen alete barometre denir; Toricelli tarafından bulunmuştur.',
+      '📏 Deniz seviyesinde cıvalı barometrede sütun 76 cm yüksekliğe çıkar.',
+      '✈️ Uçakta kulak tıkanması, dışarıdaki hava basıncının düşmesindendir.'
     ]},
     lise: { emoji:'🌬️', title:'Açık Hava (Atmosfer) Basıncı', points:[
       '🌬️ Atmosferin birim yüzeye uyguladığı basınç açık hava basıncıdır; deniz seviyesinde ≈ 1 atm = 76 cmHg ≈ 101325 Pa.',
       '🧪 Toricelli deneyi açık hava basıncını cıva sütunu yüksekliğiyle ölçer (barometre).',
       '🔴 Magdeburg deneyi: küre içi vakumlanınca dış basınç P₀·A kadar bir bastırma kuvveti oluşturur.',
       '🥤 Ters bardak dengesi: P₀·A > m_su·g olduğu sürece karton ve su düşmez.',
-      '📈 Yükseklik arttıkça hava yoğunluğu ve dolayısıyla açık hava basıncı azalır (altimetre bu ilkeyle çalışır).'
+      '📈 Yükseklik arttıkça hava yoğunluğu ve dolayısıyla açık hava basıncı azalır (altimetre bu ilkeyle çalışır).',
+      '💧 Cıva yerine su kullanılsaydı sütun ≈10,3 m olurdu; d·h çarpımı korunur.',
+      '🌡️ Sıvı ve gaz basınç birimleri dönüşür: 1 atm = 76 cmHg = 760 mmHg.',
+      '🔑 Toricelli tüpünün eğilmesi veya kalınlaşması dikey yüksekliği değiştirmez.'
     ]}
   },
   katiBasinc: {
     ortaokul: { emoji:'📌', title:'Katı Basıncı', points:[
       '📌 Katı cisim, ağırlığıyla zemine basınç yapar.',
       '📐 Temas alanı küçülürse basınç büyür, alan büyürse basınç küçülür.',
-      '🔪 Sivri uçlar (bıçak, çivi) büyük basınç oluşturur.'
+      '🔪 Sivri uçlar (bıçak, çivi) büyük basınç oluşturur.',
+      '🔢 Katı basıncı P = F / A ile hesaplanır; birimi Pascal (Pa) yani N/m² dir.',
+      '🛷 Kar ayakkabısı ve paletler alanı büyütür, basıncı azaltır.',
+      '📦 Aynı tuğla dar yüzü üstünde dururken zemine daha çok basınç yapar.',
+      '🧱 Katılar kuvveti aynen iletir, basıncı iletmez (temas alanı değişir).'
     ]},
     lise: { emoji:'📌', title:'Katı Basıncı (P = F/A)', points:[
       '📌 Katı basıncı: P = F / A. Burada F yüzeye dik kuvvet (genelde ağırlık G), A temas alanıdır.',
       '🔢 SI birimi Pascal (Pa = N/m²). 1 N’luk kuvvet 1 m²’ye etki ederse 1 Pa basınç oluşur.',
       '📐 Ağırlık sabitken cisim dar yüzü üstünde durursa A küçülür, P büyür.',
       '⬇️ Basınç kuvveti F = P·A bağıntısıyla geri bulunur; katılar kuvveti iletir, basıncı iletmez.',
-      '🏗️ Temel, palet, ray altlığı gibi yapılar alanı büyüterek zemine yapılan basıncı azaltır.'
+      '🏗️ Temel, palet, ray altlığı gibi yapılar alanı büyüterek zemine yapılan basıncı azaltır.',
+      '📐 Eğik zeminde basıncı yapan bileşen G·cos α, yüzeye dik olan kısımdır.',
+      '🔪 Bıçağın bilenmesi A’yı küçültür; aynı kuvvetle çok daha büyük P doğar.',
+      '🎯 Sık hata: P = F/A’da A’yı toplam yüzey alanı almak; yalnız TEMAS alanı kullanılır.'
     ]}
   },
   siviBasinci: {
     ortaokul: { emoji:'💧', title:'Durgun Sıvı Basıncı', points:[
       '💧 Sıvılar derinlik arttıkça daha çok basınç yapar.',
       '🌊 Derin dalışta kulaklarımızın ağrımasının nedeni artan sıvı basıncıdır.',
-      '🧂 Yoğun sıvılar (tuzlu su) daha çok basınç uygular.'
+      '🧂 Yoğun sıvılar (tuzlu su) daha çok basınç uygular.',
+      '🔢 Sıvı basıncı P = h·d·g bağıntısıyla hesaplanır.',
+      '🌊 Baraj duvarları dipte kalın yapılır, çünkü orada basınç en büyüktür.',
+      '🚿 Su deposunun yüksekte olması, musluktan güçlü akış sağlar.',
+      '🔑 Sıvı basıncı kabın şekline ve sıvı miktarına bağlı DEĞİLDİR.'
     ]},
     lise: { emoji:'💧', title:'Durgun Sıvı Basıncı (P = h·d·g)', points:[
       '💧 Durgun bir sıvının belirli derinlikteki basıncı: P = h · d · g.',
       '📏 h: yüzeyden derinlik, d: sıvı yoğunluğu, g: yerçekimi ivmesi (≈ 9,8 m/s²).',
       '🔑 Sıvı basıncı yalnızca derinliğe, yoğunluğa ve g’ye bağlıdır; kabın şekline ve sıvı miktarına BAĞLI DEĞİLDİR.',
       '➡️ Aynı derinlikte sıvı her yöne eşit basınç yapar; tabandaki basınç kuvveti F = P·A olur.',
-      '🌊 Toplam taban basıncı, üstte açık hava varsa P = P₀ + h·d·g şeklinde yazılır.'
+      '🌊 Toplam taban basıncı, üstte açık hava varsa P = P₀ + h·d·g şeklinde yazılır.',
+      '🧪 Üst üste duran farklı sıvılarda basınçlar toplanır: P = Σ hᵢ·dᵢ·g.',
+      '🌊 Baraj gövdesi dipte kalınlaştırılır; basınç kuvveti derinlikle büyür.',
+      '🎯 Sık hata: h’yi kabın toplam yüksekliği almak; h daima YÜZEYDEN ölçülür.'
     ]}
   },
   bilesikKaplar: {
     ortaokul: { emoji:'⚗️', title:'Bileşik Kaplar', points:[
       '⚗️ Altından birbirine bağlı kaplara bileşik kaplar denir.',
       '💧 Bu kaplara konan aynı sıvı, kapların kalınlığı farklı olsa bile her yerde aynı seviyede durur.',
-      '🛠️ Su terazisi ve su dağıtım sistemleri bu ilkeyle çalışır.'
+      '🛠️ Su terazisi ve su dağıtım sistemleri bu ilkeyle çalışır.',
+      '💡 Nedeni: dengede tabandaki basınçların eşit olması gerekir (P = h·d·g).',
+      '🫖 Çaydanlığın gövdesi ile emzik ucundaki su seviyesi hep aynıdır.',
+      '🏙️ Şehir su depoları yüksek yapılır, su binalara kendiliğinden ulaşır.',
+      '🧪 Farklı sıvı konulursa seviyeler eşit olmaz: d₁·h₁ = d₂·h₂.'
     ]},
     lise: { emoji:'⚗️', title:'Bileşik Kaplar ve Kap Şekli', points:[
       '⚗️ Bileşik kaplarda tek tür sıvı, kesit alanından bağımsız olarak aynı yatay düzeyde dengelenir.',
       '🔑 Bunun nedeni: denge için tabandaki basınçların eşit olması gerekir (P = h·d·g → eşit h).',
       '📐 Sıvı basıncı kabın şekline ve içindeki sıvı miktarına bağlı değildir (hidrostatik paradoks).',
       '⚖️ Farklı şekilli ama aynı yükseklikte sıvı içeren kapların taban basınçları eşittir.',
-      '🧪 Farklı yoğunlukta iki sıvı bağlı kaplarda dengede ise: d₁·h₁ = d₂·h₂ (U borusu mantığı).'
+      '🧪 Farklı yoğunlukta iki sıvı bağlı kaplarda dengede ise: d₁·h₁ = d₂·h₂ (U borusu mantığı).',
+      '📏 U borusunda yükseklikler ortak yüzey düzleminden itibaren ölçülür.',
+      '⬆️ Yoğunluğu küçük olan sıvının kolonu daima daha yüksekte kalır.',
+      '🎯 Sık hata: taban basıncı ile tabana etkiyen kuvveti karıştırmak; F = P·A olduğundan geniş kapta kuvvet büyüktür.'
     ]}
   }
 };
@@ -3521,7 +3676,7 @@ function makeGridSystem(opts = {}) {
   const gWall = new THREE.GridHelper(size, divisions, cMain, cSub);
   gWall.rotation.x = Math.PI / 2; gWall.position.z = -0.05;
   gWall.material.transparent = true; gWall.material.opacity = isLight ? 0.35 : 0.18;
-  grp.add(gWall);
+  gWall.visible = false; grp.add(gWall);
   return grp;
 }
 
@@ -7784,16 +7939,16 @@ function applySceneTheme() {
   const isSpace = window._isSpaceScene === true;
   let bgColor, fogColor, fogNear, fogFar;
   if (isSpace) {
-    bgColor = 0xE3E7ED;
+    bgColor = 0xFAFAFA;
     fogColor = bgColor; fogNear = 40; fogFar = 110;
     scene.background = new THREE.Color(bgColor);
     scene.fog = null;
     return;
   }
   if (isLight) {
-    bgColor = 0xE3E7ED; fogColor = 0xe4ecf6; fogNear = 45; fogFar = 110;
+    bgColor = 0xFAFAFA; fogColor = 0xe4ecf6; fogNear = 45; fogFar = 110;
   } else {
-    bgColor = 0xE3E7ED; fogColor = 0x1e2740; fogNear = 45; fogFar = 110;
+    bgColor = 0xFAFAFA; fogColor = 0xe4ecf6; fogNear = 45; fogFar = 110;
   }
   scene.background = new THREE.Color(bgColor);
   scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
@@ -7913,7 +8068,7 @@ function updateInfoPanel(subKey) {
       if (_extraPts.length) points = points.concat(['## Daha Fazla Ayrıntı'], _extraPts);
     }
   }
-  const showCount = (currentMode === 'sade') ? 3 : points.length;
+  const showCount = (currentMode === 'sade') ? 6 : points.length;
   // Satır başındaki ikon/emojileri temizleyen yardımcı (madde başında ikon olmasın)
   const stripIcon = (txt) => txt.replace(/^\s*(?:[\p{Extended_Pictographic}️‍⃣]\s*)+/u, '').trim();
   points.slice(0, showCount).forEach(p => {
@@ -9291,8 +9446,7 @@ function positionPaletteUnder(){
   margin:0 14px 2px !important;
   padding:6px 14px !important;
   display:grid !important;
-  grid-template-columns:1fr 1fr 1fr !important;
-  justify-items:center !important;
+  grid-template-columns:1fr auto 1fr !important;
   align-items:center !important;
   width:auto !important;
   box-sizing:border-box !important;
@@ -9346,36 +9500,36 @@ function positionPaletteUnder(){
    +'.bq-go b{font:800 18px "Bricolage Grotesque",system-ui}.bq-go small{display:block;font:600 10px system-ui;opacity:.72;margin-top:1px}.bq-go:hover{filter:brightness(1.3)}'
    +'.bq-desc{font:500 10.5px system-ui;color:#8aa0c4;text-align:center;margin-bottom:6px;line-height:1.35;min-height:26px}'
    +'#bqPickClose{margin-top:14px;width:100%;border:1px solid #2b405d;background:transparent;color:#aebbd6;border-radius:12px;padding:10px;font:700 13px system-ui;cursor:pointer}'
-   +'#bqOverlay{position:fixed;inset:0;background:#34373d;z-index:1000;display:none;flex-direction:column}#bqOverlay.on{display:flex}'
-   +'.bq-oh{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid #2b2e34;background:#26282d}'
-   +'.bq-oh #bqTitle{font:800 14.5px "Bricolage Grotesque",system-ui;color:#eaf2ff;flex:1;line-height:1.2}'
-   +'.bq-oh #bqTitle small{display:block;font:600 11px system-ui;color:#7e95bf;margin-top:2px}'
-   +'#bqTimer{font:700 12.5px "DM Mono",monospace;color:#ffb24e}'
-   +'.bq-cevap{font:700 11.5px "DM Mono",monospace;color:#ffb24e;border:1px solid #ffb24e66;border-radius:20px;padding:4px 11px;white-space:nowrap}'
-   +'#bqClose{border:none;background:#16294a;color:#cdd9f0;width:34px;height:34px;border-radius:9px;font-size:16px;cursor:pointer}'
+   +'#bqOverlay{position:fixed;inset:0;background:#f2f4f7;z-index:1000;display:none;flex-direction:column}#bqOverlay.on{display:flex}'
+   +'.bq-oh{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid #d5dbe6;background:#eef1f5}'
+   +'.bq-oh #bqTitle{font:800 14.5px "Bricolage Grotesque",system-ui;color:#111318;flex:1;line-height:1.2}'
+   +'.bq-oh #bqTitle small{display:block;font:600 11px system-ui;color:#3f4c66;margin-top:2px}'
+   +'#bqTimer{font:700 12.5px "DM Mono",monospace;color:#c2410c}'
+   +'.bq-cevap{font:700 11.5px "DM Mono",monospace;color:#c2410c;border:1px solid #c2410c55;border-radius:20px;padding:4px 11px;white-space:nowrap}'
+   +'#bqClose{border:none;background:#e2e8f0;color:#111318;width:34px;height:34px;border-radius:9px;font-size:16px;cursor:pointer}'
    +'#bqScroll{flex:1;overflow:auto;padding:16px 14px 48px;-webkit-overflow-scrolling:touch}'
-   +'.bq-q{background:linear-gradient(162deg,#52565f,#42454c);border:1px solid #6a6f79;border-radius:16px;padding:15px 16px;margin:0 auto 14px;max-width:680px;box-shadow:0 6px 20px rgba(0,0,0,.28)}'
-   +'.bq-qn{font:800 11px "DM Mono",monospace;color:#9fd0ff;letter-spacing:.5px}'
-   +'.bq-qt{font:600 15px system-ui;color:#f1f6ff;margin:7px 0 10px;line-height:1.5}'
+   +'.bq-q{background:#ffffff;border:1px solid #d5dbe6;border-radius:16px;padding:15px 16px;margin:0 auto 14px;max-width:680px;box-shadow:0 6px 20px rgba(0,0,0,.10)}'
+   +'.bq-qn{font:800 11px "DM Mono",monospace;color:#2563eb;letter-spacing:.5px}'
+   +'.bq-qt{font:600 15px system-ui;color:#111318;margin:7px 0 10px;line-height:1.5}'
    +'.bq-fig{background:#f5f7fa;border:1px solid #d4dcea;border-radius:10px;padding:10px;margin:2px auto 12px;max-width:420px;text-align:center}'
    +'.bq-fig svg{max-width:100%;height:auto;display:block;margin:0 auto}'
    +'.bq-stp .bq-fig{max-width:340px;margin:6px 0}'
    +'.bq-opts{display:flex;flex-wrap:wrap;gap:8px}'
-   +'.bq-opt{display:flex;gap:8px;align-items:center;text-align:left;border:1.5px solid #6b7079;background:rgba(255,255,255,.07);color:#f0f2f6;border-radius:11px;padding:9px 12px;font:600 13.5px system-ui;cursor:pointer}'
-   +'.bq-opt .ql{width:22px;height:22px;flex:none;border-radius:6px;background:#5a5e67;color:#eef1f5;font:800 11px "DM Mono",monospace;display:flex;align-items:center;justify-content:center}'
-   +'.bq-opt.ok{border-color:#27a567;background:rgba(39,165,103,.22);color:#7ef0b4}.bq-opt.ok .ql{background:#27a567;color:#06210d}'
-   +'.bq-opt.no{border-color:#d2546a;background:rgba(210,84,106,.2);color:#ff9fae}.bq-opt.no .ql{background:#d2546a}'
-   +'.bq-fb{font:700 12.5px system-ui;margin-top:10px}.bq-fb.ok{color:#7ef0b4}.bq-fb.no{color:#ff9fae}'
-   +'.bq-soltgl{display:block;margin-left:auto;margin-top:11px;border:1px solid #ffcf6b66;background:transparent;color:#ffcf6b;border-radius:9px;padding:6px 12px;font:700 12px system-ui;cursor:pointer}'
-   +'.bq-sol{display:none;margin-top:11px;border-top:1px dashed #ffffff2e;padding-top:11px}.bq-sol.on{display:block}'
+   +'.bq-opt{display:flex;gap:8px;align-items:center;text-align:left;border:1.5px solid #c9d2e0;background:#ffffff;color:#111318;border-radius:11px;padding:9px 12px;font:600 13.5px system-ui;cursor:pointer}'
+   +'.bq-opt .ql{width:22px;height:22px;flex:none;border-radius:6px;background:#e2e8f0;color:#111318;font:800 11px "DM Mono",monospace;display:flex;align-items:center;justify-content:center}'
+   +'.bq-opt.ok{border-color:#27a567;background:rgba(39,165,103,.12);color:#0e7a45}.bq-opt.ok .ql{background:#27a567;color:#ffffff}'
+   +'.bq-opt.no{border-color:#d2546a;background:rgba(210,84,106,.10);color:#b02a37}.bq-opt.no .ql{background:#d2546a;color:#ffffff}'
+   +'.bq-fb{font:700 12.5px system-ui;margin-top:10px}.bq-fb.ok{color:#0e7a45}.bq-fb.no{color:#b02a37}'
+   +'.bq-soltgl{display:block;margin-left:auto;margin-top:11px;border:1px solid #b4530966;background:transparent;color:#b45309;border-radius:9px;padding:6px 12px;font:700 12px system-ui;cursor:pointer}'
+   +'.bq-sol{display:none;margin-top:11px;border-top:1px dashed #00000026;padding-top:11px}.bq-sol.on{display:block}'
    +'.bq-stp{border-left:3px solid #34d399;padding:4px 0 4px 11px;margin:8px 0}'
-   +'.bq-stp .sn{font:800 10px "DM Mono",monospace;color:#34d399;letter-spacing:.5px}'
-   +'.bq-stp .so{font:500 14px system-ui;color:#eaf2ff;margin-top:2px}'
-   +'.bq-stp .sa{font:700 13px system-ui;color:#ffd27a;margin-top:2px}'
-   +'.bq-dtg{display:block;margin-left:auto;width:fit-content;margin-top:5px;border:1px solid #ffffff33;background:rgba(255,255,255,.05);color:#ffd27a;font:600 11px system-ui;cursor:pointer;padding:4px 9px;border-radius:7px}'
-   +'.bq-dd{display:none;font:500 12.5px system-ui;color:#cfe0ff;background:rgba(255,255,255,.06);border-radius:8px;padding:8px 10px;margin-top:5px;line-height:1.45}.bq-dd.on{display:block}'
-   +'.bq-ans{margin-top:11px;background:rgba(39,165,103,.18);border:1px solid #27a567;border-radius:10px;padding:9px 12px;font:700 13.5px system-ui;color:#7ef0b4}'
-   +'.bq-empty{max-width:520px;margin:50px auto;text-align:center;color:#8aa0c4;font:500 14px system-ui;line-height:1.7}';
+   +'.bq-stp .sn{font:800 10px "DM Mono",monospace;color:#0e7a45;letter-spacing:.5px}'
+   +'.bq-stp .so{font:500 14px system-ui;color:#111318;margin-top:2px}'
+   +'.bq-stp .sa{font:700 13px system-ui;color:#b45309;margin-top:2px}'
+   +'.bq-dtg{display:block;margin-left:auto;width:fit-content;margin-top:5px;border:1px solid #00000026;background:rgba(0,0,0,.04);color:#b45309;font:600 11px system-ui;cursor:pointer;padding:4px 9px;border-radius:7px}'
+   +'.bq-dd{display:none;font:500 12.5px system-ui;color:#243044;background:rgba(0,0,0,.05);border-radius:8px;padding:8px 10px;margin-top:5px;line-height:1.45}.bq-dd.on{display:block}'
+   +'.bq-ans{margin-top:11px;background:rgba(39,165,103,.12);border:1px solid #27a567;border-radius:10px;padding:9px 12px;font:700 13.5px system-ui;color:#0e7a45}'
+   +'.bq-empty{max-width:520px;margin:50px auto;text-align:center;color:#5a6a88;font:500 14px system-ui;line-height:1.7}';
   var st=document.createElement('style'); st.textContent=css; document.head.appendChild(st);
   var wrap=document.createElement('div');
   wrap.innerHTML=''
@@ -9436,6 +9590,241 @@ function positionPaletteUnder(){
   document.getElementById('bqClose').addEventListener('click',closeOverlay);
   window.bqOpenStep=openPickStep; window.bqOpenMix=openPickMix;
 
+})();
+</script>
+<style id="dockCenterFix">#bottomDock #toolsRow > *{margin:0 !important;} #bottomDock #toolsRow > :first-child{justify-self:start !important;} #bottomDock #toolsRow > :last-child{justify-self:end !important;}</style>
+<style id="helpHideV1">#btnHelp,#b-help,.scene-help,.tool-icon-btn.help{display:none !important;}</style>
+
+<style id="halfPanelV1">
+/* Bilgi paneli daima ekranin YARISI kadar; 3D sahne ile kesismez (halfPanelV1) */
+/* Once KOSULSUZ tavan: :has() desteklenmese bile panel yariyi asamaz ve
+   yazi alt sekmelerin altina giremez (eski WebView guvenligi). */
+#bottomDock{ max-height:50vh !important; box-sizing:border-box; overflow:visible !important; }
+/* Destekleyen tarayicida panel acikken tam yarim ekran */
+#bottomDock:has(.bottom-panel:not(.hidden):not(.vars-hidden):not(.info-mini)){ height:50vh !important; }
+#bottomDock .bottom-panel{ flex:1 1 auto !important; min-height:0 !important; display:flex; flex-direction:column; overflow:visible !important; }
+/* Yazi alani: alt eylem sekmelerinin (action-row) USTUNDE kalir, sigmazsa
+   yalniz .info-list icinde kayar — sekmelerin altina asla girmez. */
+#bottomDock .bottom-panel:not(.info-mini) .info-area{ flex:1 1 auto !important; min-height:0 !important; display:flex !important; }
+#bottomDock .bottom-panel:not(.info-mini) .info-text-area{ flex:1 1 auto !important; min-width:0; min-height:0 !important; display:flex !important; flex-direction:column !important; }
+#bottomDock .bottom-panel .info-title-row, #bottomDock .bottom-panel .info-page-ind{ flex:0 0 auto !important; }
+#bottomDock .bottom-panel:not(.info-mini) .info-scroll-wrap{ flex:1 1 auto !important; min-height:0 !important; overflow:hidden !important; display:flex; flex-direction:column; }
+#bottomDock .bottom-panel .info-list{ flex:1 1 auto !important; min-height:0 !important; max-height:none !important; overflow-y:auto !important; }
+#bottomDock .bottom-panel .action-row{ flex:0 0 auto !important; }
+/* ── KAYDIRMA DUZELTMESI ────────────────────────────────────────────────
+   .info-area taban CSS'te "align-items:flex-start" idi: satir yonlu flex'te
+   bu, yazi alaninin yuksekligini ICERIGE gore buyutuyor -> liste hic kisalmiyor,
+   scrollHeight==clientHeight oldugu icin NE kaydirma NE de kaydirma cubugu
+   calisiyordu; tasan yazi alt sekmelerin altinda kayboluyordu.
+   stretch ile yazi alani panele sigar, fazlasi .info-list icinde kayar. */
+#bottomDock .bottom-panel:not(.info-mini) .info-area{ align-items:stretch !important; }
+#bottomDock .bottom-panel .info-emoji-box{ align-self:flex-start !important; flex:0 0 auto !important; }
+/* dikey kaydirma gostergesi (sag kenar) her zaman dogru konumlansin */
+#bottomDock .bottom-panel .info-scroll-wrap{ position:relative !important; }
+#bottomDock .bottom-panel .info-scrollbar{ z-index:6 !important; }
+/* ✕ kapatma dugmesi: panelin ustune tasar, her zaman ON PLANDA ve okunur */
+#bottomDock .bottom-panel .info-close-btn{
+  z-index:60 !important;
+  background:#ffffff !important;
+  border:2px solid #2f8fd0 !important;
+  color:#10131f !important;
+  box-shadow:0 2px 10px rgba(0,0,0,.45) !important;
+}
+#bottomDock .bottom-panel .info-resize-handle{ z-index:55 !important; }
+/* ── KUCULTULMUS (mini) DURUM ──────────────────────────────────────────
+   ✕ ile kucultuldugunde panel yalnizca tek satirlik cip olarak kalir;
+   yarim ekran yuksekligi ve icerik gorunurlugu zorlanmaz. */
+#bottomDock .bottom-panel.info-mini{ flex:0 0 auto !important; min-height:0 !important; }
+#bottomDock .bottom-panel.info-mini > *:not(.info-mini-chip){ display:none !important; }
+/* panel disina tasan kontroller kirpilmasin (kapatma / boyutlandirma) */
+#bottomDock .bottom-panel .info-close-btn,
+#bottomDock .bottom-panel .info-resize-handle,
+#bottomDock .bottom-panel .info-mini-chip{ z-index:40 !important; }
+
+</style>
+<script id="halfFitV1">
+(function(){
+  if(window.__halfFitV1) return; window.__halfFitV1=1;
+  /* 3D icerik ekranin UST YARISINDA kalsin: sayfanin her-kare setViewOffset
+     cagrisi sarmalanir (ek dikey ofset), boyut icin camera.zoom ayarlanir. */
+  function cam(){ var c=window.camera;
+    if(c&&(c.isPerspectiveCamera||c.isOrthographicCamera)) return c;
+    try{ if(typeof camera!=='undefined'&&camera&&(camera.isPerspectiveCamera||camera.isOrthographicCamera)) return camera; }catch(e){}
+    return null; }
+  function scn(){ var s=window.scene; if(s&&s.isScene) return s;
+    try{ if(typeof scene!=='undefined'&&scene&&scene.isScene) return scene; }catch(e){}
+    return null; }
+  var box=null,tmp=null,corners=null;
+  var TOPB=0.92, BOTB=0.06, XREF=0.90; /* NDC bant: ust yari (0 = ekran ortasi) */
+  function fit(){
+    try{
+      var c=cam(), s=scn(); if(!c||!s||!window.THREE) return;
+      if(!c.__hfPatch){
+        c.__hfPatch=1; c.__hfExtra=0;
+        var orig=c.setViewOffset.bind(c);
+        c.__hfOrig=orig;
+        c.setViewOffset=function(fw,fh,x,y,w,h){ c.__hfSVO=1; return orig(fw,fh,x,y+(c.__hfExtra||0),w,h); };
+      }
+      if(!box){ box=new THREE.Box3(); tmp=new THREE.Box3(); corners=[]; for(var i=0;i<8;i++)corners.push(new THREE.Vector3()); }
+      box.makeEmpty(); var has=false;
+      s.updateMatrixWorld(true);
+      s.traverse(function(o){
+        if(!o.visible) return;
+        if(!(o.isMesh||o.isSprite||o.isLine||o.isPoints)) return;
+        var p=o.parent; while(p){ if(p.visible===false) return; p=p.parent; }
+        tmp.setFromObject(o);
+        if(!isFinite(tmp.min.x)||!isFinite(tmp.max.x)) return;
+        var sx=tmp.max.x-tmp.min.x, sy=tmp.max.y-tmp.min.y, sz=tmp.max.z-tmp.min.z;
+        if(sx>60||sy>60||sz>60) return;           /* dev dekor/zemin */
+        if(sy<0.15&&(sx>14||sz>14)) return;        /* duz-genis zemin */
+        box.union(tmp); has=true;
+      });
+      if(!has||box.isEmpty()) return;
+      var mn=box.min,mx=box.max,k=0;
+      for(var xi=0;xi<2;xi++)for(var yi=0;yi<2;yi++)for(var zi=0;zi<2;zi++)corners[k++].set(xi?mx.x:mn.x,yi?mx.y:mn.y,zi?mx.z:mn.z);
+      c.updateMatrixWorld(true);
+      var maxX=0, loY=Infinity, hiY=-Infinity, seen=false;
+      for(var j=0;j<8;j++){
+        var pr=corners[j].clone().project(c);
+        if(isFinite(pr.x)&&isFinite(pr.y)&&pr.z<1){ seen=true;
+          maxX=Math.max(maxX,Math.abs(pr.x));
+          loY=Math.min(loY,pr.y); hiY=Math.max(hiY,pr.y); }
+      }
+      if(!seen) return;
+      var H=window.innerHeight||1;
+      /* 1) konum: alt kenar bandin altina sarkiyorsa ek ofsetle yukari al */
+      var needUp=BOTB-loY, needDown=hiY-TOPB;
+      if(needUp>0.02){
+        c.__hfExtra=Math.min((c.__hfExtra||0)+needUp*0.9*(H/2), H*0.35);
+      } else if(needDown>0.02 && loY>BOTB+0.04){
+        var back=Math.min(needDown, loY-BOTB);
+        c.__hfExtra=Math.max((c.__hfExtra||0)-back*0.9*(H/2), -H*0.15);
+      }
+      /* sayfa setViewOffset kullanmiyorsa ofseti kendimiz uygula */
+      if(!c.__hfSVO && Math.abs(c.__hfExtra||0)>1){
+        c.__hfOrig(window.innerWidth,H,0,c.__hfExtra,window.innerWidth,H);
+      }
+      /* 2) boyut: banda sigmiyorsa zoom-out, cok kucukse sinirli zoom-in */
+      if(c.__hfBase==null) c.__hfBase=c.zoom||1;
+      var mY=(hiY-loY)/(TOPB-BOTB);
+      var m=Math.max(maxX/XREF, mY);
+      var t=c.zoom;
+      if(m>1.02) t=Math.max(0.35, c.zoom/m);
+      else if(m<0.88) t=Math.min(c.__hfBase*1.6, c.zoom*(0.95/Math.max(m,0.05)));
+      if(Math.abs(t-c.zoom)/(c.zoom||1)>0.03){ c.zoom=t; c.updateProjectionMatrix(); }
+    }catch(e){}
+  }
+  /* Bilgi panelini buyut/kucult tutamaci: artik --info-h yerine DOCK
+     yuksekligini ayarlar (liste flex ile paneli doldurdugu icin). Tavan 50vh,
+     taban 22vh — yazi hicbir zaman alt sekmelerin altina inmez. */
+  (function(){
+    function wire(){
+      var h=document.getElementById('infoResizeHandle'), d=document.getElementById('bottomDock');
+      if(!h||!d||h.__hfWired) return true;
+      h.__hfWired=1;
+      var drag=false,sy=0,sh=0;
+      function cap(){ return Math.round(window.innerHeight*0.50); }
+      function floorH(){ return Math.round(window.innerHeight*0.22); }
+      function down(e){ drag=true; sy=(e.touches?e.touches[0].clientY:e.clientY);
+        sh=d.getBoundingClientRect().height||cap(); }
+      function move(e){ if(!drag) return;
+        var y=(e.touches?e.touches[0].clientY:e.clientY);
+        var nh=Math.max(floorH(),Math.min(cap(),sh+(sy-y)));
+        d.style.setProperty('height',nh+'px','important');
+        d.style.setProperty('max-height',nh+'px','important'); }
+      function up(){ drag=false; }
+      h.addEventListener('touchstart',down,{passive:true});
+      window.addEventListener('touchmove',move,{passive:true});
+      window.addEventListener('touchend',up);
+      h.addEventListener('mousedown',down);
+      window.addEventListener('mousemove',move);
+      window.addEventListener('mouseup',up);
+      return true;
+    }
+    if(!wire()){ var n=0,iv=setInterval(function(){ if(wire()||++n>20) clearInterval(iv); },400); }
+  })();
+  /* ── Palet arka plani TUM sahnelerde kalici ─────────────────────────────
+     Sahne degisiminde sayfa kodu scene.background'i yeniden atiyor ve
+     kullanicinin sectigi rengi eziyordu. Secim varsa okuma kilitlenir;
+     sahne kodu yazmaya devam eder ama gorunen renk kullanicininki kalir. */
+  (function(){
+    var locked=null;
+    function lockScene(s){
+      if(!s||s.__bgLock) return;
+      s.__bgLock=1;
+      var val=s.background;
+      try{
+        Object.defineProperty(s,'background',{
+          configurable:true,
+          get:function(){ return locked!==null?locked:val; },
+          set:function(v){ val=v; }
+        });
+      }catch(e){ s.__bgLock=0; }
+    }
+    function setLocked(c){
+      try{ if(c&&window.THREE) locked=new window.THREE.Color(c); }catch(e){}
+    }
+    function readSaved(){
+      try{ if(typeof _palState==='object'&&_palState&&_palState.bg) return _palState.bg; }catch(e){}
+      return null;
+    }
+    function wire(){
+      var s=scn(); if(s) lockScene(s);
+      try{
+        if(typeof applyPaletteColor==='function'&&!applyPaletteColor.__bgPersist){
+          var orig=applyPaletteColor;
+          var w=function(t,c,skip){
+            var r=orig(t,c,skip);
+            if(t==='bg'){ lockScene(scn()); setLocked(c); }
+            return r;
+          };
+          w.__bgPersist=1; applyPaletteColor=w;
+        }
+      }catch(e){}
+      try{
+        if(typeof resetPalette==='function'&&!resetPalette.__bgPersist){
+          var origR=resetPalette;
+          var wr=function(){ locked=null; return origR.apply(this,arguments); };
+          wr.__bgPersist=1; resetPalette=wr;
+        }
+      }catch(e){}
+      /* sayfa acilisinda kayitli secim (localStorage) zaten _palState'e yuklenmis olur */
+      if(locked===null){ var sv=readSaved(); if(sv){ lockScene(scn()); setLocked(sv); } }
+    }
+    wire();
+    var n=0, iv=setInterval(function(){ wire(); if(++n>=12) clearInterval(iv); },500);
+  })();
+  setInterval(fit,700);
+  [400,900,1500,2200].forEach(function(ms){setTimeout(fit,ms);});
+  document.addEventListener('pointerup',function(){[250,600,1100].forEach(function(ms){setTimeout(fit,ms);});},true);
+})();
+</script>
+
+<script id="tableShareNativeV1">
+/* ── TABLO / KIYASLAMA "GÖNDER" DÜZELTMESİ ────────────────────────────────
+   Eski davranış: shareCardEl() yalnız kart öğesini html2canvas ile çizmeye
+   çalışıyordu. html2canvas yoksa fonksiyon SESSİZCE geri dönüyordu (düğme
+   ölü görünüyordu); yüklü olduğunda da kaydırmalı tablo içeriği ve arkadaki
+   3B sahne doğru çıkmıyor, kimi cihazda "Görüntü alınamadı" veriyordu.
+   Yeni davranış: cihazın kendi ekran görüntüsü alınır → ekranda ne varsa
+   (açık tablo, panel, sahne) tek karede paylaşılır. Native kanal yoksa
+   eski akış aynen çalışmaya devam eder (hiçbir şey kaybolmaz). */
+(function(){
+  if(window.__tblShareNative) return; window.__tblShareNative=1;
+  /* Dinleyici DOKÜMAN düzeyinde ve capture fazında: düğmenin kendi onclick
+     handler'ından ÖNCE çalışır (düğme üzerine eklenseydi sayfanın daha önce
+     atanmış onclick'i önce çalışır, eski hatalı akış devreye girerdi). */
+  document.addEventListener('click', function(ev){
+    var t=ev.target;
+    var b=(t && t.closest) ? t.closest('#tableSend,#compareSend') : null;
+    if(!b) return;
+    if(!(window.FlutterNativeShot && window.FlutterNativeShot.postMessage)) return; /* eski akışa bırak */
+    ev.stopImmediatePropagation(); ev.preventDefault();
+    try{ if(window._showGestureToast) window._showGestureToast('📸 Gönderiliyor...'); }catch(e){}
+    setTimeout(function(){
+      try{ window.FlutterNativeShot.postMessage('1'); }catch(e){}
+    }, 60);
+  }, true);
 })();
 </script>
 </body>

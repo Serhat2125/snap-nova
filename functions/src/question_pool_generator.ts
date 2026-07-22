@@ -24,9 +24,13 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { generateGeminiText } from "./gemini_util";
+import { generateTextFailover } from "./gemini_util";
 
 const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+// Failover (kullanıcı isteği): Gemini cevap vermezse ChatGPT, o da vermezse
+// Grok. Anahtarlar aiProxy ile aynı Secret Manager kayıtları.
+const OPENAI_API_KEY = defineSecret("OPENAI_API_KEY");
+const XAI_API_KEY = defineSecret("XAI_API_KEY");
 
 // Hedef pool boyutu — konu başına 450 soru. Kullanıcı tarafı eşiği 400 (en az
 // 400 soru birikmeden havuz devreye girmez), 450 tavanı küçük bir tampon
@@ -45,7 +49,7 @@ export const onQuestionPoolCreated = onDocumentCreated(
   {
     document: "question_pool/{poolKey}",
     region: "us-central1",
-    secrets: [GEMINI_API_KEY],
+    secrets: [GEMINI_API_KEY, OPENAI_API_KEY, XAI_API_KEY],
     timeoutSeconds: 540,
     memory: "1GiB",
   },
@@ -65,7 +69,7 @@ export const scheduledPoolFill = onSchedule(
   {
     schedule: "every 1 hours",
     region: "us-central1",
-    secrets: [GEMINI_API_KEY],
+    secrets: [GEMINI_API_KEY, OPENAI_API_KEY, XAI_API_KEY],
     timeoutSeconds: 540,
     memory: "1GiB",
   },
@@ -100,7 +104,7 @@ export const scheduledPoolFill = onSchedule(
 export const triggerPoolBatch = onCall(
   {
     region: "us-central1",
-    secrets: [GEMINI_API_KEY],
+    secrets: [GEMINI_API_KEY, OPENAI_API_KEY, XAI_API_KEY],
     timeoutSeconds: 540,
     memory: "1GiB",
   },
@@ -145,6 +149,10 @@ async function runBatchForPool(
   const level = (poolData.level as string) || "high";
   const country = (poolData.country as string) || "tr";
   const grade = (poolData.grade as string) || "10";
+  // Havuzun içerik dili — istemci _initPool'da yazar (poolKey'de de
+  // Türkçe dışı dillerde `|lang` suffix'i vardır). Eski doc'larda alan
+  // yok → 'tr' (o havuzlar zaten Türkçe içerikli).
+  const lang = (poolData.lang as string) || "tr";
 
   // Çeşitlilik: batch içinde dağılımı garanti et
   const difficulties = ["easy", "medium", "hard", "exam"];
@@ -186,6 +194,7 @@ async function runBatchForPool(
       grade,
       subjectName,
       topicName,
+      lang,
       batchSize,
       difficulty,
       bloomLevel: bloom,
@@ -252,11 +261,20 @@ function buildBatchPrompt(p: {
   grade: string;
   subjectName: string;
   topicName: string;
+  lang: string;
   batchSize: number;
   difficulty: string;
   bloomLevel: string;
   questionType: string;
 }): string {
+  // Çıktı dili — belirsiz bırakılırsa model Türkçe'ye kayıyor (prompt
+  // iskeleti Türkçe olduğu için). Kod bazlı KESİN talimat verilir.
+  const langLine =
+    p.lang === "tr"
+      ? "Türkçe — soru kökü, şıklar ve açıklamalar Türkçe yazılacak."
+      : `ISO dil kodu "${p.lang}" olan dil — soru kökü, şıklar ve ` +
+        `açıklamalar dahil HER ŞEY SADECE bu dilde yazılacak. ` +
+        `Türkçe KULLANMA${p.lang === "en" ? "" : ", İngilizce KULLANMA"}.`;
   return `Sen bir sınav sorusu üreten eğitim materyali uzmanısın.
 Aşağıdaki müfredata göre ${p.batchSize} adet ÇEŞİTLİ test sorusu üret.
 
@@ -266,6 +284,7 @@ PROFİL:
 - Sınıf: ${p.grade}
 - Ders: ${p.subjectName}
 - Konu: ${p.topicName}
+- ÇIKTI DİLİ: ${langLine}
 
 PARAMETRELER:
 - Zorluk: ${p.difficulty}
@@ -333,8 +352,12 @@ async function callGeminiBatch(prompt: string): Promise<RawQuestion[]> {
   // flash-lite + retry'sızdı; ~%60 503'te boş batch dönüyordu.
   let text: string;
   try {
-    text = await generateGeminiText(
-      GEMINI_API_KEY.value(),
+    text = await generateTextFailover(
+      {
+        gemini: GEMINI_API_KEY.value(),
+        openai: OPENAI_API_KEY.value() || undefined,
+        xai: XAI_API_KEY.value() || undefined,
+      },
       {
         temperature: 0.85, // çeşitlilik için yüksek
         maxOutputTokens: 6000,
@@ -343,7 +366,7 @@ async function callGeminiBatch(prompt: string): Promise<RawQuestion[]> {
       prompt
     );
   } catch (e) {
-    console.error("Gemini batch başarısız:", e);
+    console.error("AI batch başarısız (Gemini→ChatGPT→Grok):", e);
     return [];
   }
 

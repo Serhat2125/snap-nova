@@ -24,6 +24,7 @@ import 'package:flutter/foundation.dart';
 import '../models/education_models.dart';
 import 'ai_provider_service.dart';
 import 'analytics.dart';
+import 'runtime_translator.dart';
 
 class HomeworkService {
   HomeworkService._();
@@ -434,8 +435,14 @@ class HomeworkService {
           .where('teacherUid', isEqualTo: myUid).get();
       classCount = clsSnap.docs.length;
       for (final c in clsSnap.docs) {
-        final sc = await c.reference.collection('students').count().get();
-        students += sc.count ?? 0;
+        // Onay bekleyenler (pending) rozete dahil edilmez — kart ile detay
+        // ekranı aynı sayıyı göstersin. NOT: status alanı olmayan ESKİ
+        // kayıtlar 'active' sayılır; where() sorgusu onları dışlayacağı için
+        // filtre istemci tarafında (studentCountStream ile aynı kural).
+        final sc = await c.reference.collection('students').get();
+        students += sc.docs
+            .where((d) => (d.data()['status'] ?? 'active') != 'pending')
+            .length;
         final hwSnap = await c.reference.collection('homeworks').get();
         for (final d in hwSnap.docs) {
           final hw = HomeworkModel.fromDoc(d);
@@ -748,9 +755,10 @@ class HomeworkService {
                   .collection('items').doc(),
               {
                 'type': 'homework_reminder',
-                'fromUsername': 'Öğretmen',
+                // .tr() ile — alıcının inbox'unda sabit Türkçe kalmasın.
+                'fromUsername': 'Öğretmen'.tr(),
                 'fromDisplayName':
-                    '${hw.title} — 2 saatten az kaldı',
+                    '${hw.title} — ${'2 saatten az kaldı'.tr()}',
                 'when': FieldValue.serverTimestamp(),
                 'read': false,
                 'classId': cls.id,
@@ -1032,13 +1040,11 @@ class HomeworkService {
         for (final sd in subs.docs) {
           final sub = HomeworkSubmissionModel.fromMap(sd.data());
           if (!sub.isSubmitted) continue;
-          final a = aggs.putIfAbsent(sub.studentUid, () => _GradeAgg(
-              // Ad → @kullanıcıadı → "Öğrenci" (çıplak "@" satırı yasak).
-              sub.studentDisplayName.isNotEmpty
-                  ? sub.studentDisplayName
-                  : (sub.studentUsername.isNotEmpty
-                      ? '@${sub.studentUsername}'
-                      : 'Öğrenci')));
+          // SINIFTA OLMAYAN öğrencinin teslimi (ayrılmış/çıkarılmış öğrencinin
+          // yetim submission'ı) tabloyu şişirmesin — eskiden putIfAbsent ile
+          // "hayalet öğrenci" satırı yeniden yaratılıyordu.
+          final a = aggs[sub.studentUid];
+          if (a == null) continue;
           final qCount =
               hw.questionCount > 0 ? hw.questionCount : sub.answers.length;
           a.total += qCount;

@@ -70,6 +70,10 @@ class _JoinClassScreenState extends State<JoinClassScreen> {
       case JoinClassResult.alreadyJoined:
         setState(() => _msg = 'Bu sınıfa zaten katılmıştın.'.tr());
         break;
+      case JoinClassResult.alreadyPending:
+        setState(() => _msg =
+            'Katılma isteğin zaten iletildi — öğretmen onayı bekleniyor.'.tr());
+        break;
       case JoinClassResult.selfJoin:
         setState(() => _msg = 'Kendi sınıfına öğrenci olarak katılamazsın.'.tr());
         break;

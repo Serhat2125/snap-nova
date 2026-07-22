@@ -398,7 +398,9 @@ class _LeagueLocationPickerSheetState
       itemBuilder: (ctx, i) {
         final c = list[i];
         return _LocTile(
-          leading: '🏙️',
+          // Her şehrin kendi simgesi (TR illeri + ünlü şehirler; kalanı
+          // isimden türeyen sabit simge) — jenerik tek 🏙️ kalktı.
+          leading: CityEmojis.of(_country?.code ?? '', c.name),
           label: c.name,
           onTap: () => _selectCity(c),
         );

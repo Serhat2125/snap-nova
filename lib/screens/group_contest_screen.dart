@@ -23,6 +23,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
 
 import '../services/contest_group_service.dart';
+import '../services/friend_service.dart';
 import '../services/group_contest_service.dart';
 import '../services/parent_preview.dart';
 import '../services/runtime_translator.dart';
@@ -76,6 +77,35 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
   // Sonuç tablosunu PNG olarak yakalamak için (görsel paylaş).
   final GlobalKey _tableShareKey = GlobalKey();
 
+  // 'Oyuncu' onarımı: katılımcı/üye kaydı boş ya da 'Oyuncu' adla yazılmışsa
+  // (katılan cihazda profil henüz yüklenmemişti) gerçek kullanıcı adı
+  // users/{uid} doc'undan bir kez çekilip bu cache'ten gösterilir.
+  final Map<String, String> _nameFix = {};
+  final Set<String> _nameFixRequested = {};
+
+  String _participantName(GroupParticipant p) {
+    final u = p.username.trim();
+    if (u.isNotEmpty && u != 'Oyuncu') return u;
+    return _nameFix[p.uid] ?? (u.isEmpty ? 'Oyuncu' : u);
+  }
+
+  void _resolveMissingNames(List<GroupParticipant> list) {
+    for (final p in list) {
+      final u = p.username.trim();
+      if (u.isNotEmpty && u != 'Oyuncu') continue;
+      if (p.uid.isEmpty || p.uid.startsWith('demo_bot')) continue;
+      if (!_nameFixRequested.add(p.uid)) continue;
+      FriendService.getUserByUid(p.uid).then((user) {
+        if (!mounted || user == null) return;
+        final name = user.username.trim().isNotEmpty
+            ? user.username.trim()
+            : user.displayName.trim();
+        if (name.isEmpty) return;
+        setState(() => _nameFix[p.uid] = name);
+      });
+    }
+  }
+
   // Quiz durumu
   int _qIndex = 0;
   // Her sorunun cevabı; null = boş bırakıldı. Kullanıcı geri/ileri gezip
@@ -92,6 +122,19 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
   }
 
   Future<void> _load() async {
+    try {
+      await _loadInner();
+    } catch (e) {
+      // Herhangi bir servis çağrısı (join/get/hasFinished/getGroup) beklenmedik
+      // şekilde fırlatırsa ekran sonsuza dek "loading" spinner'ında ASILI
+      // kalmasın — güvenli "bulunamadı" durumuna düş. (Çökme değil, ama
+      // kullanıcı bunu "grup sekmesi açılmıyor/çöküyor" diye algılıyordu.)
+      debugPrint('[GroupContest] load fail: $e');
+      if (mounted) setState(() => _phase = _Phase.notFound);
+    }
+  }
+
+  Future<void> _loadInner() async {
     if (widget.autoJoin && !ParentPreview.active) {
       // Ebeveyn önizlemesinde yarışmaya katılım YAZILMAZ (salt-izleme).
       await GroupContestService.joinContest(widget.contestId);
@@ -794,6 +837,7 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
             if (a.score != b.score) return b.score.compareTo(a.score);
             return a.durationMs.compareTo(b.durationMs);
           });
+        _resolveMissingNames(list);
         if (list.isEmpty) {
           return Center(
             child: Text('Henüz katılımcı yok'.tr(),
@@ -1169,7 +1213,7 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
               _avatarWidget(p.avatar, 15),
               const SizedBox(width: 6),
               Flexible(
-                child: Text('@${p.username}',
+                child: Text(_participantName(p),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.inter(
@@ -1275,6 +1319,7 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
             if (a.score != b.score) return b.score.compareTo(a.score);
             return a.durationMs.compareTo(b.durationMs);
           });
+        _resolveMissingNames(list);
         if (list.isEmpty) {
           return Center(
             child: Text('Henüz katılımcı yok'.tr(),
@@ -1324,7 +1369,7 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
                   _avatarWidget(p.avatar, 22),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text('@${p.username}',
+                    child: Text(_participantName(p),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.inter(
@@ -1487,7 +1532,7 @@ class _GroupContestScreenState extends State<GroupContestScreen> {
               Navigator.of(dctx).pop();
               if (!mounted) return;
               final msg = res == 'ok'
-                  ? '@$uname davet edildi'.tr()
+                  ? '$uname davet edildi'.tr()
                   : res == 'notfound'
                       ? 'Bu kullanıcı adı bulunamadı'.tr()
                       : res == 'self'

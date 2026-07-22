@@ -1608,6 +1608,56 @@ class _SchemaBlock extends StatelessWidget {
         letterSpacing: 0,
       );
 
+  // ── ASCII/yapısal şemayı ayrıştır → renkli kutulu akış olarak çiz ────────
+  // AI'ın ürettiği "A → B → C" zinciri + "Ad: açıklama" lejantını yakalar.
+  // Eski özet cache'lerindeki ASCII kutu-çizgi sanatı da mümkün olduğunca
+  // aynı yapıya indirgenir; ayrıştırılamayan karmaşık çizimler için eski
+  // monospace görünüme düşülür.
+  static final RegExp _reBoxChars =
+      RegExp(r'[│┃|┌┐└┘├┤┬┴┼─━═║╔╗╚╝▔▁_~*`]+');
+  static final RegExp _reOnlyConnector =
+      RegExp(r'^[\s→←↓↑▼▲▶◀\-=~.·]*$');
+  static final RegExp _reLegend = RegExp(r'^(.{1,48}?)\s*[:=]\s+(.+)$');
+
+  static (List<String>, List<(String, String)>) _parse(String raw) {
+    final chain = <String>[];
+    final legend = <(String, String)>[];
+    for (final rawLine in raw.split('\n')) {
+      // Kutu/çizgi karakterlerini at, kalan metni değerlendir.
+      final line = rawLine.replaceAll(_reBoxChars, ' ').trim();
+      if (line.isEmpty || _reOnlyConnector.hasMatch(line)) continue;
+      final hasArrow = line.contains('→') || line.contains('->');
+      if (hasArrow) {
+        for (final part in line.split(RegExp(r'→|->'))) {
+          final p = part.replaceAll(RegExp(r'\s+'), ' ').trim();
+          if (p.isNotEmpty) chain.add(p);
+        }
+        continue;
+      }
+      final m = _reLegend.firstMatch(line);
+      if (m != null) {
+        legend.add((m.group(1)!.trim(), m.group(2)!.trim()));
+        continue;
+      }
+      // Bağlaçsız yalın etiket — lejant başlamadıysa dikey akışın devamı
+      // say (▼ ile alt satıra inen ASCII zincirler böyle görünür).
+      if (legend.isEmpty && line.length <= 40) {
+        chain.add(line.replaceAll(RegExp(r'\s+'), ' ').trim());
+      }
+    }
+    return (chain, legend);
+  }
+
+  // Kutu renk paleti — katmanlar net ayrışsın diye sırayla döner.
+  static const List<Color> _nodeColors = [
+    Color(0xFF7C3AED), // mor
+    Color(0xFF2563EB), // mavi
+    Color(0xFF16A34A), // yeşil
+    Color(0xFFEA580C), // turuncu
+    Color(0xFFDB2777), // pembe
+    Color(0xFF0D9488), // teal
+  ];
+
   void _openFullscreen(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -1620,21 +1670,144 @@ class _SchemaBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const accent = Color(0xFF7C3AED);
-    // Tablo gibi: Tam Ekran butonu çerçevenin DIŞINDA, sağ üstte.
-    // Çerçeve içindeki eski fullscreen ikonu kaldırıldı.
+    final (chain, legend) = _parse(body);
+    // Zincir en az 2 adımsa: renkli kutulu akış görünümü. Değilse eski
+    // monospace görünüme düş (karmaşık geometrik ASCII çizimler için).
+    final bool styled = chain.length >= 2;
+
+    Widget bodyWidget;
+    if (styled) {
+      // Etiket → renk eşlemesi (lejant noktaları zincirle aynı rengi alsın).
+      final colorOf = <String, Color>{};
+      for (var i = 0; i < chain.length; i++) {
+        colorOf[chain[i].toLowerCase()] =
+            _nodeColors[i % _nodeColors.length];
+      }
+      Color legendColor(String label) {
+        final l = label.toLowerCase();
+        for (final e in colorOf.entries) {
+          if (e.key.startsWith(l) || l.startsWith(e.key)) return e.value;
+        }
+        return accent;
+      }
+
+      final flowChildren = <Widget>[];
+      for (var i = 0; i < chain.length; i++) {
+        final c = _nodeColors[i % _nodeColors.length];
+        flowChildren.add(Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            color: c.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: c.withValues(alpha: 0.65), width: 1.3),
+          ),
+          child: Text(
+            chain[i],
+            style: TextStyle(
+              fontSize: fontSize - 1.5,
+              fontWeight: FontWeight.w800,
+              color: c,
+              height: 1.25,
+            ),
+          ),
+        ));
+        if (i < chain.length - 1) {
+          flowChildren.add(Icon(Icons.arrow_forward_rounded,
+              size: 16, color: Colors.grey.shade500));
+        }
+      }
+
+      bodyWidget = Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 6,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: flowChildren,
+            ),
+            if (legend.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(height: 1, color: accent.withValues(alpha: 0.18)),
+              const SizedBox(height: 10),
+              for (final (label, desc) in legend)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 5),
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: legendColor(label),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(children: [
+                            TextSpan(
+                              text: label,
+                              style: TextStyle(
+                                fontSize: fontSize - 1.5,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            TextSpan(
+                              text: ' — $desc',
+                              style: TextStyle(
+                                fontSize: fontSize - 1.5,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black87,
+                                height: 1.4,
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ],
+        ),
+      );
+    } else {
+      // Fallback: monospace çizim, yatay scroll.
+      bodyWidget = SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+          child: Text(body, style: _monoStyle(fontSize - 1)),
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 4, right: 2, top: 4),
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: _FullscreenSchemaButton(
-              onTap: () => _openFullscreen(context),
+        // Tam Ekran yalnız monospace fallback'te anlamlı — kutulu görünüm
+        // zaten ekrana sarılıyor, hiçbir şey kırpılmıyor.
+        if (!styled)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4, right: 2, top: 4),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _FullscreenSchemaButton(
+                onTap: () => _openFullscreen(context),
+              ),
             ),
           ),
-        ),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -1646,7 +1819,7 @@ class _SchemaBlock extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Üst başlık şeridi: sadece ikon + konu adı (fullscreen ikonu yok).
+              // Üst başlık şeridi: ikon + konu adı.
               Container(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
                 decoration: BoxDecoration(
@@ -1678,14 +1851,7 @@ class _SchemaBlock extends StatelessWidget {
                   ],
                 ),
               ),
-              // Body — monospace çizim. Yatay scroll uzun şemalar için.
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                  child: Text(body, style: _monoStyle(fontSize - 1)),
-                ),
-              ),
+              bodyWidget,
             ],
           ),
         ),

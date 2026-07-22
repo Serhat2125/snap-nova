@@ -1855,8 +1855,8 @@ const COLORS = {
 // ============== INIT ==============
 function init() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xE3E7ED);
-  scene.fog = new THREE.Fog(0x121726, 35, 95);
+  scene.background = new THREE.Color(0xFAFAFA);
+  scene.fog = new THREE.Fog(0xdfe7f2, 35, 95);
 
   const W = window.innerWidth, H = window.innerHeight;
   camera = new THREE.PerspectiveCamera(55, W / H, 0.1, 200);
@@ -2546,14 +2546,18 @@ const INFO_DATA = {
       '➡️ Vektör: hem yönü hem büyüklüğü olan ok',
       '🔢 Skaler: sadece sayıdır, yönü yoktur',
       '🏃 Hız ve kuvvet → ok ile gösterilir',
-      '📏 Okun uzunluğu büyüklüğü, ucu yönü gösterir'
+      '📏 Okun uzunluğu büyüklüğü, ucu yönü gösterir',
+      '⚖️ Kütle ve zaman sadece sayıdır: 5 kg, 3 saat',
+      '🧭 "10 adım kuzeye" bir vektördür, çünkü yönü de söyler'
     ]},
     ortaokul: { emoji: '➡️', title: 'Vektör ve Skaler', points: [
       '➡️ <b>Vektör</b>: yönü ve büyüklüğü olan nicelik (ok ile çizilir)',
       '🔢 <b>Skaler</b>: yalnızca büyüklüğü olan nicelik',
       '🧲 Kuvvet, hız, yer değiştirme → vektörel',
       '⚖️ Kütle, zaman, sıcaklık, yol → skaler',
-      '📏 Ok uzunluğu = büyüklük, ok yönü = yön'
+      '📏 Ok uzunluğu = büyüklük, ok yönü = yön',
+      '🚶 <b>Yol</b> skalerdir, <b>yer değiştirme</b> vektöreldir',
+      '➖ Zıt vektörler eşit büyüklükte ama ters yönlüdür'
     ]},
     lise: { emoji: '➡️', title: 'Vektörel ve Skaler Nicelikler', points: [
       '➡️ Vektör: büyüklük + doğrultu + yön bilgisi taşır',
@@ -2577,14 +2581,18 @@ const INFO_DATA = {
       '📐 Eğik oku "sağa giden" ve "yukarı giden" parçalara ayırırız',
       '➡️ Yatay parça: Fₓ',
       '⬆️ Dikey parça: F_y',
-      '🧩 İki parça birleşince asıl oku verir'
+      '🧩 İki parça birleşince asıl oku verir',
+      '🎚️ Ok daha dik durursa yukarı giden parçası büyür',
+      '🪁 Uçurtma ipi gibi: hem yukarı hem ileri çeker'
     ]},
     ortaokul: { emoji: '📐', title: 'Vektörün Bileşenleri', points: [
       '📐 Eğik vektör, yatay (Fₓ) ve dikey (F_y) bileşenlere ayrılır',
       '➡️ Fₓ = yatay etki, ⬆️ F_y = dikey etki',
       '🧱 Bileşenler birbirine diktir (90°)',
       '🧩 Fₓ ve F_y birleşince vektörü oluşturur',
-      '📊 Açı büyüdükçe dikey bileşen artar'
+      '📊 Açı büyüdükçe dikey bileşen artar',
+      '🚶 Yatay bileşen ilerletir, dikey bileşen yükseltir',
+      '🧮 Bileşenler ayrı ayrı toplanır, sonra birleştirilir'
     ]},
     lise: { emoji: '📐', title: 'Bileşenlere Ayırma', points: [
       '📐 Yatayla θ açısı yapan F için: Fₓ = F·cos θ',
@@ -2607,42 +2615,56 @@ const INFO_DATA = {
     ilkokul: { emoji: '🔗', title: 'Okları Uç Uca Ekle', points: [
       '🔗 İlk okun ucundan ikinci oku başlat',
       '🏁 Baştan son uca çizilen yeni ok = bileşke',
-      '🚶 Önce 3 adım, sonra 2 adım → 5 adım gibi'
+      '🚶 Önce 3 adım, sonra 2 adım → 5 adım gibi',
+      '➡️ Okların sırası değişse de sonuç aynı çıkar',
+      '🔁 İkiden fazla ok da aynı şekilde eklenir',
+      '⭕ Başladığın yere geri dönersen bileşke sıfırdır'
     ]},
     ortaokul: { emoji: '🔗', title: 'Uç Uca Ekleme Yöntemi', points: [
       '🔗 Vektörler uç uca eklenir (biri biterken diğeri başlar)',
       '🏁 <b>Bileşke</b>: ilk başlangıçtan son uca çizilen ok',
       '🔁 Sıra önemli değil: A + B = B + A',
       '➕ İkiden fazla vektör için de aynı yöntem',
-      '⭕ Kapalı şekil oluşursa bileşke sıfırdır (denge)'
+      '⭕ Kapalı şekil oluşursa bileşke sıfırdır (denge)',
+      '📐 Eklerken okların uzunluğu ve yönü korunmalıdır',
+      '🧮 Eğik vektörlerde bileşenlere ayırmak daha kolaydır'
     ]},
     lise: { emoji: '🔗', title: 'Uç Uca (Poligon) Yöntemi', points: [
       '🔗 Her vektör bir öncekinin ucundan başlatılır',
       '🏁 Bileşke R: ilk kuyruk → son baş',
       '🔁 Toplama değişmelidir: A + B = B + A',
       '⭕ Vektörler kapalı çokgen oluşturursa R = 0',
-      '🧮 Büyüklük için bileşenlere ayırmak en güvenlisi'
+      '🧮 Büyüklük için bileşenlere ayırmak en güvenlisi',
+      '📐 Vektörler ötelenebilir; doğrultu ve yön değişmez',
+      '🧭 Bileşkenin yönü: θ = arctan(ΣA_y / ΣAₓ)'
     ]},
     tyt_ayt: { emoji: '🔗', title: 'Poligon Yöntemi (TYT/AYT)', points: [
       '🔗 R⃗ = A⃗ + B⃗ + C⃗ + … (uç uca eklenir)',
       '🧮 R⃗ = (ΣAₓ) î + (ΣA_y) ĵ',
       '⭕ Kapalı poligon → R⃗ = 0 (kuvvet dengesi)',
       '📐 Düzgün çokgenin kenar vektörlerinin toplamı sıfırdır',
-      '🔢 Önce bileşenlere ayır, sonra topla, sonra birleştir'
+      '🔢 Önce bileşenlere ayır, sonra topla, sonra birleştir',
+      '⚖️ Kapalı poligon şartı denge sorularının temelidir',
+      '🔺 İki vektörde bileşke aralığı: |A−B| ≤ R ≤ A+B'
     ]}
   },
   paralelkenar: {
     ilkokul: { emoji: '🔷', title: 'İki Oktan Köşegen', points: [
       '🔷 İki oku aynı noktadan başlat',
       '🟦 Bir eğik dörtgen (paralelkenar) çiz',
-      '↗️ Köşegen = bileşke ok'
+      '↗️ Köşegen = bileşke ok',
+      '📏 Oklar aynı yöne bakarsa bileşke en uzun olur',
+      '↔️ Oklar ters yöne bakarsa bileşke en kısa olur',
+      '🔺 İki ok dikse bileşke, dik üçgenin uzun kenarıdır'
     ]},
     ortaokul: { emoji: '🔷', title: 'Paralelkenar Yöntemi', points: [
       '🔷 İki vektör <b>aynı başlangıç</b> noktasından çizilir',
       '🟦 Uçlardan paralel çizgilerle paralelkenar tamamlanır',
       '↗️ <b>Bileşke</b>: ortak köşeden çıkan köşegen',
       '📐 Aralarındaki açı küçükse bileşke büyük olur',
-      '🔁 İki vektörde uç uca ile aynı sonucu verir'
+      '🔁 İki vektörde uç uca ile aynı sonucu verir',
+      '📏 α = 0° → bileşke en büyük; α = 180° → en küçük',
+      '⟂ α = 90° ise bileşke R = √(F₁² + F₂²) olur'
     ]},
     lise: { emoji: '🔷', title: 'Paralelkenar Kuralı', points: [
       '🔷 Aynı noktadan çıkan A ve B paralelkenar oluşturur',
@@ -2665,77 +2687,102 @@ const INFO_DATA = {
     ilkokul: { emoji: '↔️', title: 'Aynı / Zıt Yön', points: [
       '➡️➡️ Aynı yöne çekersek kuvvetler toplanır',
       '➡️⬅️ Zıt yöne çekersek birbirini azaltır',
-      '💪 Halat çekme oyunu gibi'
+      '💪 Halat çekme oyunu gibi',
+      '🧮 5 N ve 3 N aynı yönde çekilirse toplam 8 N olur',
+      '🧮 Zıt yönde olursa 2 N kalır, büyük olanın yönünde',
+      '⚖️ Eşit ve zıt kuvvetlerde cisim hiç hareket etmez'
     ]},
     ortaokul: { emoji: '↔️', title: 'Aynı ve Zıt Yönlü Kuvvetler', points: [
       '➡️➡️ Aynı yön: R = F₁ + F₂',
       '➡️⬅️ Zıt yön: R = |F₁ − F₂|',
       '🧭 Bileşkenin yönü büyük kuvvetin yönündedir',
       '⚖️ Eşit ve zıt iki kuvvet → R = 0 (denge)',
-      '💪 Halat çekmede net kuvvet farktan doğar'
+      '💪 Halat çekmede net kuvvet farktan doğar',
+      '🧮 Örnek: 8 N sağa, 3 N sola → R = 5 N sağ yönünde',
+      '🧭 Aynı doğrultuda olmayan kuvvetler böyle toplanamaz'
     ]},
     lise: { emoji: '↔️', title: 'Doğrusal (Kolineer) Kuvvetler', points: [
       '➡️➡️ Aynı yön: R = F₁ + F₂ (en büyük bileşke)',
       '➡️⬅️ Zıt yön: R = |F₁ − F₂| (en küçük bileşke)',
       '🧭 Yön daima büyük kuvvet tarafındadır',
       '⚖️ F₁ = F₂ ve zıt → R = 0, cisim dengede',
-      '➕ Çok kuvvet: yönleri işaretle, cebirsel topla'
+      '➕ Çok kuvvet: yönleri işaretle, cebirsel topla',
+      '📏 Bileşke sınırları: |F₁−F₂| ≤ R ≤ F₁+F₂',
+      '🧮 Net kuvvet varsa ivme doğar: ΣF = m·a'
     ]},
     tyt_ayt: { emoji: '↔️', title: 'Kolineer Kuvvetler (TYT/AYT)', points: [
       '➡️ Tek doğrultuda: R = ΣF (işaretli toplam)',
       '🔺 Bileşke aralığı: |F₁−F₂| ≤ R ≤ F₁+F₂',
       '⚖️ Denge: ΣF = 0 → a = 0 (Newton I. yasa)',
       '🧮 Net kuvvet ivme doğurur: ΣF = m·a',
-      '🔢 Örnek: 12 N sağ, 5 N sol → R = 7 N sağ'
+      '🔢 Örnek: 12 N sağ, 5 N sol → R = 7 N sağ',
+      '🧭 Çözümde bir yön (+) seçilir, karşıt yön (−) alınır',
+      '⚠️ Sık hata: zıt yönlü kuvvetlerde işareti unutmak'
     ]}
   },
   dikKuvvetler: {
     ilkokul: { emoji: '⟂', title: 'Dik İki Kuvvet', points: [
       '⟂ Biri sağa, biri yukarı iki kuvvet',
       '📐 Bileşke köşegen boyunca olur',
-      '🔺 Dik üçgenin kenarları gibi düşün'
+      '🔺 Dik üçgenin kenarları gibi düşün',
+      '🧮 3 N sağa ve 4 N yukarı çekersek bileşke 5 N olur',
+      '📏 Bileşke, iki kuvvetin her birinden de büyüktür',
+      '🏊 Karşıya yüzerken akıntının seni yana itmesi gibi'
     ]},
     ortaokul: { emoji: '⟂', title: 'Birbirine Dik Kuvvetler', points: [
       '⟂ Aralarında 90° olan F₁ ve F₂',
       '📐 Bileşke: R = √(F₁² + F₂²) (Pisagor)',
       '🔺 F₁ ve F₂ dik üçgenin kenarları, R hipotenüsü',
       '🔢 3 N ve 4 N → R = 5 N',
-      '🧭 Yön: tan θ = F₂ / F₁'
+      '🧭 Yön: tan θ = F₂ / F₁',
+      '📏 R her zaman F₁ ve F₂\'nin ikisinden de büyüktür',
+      '⚖️ F₁ = F₂ ise bileşke 45° açı yapar'
     ]},
     lise: { emoji: '⟂', title: 'Dik Kuvvetlerin Bileşkesi', points: [
       '⟂ 90° açılı iki kuvvette Pisagor geçerli',
       '📐 R = √(F₁² + F₂²)',
       '🧭 Yön: tan θ = F₂/F₁ (F₁ ekseni ile)',
       '🔢 Pisagor üçlüleri: (3,4,5), (6,8,10), (5,12,13)',
-      '🔺 Bileşke her zaman bileşenlerden büyüktür'
+      '🔺 Bileşke her zaman bileşenlerden büyüktür',
+      '🟰 F₁ = F₂ = F ise R = F√2 ve θ = 45° olur',
+      '🧩 Bu, kosinüs teoreminin α = 90° özel hâlidir'
     ]},
     tyt_ayt: { emoji: '⟂', title: 'Dik Bileşke (TYT/AYT)', points: [
       '📐 R = √(F₁² + F₂²), tan θ = F₂/F₁',
       '🧩 Paralelkenarda α=90° özel hâli',
       '🔢 Üçlüler: 3-4-5, 5-12-13, 8-15-17, 7-24-25',
       '🧭 θ = arctan(F₂/F₁); eksenle yapılan açı',
-      '🎚️ Kaydırıcıyla F₁, F₂ değiştir; R ve θ canlı'
+      '🎚️ Kaydırıcıyla F₁, F₂ değiştir; R ve θ canlı',
+      '🟰 Eşit dik kuvvetlerde: R = F√2 ≈ 1,41·F ve θ = 45°',
+      '⚠️ Sık hata: dik kuvvetlerde R\'yi F₁ + F₂ sanmak'
     ]}
   },
   aciliKuvvetler: {
     ilkokul: { emoji: '📐', title: 'Açılı İki Kuvvet', points: [
       '📐 İki ok arasında bir açı var',
       '↗️ Bileşke ortadan çıkar',
-      '📏 Açı küçükse bileşke büyük olur'
+      '📏 Açı küçükse bileşke büyük olur',
+      '📉 Açı büyüdükçe bileşke küçülür',
+      '🐴 İki at arabayı dar açıyla çekerse daha güçlü olur',
+      '↔️ Açı 180° olursa kuvvetler birbirini azaltır'
     ]},
     ortaokul: { emoji: '📐', title: 'Açılı İki Kuvvet', points: [
       '📐 Aralarında α açısı olan F₁ ve F₂',
       '↗️ Bileşke paralelkenarın köşegenidir',
       '🔼 α küçüldükçe bileşke büyür',
       '🔽 α büyüdükçe bileşke küçülür',
-      '🎚️ Açıyı değiştir, bileşkeyi gör'
+      '🎚️ Açıyı değiştir, bileşkeyi gör',
+      '📏 Bileşke daima F₁+F₂ ile |F₁−F₂| arasında kalır',
+      '🚢 İki römorkör gemiyi dar açıyla çekerse verim artar'
     ]},
     lise: { emoji: '📐', title: 'Kosinüs Teoremi ile Bileşke', points: [
       '📐 R = √(F₁² + F₂² + 2·F₁·F₂·cos α)',
       '🔺 α=0° → R=F₁+F₂ (maksimum)',
       '🔻 α=180° → R=|F₁−F₂| (minimum)',
       '⟂ α=90° → R=√(F₁²+F₂²)',
-      '🧭 Yön: tan β = (F₂·sin α)/(F₁ + F₂·cos α)'
+      '🧭 Yön: tan β = (F₂·sin α)/(F₁ + F₂·cos α)',
+      '🟰 Eşit kuvvetlerde kısayol: R = 2F·cos(α/2)',
+      '📊 Eşit F ve α=120° → R = F (üç eşit kuvvet dengesi)'
     ]},
     tyt_ayt: { emoji: '📐', title: 'Açılı Bileşke (TYT/AYT)', points: [
       '📐 |R| = √(F₁² + F₂² + 2·F₁·F₂·cos α)',
@@ -2750,49 +2797,65 @@ const INFO_DATA = {
     ilkokul: { emoji: '⚖️', title: 'Dengede Durmak', points: [
       '⚖️ Kuvvetler birbirini dengelerse cisim durur',
       '🟰 Toplam kuvvet sıfır olur',
-      '🪢 İpler eşit çekerse düğüm kıpırdamaz'
+      '🪢 İpler eşit çekerse düğüm kıpırdamaz',
+      '🛑 Dengedeki cisim ya durur ya da düzgün ilerler',
+      '🪑 Masadaki kitap: yer çekimi aşağı, masa yukarı iter',
+      '💪 Halat çekmede iki takım eşitse ip hiç kaymaz'
     ]},
     ortaokul: { emoji: '⚖️', title: 'Kuvvet Dengesi', points: [
       '⚖️ Kuvvetlerin bileşkesi sıfırsa cisim dengededir',
       '🟰 ΣF = 0 (net kuvvet yok)',
       '🛑 Dengedeki cisim durur ya da sabit hızla gider',
       '🔻 Dengeleyici kuvvet: bileşkeye eşit, zıt yönlü',
-      '🪢 Kuvvetler kapalı üçgen oluşturur'
+      '🪢 Kuvvetler kapalı üçgen oluşturur',
+      '🪑 Masadaki kitapta ağırlık ile tepki kuvveti eşittir',
+      '📐 Üç kuvvet dengedeyse uç uca kapalı üçgen verir'
     ]},
     lise: { emoji: '⚖️', title: 'Denge ve Dengeleyici Kuvvet', points: [
       '⚖️ Denge koşulu: ΣFₓ = 0 ve ΣF_y = 0',
       '🔻 <b>Dengeleyici</b> = −Bileşke (eşit büyük, zıt yön)',
       '🪢 Kuvvetler kapalı çokgen oluşturur',
       '🛑 a = 0: durur veya sabit hızlı (Newton I)',
-      '📐 Üç kuvvet dengede ise kuvvet üçgeni çizilir'
+      '📐 Üç kuvvet dengede ise kuvvet üçgeni çizilir',
+      '⚖️ Denge, hızın değil <b>ivmenin</b> sıfır olmasıdır',
+      '🧮 Her kuvvet bileşenlere ayrılır, eksen eksen toplanır'
     ]},
     tyt_ayt: { emoji: '⚖️', title: 'Denge Koşulu (TYT/AYT)', points: [
       '⚖️ Öteleme dengesi: ΣFₓ = 0, ΣF_y = 0',
       '🪢 Lami teoremi: F₁/sin α = F₂/sin β = F₃/sin γ',
       '🔻 Dengeleyici kuvvet = −R⃗',
       '📐 Üç kuvvet dengede → kapalı kuvvet üçgeni',
-      '🔢 Açılar, kuvvetlerin karşısındaki açılardır'
+      '🔢 Açılar, kuvvetlerin karşısındaki açılardır',
+      '🧮 Eğik yüzeyde eksenler yüzeye paralel ve dik seçilir',
+      '⚠️ Sık hata: dengeyi "duruyor" sanmak; sabit hız da dengedir'
     ]}
   },
   egikDuzlem: {
     ilkokul: { emoji: '⛰️', title: 'Kaygan Rampa', points: [
       '⛰️ Eğimli yüzeyde cisim aşağı kaymak ister',
       '⬇️ Ağırlık onu aşağı çeker',
-      '📐 Rampa dikleşince daha hızlı kayar'
+      '📐 Rampa dikleşince daha hızlı kayar',
+      '⛰️ Rampa yatıklaşınca cisim daha yavaş kayar',
+      '🧱 Cisim yüzeye de bastırır, bu yüzden sürtünme olur',
+      '🛝 Kaydırak ne kadar dikse iniş o kadar hızlıdır'
     ]},
     ortaokul: { emoji: '⛰️', title: 'Eğik Düzlemde Kuvvet', points: [
       '⛰️ Eğik düzlemde ağırlık (G) iki bileşene ayrılır',
       '⬇️ Yüzey boyunca: cisimi aşağı kaydıran bileşen',
       '⟂ Yüzeye dik: cisimi yüzeye bastıran bileşen',
       '📐 Eğim açısı arttıkça kaydıran kuvvet artar',
-      '🧱 Yüzeye dik bileşen eğim arttıkça azalır'
+      '🧱 Yüzeye dik bileşen eğim arttıkça azalır',
+      '🧲 Sürtünme kuvveti kayma yönünün tersine etki eder',
+      '📐 Eğim 90° olursa cisim serbest düşmeye geçer'
     ]},
     lise: { emoji: '⛰️', title: 'Eğik Düzlemde Ağırlığın Bileşenleri', points: [
       '⛰️ Eğim açısı θ, ağırlık G = m·g',
       '⬇️ Yüzeye paralel: G·sin θ (kaydıran)',
       '⟂ Yüzeye dik: G·cos θ (bastıran = Normal)',
       '📐 θ=0 → kaydıran=0; θ=90° → serbest düşme',
-      '🧲 Sürtünmesizse ivme: a = g·sin θ'
+      '🧲 Sürtünmesizse ivme: a = g·sin θ',
+      '🧱 Sürtünmeli düzlemde ivme: a = g·(sin θ − μ·cos θ)',
+      '📐 Kayma başlangıcı (kritik açı): tan θ = μ'
     ]},
     tyt_ayt: { emoji: '⛰️', title: 'Eğik Düzlem (TYT/AYT)', points: [
       '⬇️ G_paralel = m·g·sin θ, G_dik = m·g·cos θ',
@@ -2807,21 +2870,28 @@ const INFO_DATA = {
     ilkokul: { emoji: '🚤', title: 'Akıntıda Tekne', points: [
       '🚤 Tekne karşıya geçmek ister',
       '🌊 Akıntı onu yana sürükler',
-      '↗️ Gerçek yol çapraz olur'
+      '↗️ Gerçek yol çapraz olur',
+      '⏱️ Akıntı olsa da karşıya geçme süresi değişmez',
+      '🧭 Tam karşıya varmak için tekne akıntıya karşı döner',
+      '🚶 Yürüyen merdivende yürümek de buna benzer'
     ]},
     ortaokul: { emoji: '🚤', title: 'Bağıl Hız', points: [
       '🚤 Teknenin hızı + akıntı hızı vektörel toplanır',
       '↗️ Gerçek (bileşke) hız çapraz yönde olur',
       '⟂ Dik akıntıda: bileşke = √(v_tekne² + v_akıntı²)',
       '🧭 Tekne biraz akıntıya karşı kürek çekmeli',
-      '⏱️ Geçiş süresi yalnız teknenin dik hızına bağlı'
+      '⏱️ Geçiş süresi yalnız teknenin dik hızına bağlı',
+      '➡️ Sürüklenme mesafesi = akıntı hızı × geçiş süresi',
+      '🚶 Yürüyen merdivende hızlar da aynı şekilde toplanır'
     ]},
     lise: { emoji: '🚤', title: 'Bağıl Hız (Vektörel Toplama)', points: [
       '🚤 v_yer = v_tekne + v_akıntı (vektörel)',
       '⟂ Dik akıntı: |v| = √(v_t² + v_a²)',
       '⏱️ Geçiş süresi: t = genişlik / v_tekne',
       '➡️ Sürüklenme: x = v_akıntı · t',
-      '🧭 En kısa yol için tekne akıntıya karşı açılanmalı'
+      '🧭 En kısa yol için tekne akıntıya karşı açılanmalı',
+      '🧮 A\'nın B\'ye göre hızı: v_AB = v_A − v_B (vektörel fark)',
+      '⚠️ v_akıntı > v_tekne ise tam karşıya çıkmak imkânsızdır'
     ]},
     tyt_ayt: { emoji: '🚤', title: 'Bağıl Hareket (TYT/AYT)', points: [
       '🧮 v⃗_AB = v⃗_A − v⃗_B (A\'nın B\'ye göre hızı)',
@@ -4456,16 +4526,16 @@ function applySceneTheme() {
   const isSpace = window._isSpaceScene === true;
   let bgColor, fogColor, fogNear, fogFar;
   if (isSpace) {
-    bgColor = 0xE3E7ED;
+    bgColor = 0xFAFAFA;
     fogColor = bgColor; fogNear = 40; fogFar = 110;
     scene.background = new THREE.Color(bgColor);
     scene.fog = null;
     return;
   }
   if (isLight) {
-    bgColor = 0xE3E7ED; fogColor = 0xdfe7f2; fogNear = 38; fogFar = 100;
+    bgColor = 0xFAFAFA; fogColor = 0xdfe7f2; fogNear = 38; fogFar = 100;
   } else {
-    bgColor = 0xE3E7ED; fogColor = 0x121726; fogNear = 35; fogFar = 95;
+    bgColor = 0xFAFAFA; fogColor = 0xdfe7f2; fogNear = 35; fogFar = 95;
   }
   scene.background = new THREE.Color(bgColor);
   scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
@@ -4599,7 +4669,7 @@ function updateInfoPanel(subKey) {
       if (_extraPts.length) points = points.concat(['## Daha Fazla Ayrıntı'], _extraPts);
     }
   }
-  const showCount = (_sadeView()) ? 3 : points.length;
+  const showCount = (_sadeView()) ? 6 : points.length;
   // Satır başındaki ikon/emojileri temizleyen yardımcı (madde başında ikon olmasın)
   const stripIcon = (txt) => txt.replace(/^\s*(?:[\p{Extended_Pictographic}️‍⃣]\s*)+/u, '').trim();
   points.slice(0, showCount).forEach(p => {
@@ -5896,8 +5966,7 @@ function positionPaletteUnder(){
   margin:0 14px 2px !important;
   padding:6px 14px !important;
   display:grid !important;
-  grid-template-columns:1fr 1fr 1fr !important;
-  justify-items:center !important;
+  grid-template-columns:1fr auto 1fr !important;
   align-items:center !important;
   width:auto !important;
   box-sizing:border-box !important;
@@ -5951,36 +6020,36 @@ function positionPaletteUnder(){
    +'.bq-go b{font:800 18px "Bricolage Grotesque",system-ui}.bq-go small{display:block;font:600 10px system-ui;opacity:.72;margin-top:1px}.bq-go:hover{filter:brightness(1.3)}'
    +'.bq-desc{font:500 10.5px system-ui;color:#8aa0c4;text-align:center;margin-bottom:6px;line-height:1.35;min-height:26px}'
    +'#bqPickClose{margin-top:14px;width:100%;border:1px solid #2b405d;background:transparent;color:#aebbd6;border-radius:12px;padding:10px;font:700 13px system-ui;cursor:pointer}'
-   +'#bqOverlay{position:fixed;inset:0;background:#34373d;z-index:1000;display:none;flex-direction:column}#bqOverlay.on{display:flex}'
-   +'.bq-oh{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid #2b2e34;background:#26282d}'
-   +'.bq-oh #bqTitle{font:800 14.5px "Bricolage Grotesque",system-ui;color:#eaf2ff;flex:1;line-height:1.2}'
-   +'.bq-oh #bqTitle small{display:block;font:600 11px system-ui;color:#7e95bf;margin-top:2px}'
-   +'#bqTimer{font:700 12.5px "DM Mono",monospace;color:#ffb24e}'
-   +'.bq-cevap{font:700 11.5px "DM Mono",monospace;color:#ffb24e;border:1px solid #ffb24e66;border-radius:20px;padding:4px 11px;white-space:nowrap}'
-   +'#bqClose{border:none;background:#16294a;color:#cdd9f0;width:34px;height:34px;border-radius:9px;font-size:16px;cursor:pointer}'
+   +'#bqOverlay{position:fixed;inset:0;background:#f2f4f7;z-index:1000;display:none;flex-direction:column}#bqOverlay.on{display:flex}'
+   +'.bq-oh{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid #d5dbe6;background:#eef1f5}'
+   +'.bq-oh #bqTitle{font:800 14.5px "Bricolage Grotesque",system-ui;color:#111318;flex:1;line-height:1.2}'
+   +'.bq-oh #bqTitle small{display:block;font:600 11px system-ui;color:#3f4c66;margin-top:2px}'
+   +'#bqTimer{font:700 12.5px "DM Mono",monospace;color:#c2410c}'
+   +'.bq-cevap{font:700 11.5px "DM Mono",monospace;color:#c2410c;border:1px solid #c2410c55;border-radius:20px;padding:4px 11px;white-space:nowrap}'
+   +'#bqClose{border:none;background:#e2e8f0;color:#111318;width:34px;height:34px;border-radius:9px;font-size:16px;cursor:pointer}'
    +'#bqScroll{flex:1;overflow:auto;padding:16px 14px 48px;-webkit-overflow-scrolling:touch}'
-   +'.bq-q{background:linear-gradient(162deg,#52565f,#42454c);border:1px solid #6a6f79;border-radius:16px;padding:15px 16px;margin:0 auto 14px;max-width:680px;box-shadow:0 6px 20px rgba(0,0,0,.28)}'
-   +'.bq-qn{font:800 11px "DM Mono",monospace;color:#9fd0ff;letter-spacing:.5px}'
-   +'.bq-qt{font:600 15px system-ui;color:#f1f6ff;margin:7px 0 10px;line-height:1.5}'
+   +'.bq-q{background:#ffffff;border:1px solid #d5dbe6;border-radius:16px;padding:15px 16px;margin:0 auto 14px;max-width:680px;box-shadow:0 6px 20px rgba(0,0,0,.10)}'
+   +'.bq-qn{font:800 11px "DM Mono",monospace;color:#2563eb;letter-spacing:.5px}'
+   +'.bq-qt{font:600 15px system-ui;color:#111318;margin:7px 0 10px;line-height:1.5}'
    +'.bq-fig{background:#f5f7fa;border:1px solid #d4dcea;border-radius:10px;padding:10px;margin:2px auto 12px;max-width:420px;text-align:center}'
    +'.bq-fig svg{max-width:100%;height:auto;display:block;margin:0 auto}'
    +'.bq-stp .bq-fig{max-width:340px;margin:6px 0}'
    +'.bq-opts{display:flex;flex-wrap:wrap;gap:8px}'
-   +'.bq-opt{display:flex;gap:8px;align-items:center;text-align:left;border:1.5px solid #6b7079;background:rgba(255,255,255,.07);color:#f0f2f6;border-radius:11px;padding:9px 12px;font:600 13.5px system-ui;cursor:pointer}'
-   +'.bq-opt .ql{width:22px;height:22px;flex:none;border-radius:6px;background:#5a5e67;color:#eef1f5;font:800 11px "DM Mono",monospace;display:flex;align-items:center;justify-content:center}'
-   +'.bq-opt.ok{border-color:#27a567;background:rgba(39,165,103,.22);color:#7ef0b4}.bq-opt.ok .ql{background:#27a567;color:#06210d}'
-   +'.bq-opt.no{border-color:#d2546a;background:rgba(210,84,106,.2);color:#ff9fae}.bq-opt.no .ql{background:#d2546a}'
-   +'.bq-fb{font:700 12.5px system-ui;margin-top:10px}.bq-fb.ok{color:#7ef0b4}.bq-fb.no{color:#ff9fae}'
-   +'.bq-soltgl{display:block;margin-left:auto;margin-top:11px;border:1px solid #ffcf6b66;background:transparent;color:#ffcf6b;border-radius:9px;padding:6px 12px;font:700 12px system-ui;cursor:pointer}'
-   +'.bq-sol{display:none;margin-top:11px;border-top:1px dashed #ffffff2e;padding-top:11px}.bq-sol.on{display:block}'
+   +'.bq-opt{display:flex;gap:8px;align-items:center;text-align:left;border:1.5px solid #c9d2e0;background:#ffffff;color:#111318;border-radius:11px;padding:9px 12px;font:600 13.5px system-ui;cursor:pointer}'
+   +'.bq-opt .ql{width:22px;height:22px;flex:none;border-radius:6px;background:#e2e8f0;color:#111318;font:800 11px "DM Mono",monospace;display:flex;align-items:center;justify-content:center}'
+   +'.bq-opt.ok{border-color:#27a567;background:rgba(39,165,103,.12);color:#0e7a45}.bq-opt.ok .ql{background:#27a567;color:#ffffff}'
+   +'.bq-opt.no{border-color:#d2546a;background:rgba(210,84,106,.10);color:#b02a37}.bq-opt.no .ql{background:#d2546a;color:#ffffff}'
+   +'.bq-fb{font:700 12.5px system-ui;margin-top:10px}.bq-fb.ok{color:#0e7a45}.bq-fb.no{color:#b02a37}'
+   +'.bq-soltgl{display:block;margin-left:auto;margin-top:11px;border:1px solid #b4530966;background:transparent;color:#b45309;border-radius:9px;padding:6px 12px;font:700 12px system-ui;cursor:pointer}'
+   +'.bq-sol{display:none;margin-top:11px;border-top:1px dashed #00000026;padding-top:11px}.bq-sol.on{display:block}'
    +'.bq-stp{border-left:3px solid #34d399;padding:4px 0 4px 11px;margin:8px 0}'
-   +'.bq-stp .sn{font:800 10px "DM Mono",monospace;color:#34d399;letter-spacing:.5px}'
-   +'.bq-stp .so{font:500 14px system-ui;color:#eaf2ff;margin-top:2px}'
-   +'.bq-stp .sa{font:700 13px system-ui;color:#ffd27a;margin-top:2px}'
-   +'.bq-dtg{display:block;margin-left:auto;width:fit-content;margin-top:5px;border:1px solid #ffffff33;background:rgba(255,255,255,.05);color:#ffd27a;font:600 11px system-ui;cursor:pointer;padding:4px 9px;border-radius:7px}'
-   +'.bq-dd{display:none;font:500 12.5px system-ui;color:#cfe0ff;background:rgba(255,255,255,.06);border-radius:8px;padding:8px 10px;margin-top:5px;line-height:1.45}.bq-dd.on{display:block}'
-   +'.bq-ans{margin-top:11px;background:rgba(39,165,103,.18);border:1px solid #27a567;border-radius:10px;padding:9px 12px;font:700 13.5px system-ui;color:#7ef0b4}'
-   +'.bq-empty{max-width:520px;margin:50px auto;text-align:center;color:#8aa0c4;font:500 14px system-ui;line-height:1.7}';
+   +'.bq-stp .sn{font:800 10px "DM Mono",monospace;color:#0e7a45;letter-spacing:.5px}'
+   +'.bq-stp .so{font:500 14px system-ui;color:#111318;margin-top:2px}'
+   +'.bq-stp .sa{font:700 13px system-ui;color:#b45309;margin-top:2px}'
+   +'.bq-dtg{display:block;margin-left:auto;width:fit-content;margin-top:5px;border:1px solid #00000026;background:rgba(0,0,0,.04);color:#b45309;font:600 11px system-ui;cursor:pointer;padding:4px 9px;border-radius:7px}'
+   +'.bq-dd{display:none;font:500 12.5px system-ui;color:#243044;background:rgba(0,0,0,.05);border-radius:8px;padding:8px 10px;margin-top:5px;line-height:1.45}.bq-dd.on{display:block}'
+   +'.bq-ans{margin-top:11px;background:rgba(39,165,103,.12);border:1px solid #27a567;border-radius:10px;padding:9px 12px;font:700 13.5px system-ui;color:#0e7a45}'
+   +'.bq-empty{max-width:520px;margin:50px auto;text-align:center;color:#5a6a88;font:500 14px system-ui;line-height:1.7}';
   var st=document.createElement('style'); st.textContent=css; document.head.appendChild(st);
   var wrap=document.createElement('div');
   wrap.innerHTML=''
@@ -6145,7 +6214,7 @@ function positionPaletteUnder(){
   border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
 #bottomDock #toolsRow{ position:relative; z-index:30; }
 /* Araçlar TAM ortada: 3 eşit kolon — orta kolonun merkezi = çerçeve merkezi */
-#bottomDock #toolsRow{ display:grid !important; grid-template-columns:1fr 1fr 1fr !important; justify-items:center !important; align-items:center !important; }
+#bottomDock #toolsRow{ display:grid !important; grid-template-columns:1fr auto 1fr !important; align-items:center !important; }
 #bottomDock .action-pop, #bottomDock .font-pop{ margin-bottom:8px; }
 /* ✕ ile küçülen "... konusunu aç" çipi bar çerçevesiyle çakışmasın */
 #bottomPanel.info-mini{ bottom:74px !important; margin-bottom:0 !important; padding-bottom:0 !important; }
@@ -6169,6 +6238,241 @@ function positionPaletteUnder(){
     var st=document.getElementById('q3dBootFix');
     if(st && st.parentNode) st.parentNode.removeChild(st);
   }, 650);
+})();
+</script>
+<style id="dockCenterFix">#bottomDock #toolsRow > *{margin:0 !important;} #bottomDock #toolsRow > :first-child{justify-self:start !important;} #bottomDock #toolsRow > :last-child{justify-self:end !important;}</style>
+<style id="helpHideV1">#btnHelp,#b-help,.scene-help,.tool-icon-btn.help{display:none !important;}</style>
+
+<style id="halfPanelV1">
+/* Bilgi paneli daima ekranin YARISI kadar; 3D sahne ile kesismez (halfPanelV1) */
+/* Once KOSULSUZ tavan: :has() desteklenmese bile panel yariyi asamaz ve
+   yazi alt sekmelerin altina giremez (eski WebView guvenligi). */
+#bottomDock{ max-height:50vh !important; box-sizing:border-box; overflow:visible !important; }
+/* Destekleyen tarayicida panel acikken tam yarim ekran */
+#bottomDock:has(.bottom-panel:not(.hidden):not(.vars-hidden):not(.info-mini)){ height:50vh !important; }
+#bottomDock .bottom-panel{ flex:1 1 auto !important; min-height:0 !important; display:flex; flex-direction:column; overflow:visible !important; }
+/* Yazi alani: alt eylem sekmelerinin (action-row) USTUNDE kalir, sigmazsa
+   yalniz .info-list icinde kayar — sekmelerin altina asla girmez. */
+#bottomDock .bottom-panel:not(.info-mini) .info-area{ flex:1 1 auto !important; min-height:0 !important; display:flex !important; }
+#bottomDock .bottom-panel:not(.info-mini) .info-text-area{ flex:1 1 auto !important; min-width:0; min-height:0 !important; display:flex !important; flex-direction:column !important; }
+#bottomDock .bottom-panel .info-title-row, #bottomDock .bottom-panel .info-page-ind{ flex:0 0 auto !important; }
+#bottomDock .bottom-panel:not(.info-mini) .info-scroll-wrap{ flex:1 1 auto !important; min-height:0 !important; overflow:hidden !important; display:flex; flex-direction:column; }
+#bottomDock .bottom-panel .info-list{ flex:1 1 auto !important; min-height:0 !important; max-height:none !important; overflow-y:auto !important; }
+#bottomDock .bottom-panel .action-row{ flex:0 0 auto !important; }
+/* ── KAYDIRMA DUZELTMESI ────────────────────────────────────────────────
+   .info-area taban CSS'te "align-items:flex-start" idi: satir yonlu flex'te
+   bu, yazi alaninin yuksekligini ICERIGE gore buyutuyor -> liste hic kisalmiyor,
+   scrollHeight==clientHeight oldugu icin NE kaydirma NE de kaydirma cubugu
+   calisiyordu; tasan yazi alt sekmelerin altinda kayboluyordu.
+   stretch ile yazi alani panele sigar, fazlasi .info-list icinde kayar. */
+#bottomDock .bottom-panel:not(.info-mini) .info-area{ align-items:stretch !important; }
+#bottomDock .bottom-panel .info-emoji-box{ align-self:flex-start !important; flex:0 0 auto !important; }
+/* dikey kaydirma gostergesi (sag kenar) her zaman dogru konumlansin */
+#bottomDock .bottom-panel .info-scroll-wrap{ position:relative !important; }
+#bottomDock .bottom-panel .info-scrollbar{ z-index:6 !important; }
+/* ✕ kapatma dugmesi: panelin ustune tasar, her zaman ON PLANDA ve okunur */
+#bottomDock .bottom-panel .info-close-btn{
+  z-index:60 !important;
+  background:#ffffff !important;
+  border:2px solid #2f8fd0 !important;
+  color:#10131f !important;
+  box-shadow:0 2px 10px rgba(0,0,0,.45) !important;
+}
+#bottomDock .bottom-panel .info-resize-handle{ z-index:55 !important; }
+/* ── KUCULTULMUS (mini) DURUM ──────────────────────────────────────────
+   ✕ ile kucultuldugunde panel yalnizca tek satirlik cip olarak kalir;
+   yarim ekran yuksekligi ve icerik gorunurlugu zorlanmaz. */
+#bottomDock .bottom-panel.info-mini{ flex:0 0 auto !important; min-height:0 !important; }
+#bottomDock .bottom-panel.info-mini > *:not(.info-mini-chip){ display:none !important; }
+/* panel disina tasan kontroller kirpilmasin (kapatma / boyutlandirma) */
+#bottomDock .bottom-panel .info-close-btn,
+#bottomDock .bottom-panel .info-resize-handle,
+#bottomDock .bottom-panel .info-mini-chip{ z-index:40 !important; }
+
+</style>
+<script id="halfFitV1">
+(function(){
+  if(window.__halfFitV1) return; window.__halfFitV1=1;
+  /* 3D icerik ekranin UST YARISINDA kalsin: sayfanin her-kare setViewOffset
+     cagrisi sarmalanir (ek dikey ofset), boyut icin camera.zoom ayarlanir. */
+  function cam(){ var c=window.camera;
+    if(c&&(c.isPerspectiveCamera||c.isOrthographicCamera)) return c;
+    try{ if(typeof camera!=='undefined'&&camera&&(camera.isPerspectiveCamera||camera.isOrthographicCamera)) return camera; }catch(e){}
+    return null; }
+  function scn(){ var s=window.scene; if(s&&s.isScene) return s;
+    try{ if(typeof scene!=='undefined'&&scene&&scene.isScene) return scene; }catch(e){}
+    return null; }
+  var box=null,tmp=null,corners=null;
+  var TOPB=0.92, BOTB=0.06, XREF=0.90; /* NDC bant: ust yari (0 = ekran ortasi) */
+  function fit(){
+    try{
+      var c=cam(), s=scn(); if(!c||!s||!window.THREE) return;
+      if(!c.__hfPatch){
+        c.__hfPatch=1; c.__hfExtra=0;
+        var orig=c.setViewOffset.bind(c);
+        c.__hfOrig=orig;
+        c.setViewOffset=function(fw,fh,x,y,w,h){ c.__hfSVO=1; return orig(fw,fh,x,y+(c.__hfExtra||0),w,h); };
+      }
+      if(!box){ box=new THREE.Box3(); tmp=new THREE.Box3(); corners=[]; for(var i=0;i<8;i++)corners.push(new THREE.Vector3()); }
+      box.makeEmpty(); var has=false;
+      s.updateMatrixWorld(true);
+      s.traverse(function(o){
+        if(!o.visible) return;
+        if(!(o.isMesh||o.isSprite||o.isLine||o.isPoints)) return;
+        var p=o.parent; while(p){ if(p.visible===false) return; p=p.parent; }
+        tmp.setFromObject(o);
+        if(!isFinite(tmp.min.x)||!isFinite(tmp.max.x)) return;
+        var sx=tmp.max.x-tmp.min.x, sy=tmp.max.y-tmp.min.y, sz=tmp.max.z-tmp.min.z;
+        if(sx>60||sy>60||sz>60) return;           /* dev dekor/zemin */
+        if(sy<0.15&&(sx>14||sz>14)) return;        /* duz-genis zemin */
+        box.union(tmp); has=true;
+      });
+      if(!has||box.isEmpty()) return;
+      var mn=box.min,mx=box.max,k=0;
+      for(var xi=0;xi<2;xi++)for(var yi=0;yi<2;yi++)for(var zi=0;zi<2;zi++)corners[k++].set(xi?mx.x:mn.x,yi?mx.y:mn.y,zi?mx.z:mn.z);
+      c.updateMatrixWorld(true);
+      var maxX=0, loY=Infinity, hiY=-Infinity, seen=false;
+      for(var j=0;j<8;j++){
+        var pr=corners[j].clone().project(c);
+        if(isFinite(pr.x)&&isFinite(pr.y)&&pr.z<1){ seen=true;
+          maxX=Math.max(maxX,Math.abs(pr.x));
+          loY=Math.min(loY,pr.y); hiY=Math.max(hiY,pr.y); }
+      }
+      if(!seen) return;
+      var H=window.innerHeight||1;
+      /* 1) konum: alt kenar bandin altina sarkiyorsa ek ofsetle yukari al */
+      var needUp=BOTB-loY, needDown=hiY-TOPB;
+      if(needUp>0.02){
+        c.__hfExtra=Math.min((c.__hfExtra||0)+needUp*0.9*(H/2), H*0.35);
+      } else if(needDown>0.02 && loY>BOTB+0.04){
+        var back=Math.min(needDown, loY-BOTB);
+        c.__hfExtra=Math.max((c.__hfExtra||0)-back*0.9*(H/2), -H*0.15);
+      }
+      /* sayfa setViewOffset kullanmiyorsa ofseti kendimiz uygula */
+      if(!c.__hfSVO && Math.abs(c.__hfExtra||0)>1){
+        c.__hfOrig(window.innerWidth,H,0,c.__hfExtra,window.innerWidth,H);
+      }
+      /* 2) boyut: banda sigmiyorsa zoom-out, cok kucukse sinirli zoom-in */
+      if(c.__hfBase==null) c.__hfBase=c.zoom||1;
+      var mY=(hiY-loY)/(TOPB-BOTB);
+      var m=Math.max(maxX/XREF, mY);
+      var t=c.zoom;
+      if(m>1.02) t=Math.max(0.35, c.zoom/m);
+      else if(m<0.88) t=Math.min(c.__hfBase*1.6, c.zoom*(0.95/Math.max(m,0.05)));
+      if(Math.abs(t-c.zoom)/(c.zoom||1)>0.03){ c.zoom=t; c.updateProjectionMatrix(); }
+    }catch(e){}
+  }
+  /* Bilgi panelini buyut/kucult tutamaci: artik --info-h yerine DOCK
+     yuksekligini ayarlar (liste flex ile paneli doldurdugu icin). Tavan 50vh,
+     taban 22vh — yazi hicbir zaman alt sekmelerin altina inmez. */
+  (function(){
+    function wire(){
+      var h=document.getElementById('infoResizeHandle'), d=document.getElementById('bottomDock');
+      if(!h||!d||h.__hfWired) return true;
+      h.__hfWired=1;
+      var drag=false,sy=0,sh=0;
+      function cap(){ return Math.round(window.innerHeight*0.50); }
+      function floorH(){ return Math.round(window.innerHeight*0.22); }
+      function down(e){ drag=true; sy=(e.touches?e.touches[0].clientY:e.clientY);
+        sh=d.getBoundingClientRect().height||cap(); }
+      function move(e){ if(!drag) return;
+        var y=(e.touches?e.touches[0].clientY:e.clientY);
+        var nh=Math.max(floorH(),Math.min(cap(),sh+(sy-y)));
+        d.style.setProperty('height',nh+'px','important');
+        d.style.setProperty('max-height',nh+'px','important'); }
+      function up(){ drag=false; }
+      h.addEventListener('touchstart',down,{passive:true});
+      window.addEventListener('touchmove',move,{passive:true});
+      window.addEventListener('touchend',up);
+      h.addEventListener('mousedown',down);
+      window.addEventListener('mousemove',move);
+      window.addEventListener('mouseup',up);
+      return true;
+    }
+    if(!wire()){ var n=0,iv=setInterval(function(){ if(wire()||++n>20) clearInterval(iv); },400); }
+  })();
+  /* ── Palet arka plani TUM sahnelerde kalici ─────────────────────────────
+     Sahne degisiminde sayfa kodu scene.background'i yeniden atiyor ve
+     kullanicinin sectigi rengi eziyordu. Secim varsa okuma kilitlenir;
+     sahne kodu yazmaya devam eder ama gorunen renk kullanicininki kalir. */
+  (function(){
+    var locked=null;
+    function lockScene(s){
+      if(!s||s.__bgLock) return;
+      s.__bgLock=1;
+      var val=s.background;
+      try{
+        Object.defineProperty(s,'background',{
+          configurable:true,
+          get:function(){ return locked!==null?locked:val; },
+          set:function(v){ val=v; }
+        });
+      }catch(e){ s.__bgLock=0; }
+    }
+    function setLocked(c){
+      try{ if(c&&window.THREE) locked=new window.THREE.Color(c); }catch(e){}
+    }
+    function readSaved(){
+      try{ if(typeof _palState==='object'&&_palState&&_palState.bg) return _palState.bg; }catch(e){}
+      return null;
+    }
+    function wire(){
+      var s=scn(); if(s) lockScene(s);
+      try{
+        if(typeof applyPaletteColor==='function'&&!applyPaletteColor.__bgPersist){
+          var orig=applyPaletteColor;
+          var w=function(t,c,skip){
+            var r=orig(t,c,skip);
+            if(t==='bg'){ lockScene(scn()); setLocked(c); }
+            return r;
+          };
+          w.__bgPersist=1; applyPaletteColor=w;
+        }
+      }catch(e){}
+      try{
+        if(typeof resetPalette==='function'&&!resetPalette.__bgPersist){
+          var origR=resetPalette;
+          var wr=function(){ locked=null; return origR.apply(this,arguments); };
+          wr.__bgPersist=1; resetPalette=wr;
+        }
+      }catch(e){}
+      /* sayfa acilisinda kayitli secim (localStorage) zaten _palState'e yuklenmis olur */
+      if(locked===null){ var sv=readSaved(); if(sv){ lockScene(scn()); setLocked(sv); } }
+    }
+    wire();
+    var n=0, iv=setInterval(function(){ wire(); if(++n>=12) clearInterval(iv); },500);
+  })();
+  setInterval(fit,700);
+  [400,900,1500,2200].forEach(function(ms){setTimeout(fit,ms);});
+  document.addEventListener('pointerup',function(){[250,600,1100].forEach(function(ms){setTimeout(fit,ms);});},true);
+})();
+</script>
+
+<script id="tableShareNativeV1">
+/* ── TABLO / KIYASLAMA "GÖNDER" DÜZELTMESİ ────────────────────────────────
+   Eski davranış: shareCardEl() yalnız kart öğesini html2canvas ile çizmeye
+   çalışıyordu. html2canvas yoksa fonksiyon SESSİZCE geri dönüyordu (düğme
+   ölü görünüyordu); yüklü olduğunda da kaydırmalı tablo içeriği ve arkadaki
+   3B sahne doğru çıkmıyor, kimi cihazda "Görüntü alınamadı" veriyordu.
+   Yeni davranış: cihazın kendi ekran görüntüsü alınır → ekranda ne varsa
+   (açık tablo, panel, sahne) tek karede paylaşılır. Native kanal yoksa
+   eski akış aynen çalışmaya devam eder (hiçbir şey kaybolmaz). */
+(function(){
+  if(window.__tblShareNative) return; window.__tblShareNative=1;
+  /* Dinleyici DOKÜMAN düzeyinde ve capture fazında: düğmenin kendi onclick
+     handler'ından ÖNCE çalışır (düğme üzerine eklenseydi sayfanın daha önce
+     atanmış onclick'i önce çalışır, eski hatalı akış devreye girerdi). */
+  document.addEventListener('click', function(ev){
+    var t=ev.target;
+    var b=(t && t.closest) ? t.closest('#tableSend,#compareSend') : null;
+    if(!b) return;
+    if(!(window.FlutterNativeShot && window.FlutterNativeShot.postMessage)) return; /* eski akışa bırak */
+    ev.stopImmediatePropagation(); ev.preventDefault();
+    try{ if(window._showGestureToast) window._showGestureToast('📸 Gönderiliyor...'); }catch(e){}
+    setTimeout(function(){
+      try{ window.FlutterNativeShot.postMessage('1'); }catch(e){}
+    }, 60);
+  }, true);
 })();
 </script>
 </body>

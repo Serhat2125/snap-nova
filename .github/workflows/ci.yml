@@ -15,8 +15,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Sürüm SABİT — "channel: stable" her yeni Flutter çıkışında CI'ı
+      # geliştirme ortamından ayrıştırıyordu (yerelde geçen testler CI'da
+      # düşüyordu). Yerel geliştirme sürümüyle birebir aynı tutulur;
+      # Flutter yükseltmesi bilinçli bir commit ile yapılır.
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: 3.41.6
           channel: stable
           cache: true
 
@@ -30,8 +35,10 @@ jobs:
       - name: Statik analiz
         run: flutter analyze --no-fatal-infos
 
+      # expanded reporter: bir test düşerse HANGİSİ olduğu log/annotation'da
+      # açıkça görünsün (compact varsayılanı yalnız sayı veriyor).
       - name: Birim testleri
-        run: flutter test
+        run: flutter test --reporter expanded
 
   functions-build:
     runs-on: ubuntu-latest

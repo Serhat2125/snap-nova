@@ -114,7 +114,7 @@ const _ttsBridge=msg=>{try{if(window.FlutterTTS&&window.FlutterTTS.postMessage){
 const setTTS=v=>{_ttsOn=v;if(!v)stopSpeaking();};
 function speakFact(text){if(!_ttsOn||_muted)return;const clean=String(text||"").trim();if(!clean)return;
 if(_ttsBridge({action:"speak",text:clean,lang:document.documentElement.lang||"tr"}))return;// native motor okur
-try{const synth=window.speechSynthesis;if(!synth)return;synth.cancel();const u=new SpeechSynthesisUtterance(clean);u.lang="tr-TR";u.rate=0.95;u.pitch=1.0;synth.speak(u);}catch(e){/* tarayıcı desteklemiyor */}}
+try{const synth=window.speechSynthesis;if(!synth)return;synth.cancel();const u=new SpeechSynthesisUtterance(clean);u.lang=window.__ttsLang||"tr-TR";u.rate=0.95;u.pitch=1.0;synth.speak(u);}catch(e){/* tarayıcı desteklemiyor */}}
 function stopSpeaking(){if(_ttsBridge({action:"stop"}))return;try{window.speechSynthesis.cancel();}catch(e){}}// ─────────────────────────────────────────────
 //  BİLGİ KARTI — mini doğrulama sorusu üretici
 //  (bilgiyi pasif okumaktan aktif hatırlamaya çevirir)
@@ -1633,7 +1633,7 @@ if(screen==="collection"){const owned=profile&&profile.owned||[];const equipped=
 const haveCount=pets.filter(p=>owned.includes(p.id)).length;const petEmoji={butterfly:"🦋",bird:"🐦",rabbit:"🐰",dog:"🐶",cat:"🐱",penguin:"🐧",owl:"🦉",fox:"🦊",panda:"🐼",dragon:"🐲",unicorn:"🦄"};return/*#__PURE__*/React.createElement("div",{className:"min-h-screen w-full overflow-auto",style:{background:"linear-gradient(165deg,#04302a 0%,#0a5f52 45%,#12897b 100%)",fontFamily:"'Trebuchet MS',system-ui,sans-serif"}},/*#__PURE__*/React.createElement("header",{className:"sticky top-0 z-20 px-6 py-4",style:{background:"rgba(4,32,28,.88)",backdropFilter:"blur(12px)",borderBottom:"1px solid rgba(255,255,255,.12)"}},/*#__PURE__*/React.createElement("div",{className:"max-w-4xl mx-auto flex items-center justify-between gap-4"},/*#__PURE__*/React.createElement("div",{className:"flex items-center gap-3"},/*#__PURE__*/React.createElement("button",{onClick:()=>setScreen("menu"),className:"px-4 py-2 rounded-xl font-bold text-sm text-white",style:{background:"rgba(255,255,255,.14)"}},"← Geri"),/*#__PURE__*/React.createElement("h1",{className:"text-xl font-bold text-white"},"🐾 Dost Koleksiyonu")),/*#__PURE__*/React.createElement("div",{className:"px-4 py-2 rounded-xl font-bold text-white",style:{background:"rgba(255,255,255,.14)"}},haveCount,"/",pets.length))),/*#__PURE__*/React.createElement("main",{className:"max-w-4xl mx-auto px-6 py-6"},/*#__PURE__*/React.createElement("div",{className:"rounded-2xl p-4 mb-6",style:{background:"rgba(255,255,255,.1)"}},/*#__PURE__*/React.createElement("div",{className:"flex justify-between text-sm font-bold text-white mb-2"},/*#__PURE__*/React.createElement("span",null,"Koleksiyon İlerlemesi"),/*#__PURE__*/React.createElement("span",null,Math.round(haveCount/pets.length*100),"%")),/*#__PURE__*/React.createElement("div",{className:"h-3 rounded-full overflow-hidden",style:{background:"rgba(0,0,0,.25)"}},/*#__PURE__*/React.createElement("div",{className:"h-full rounded-full transition-all",style:{width:`${haveCount/pets.length*100}%`,background:"linear-gradient(90deg,#ffd54f,#ffb300)"}})),haveCount===pets.length&&/*#__PURE__*/React.createElement("p",{className:"text-center text-sm font-bold mt-3",style:{color:"#ffd54f"}},"🏆 Tüm dostları topladın — gerçek bir koleksiyoncusun!")),/*#__PURE__*/React.createElement("div",{className:"grid grid-cols-3 sm:grid-cols-4 gap-3"},pets.map(p=>{const have=owned.includes(p.id);const worn=equipped.pet===p.id;return/*#__PURE__*/React.createElement("div",{key:p.id,className:"rounded-2xl p-3 text-center relative",style:{background:have?"rgba(255,255,255,.14)":"rgba(0,0,0,.22)",border:worn?"2px solid #ffd54f":"1px solid rgba(255,255,255,.1)"}},/*#__PURE__*/React.createElement("div",{style:{fontSize:40,filter:have?"none":"grayscale(1) brightness(.4)",opacity:have?1:0.5}},have?petEmoji[p.kind]||"🐾":"❔"),/*#__PURE__*/React.createElement("div",{className:"text-xs font-bold mt-1",style:{color:have?"#fff":"#5a8a80"}},have?p.name:"???"),/*#__PURE__*/React.createElement("div",{className:"text-[10px] mt-0.5",style:{color:have?"#9fdfd2":"#4a7a70"}},have?worn?"✓ kuşanıldı":"toplandı":`${p.price} ⭐`));})),/*#__PURE__*/React.createElement("p",{className:"text-center text-sm mt-6",style:{color:"#9fdfd2"}},"Yeni dostları Mağaza'dan alarak koleksiyonunu tamamla!")));}// ══════════════════════════════════════════════
 //  SERTİFİKA — paylaşılabilir başarı belgesi
 // ══════════════════════════════════════════════
-if(screen==="certificate"){const playerName=profile&&profile.name||"Bilgi Kâşifi";const levelName=levelKey?LEVELS[levelKey]?.name||"":"";const shareText=`🏆 Bilgi Labirenti'nden Kaçış oyununda ${seals}/7 mührü kırdım! ${profile?profile.totalScore:0} puan topladım. Sen de dene!`;const doShare=async()=>{try{if(navigator.share)await navigator.share({title:"Bilgi Labirenti Sertifikam",text:shareText});else{await navigator.clipboard.writeText(shareText);alert("Başarı metni kopyalandı! İstediğin yere yapıştırabilirsin.");}}catch(e){}};return/*#__PURE__*/React.createElement("div",{className:"min-h-screen w-full overflow-auto flex items-center justify-center p-6",style:{background:"linear-gradient(165deg,#3a2e0a 0%,#6b5518 45%,#9c7d24 100%)",fontFamily:"'Trebuchet MS',system-ui,sans-serif"}},/*#__PURE__*/React.createElement("div",{className:"max-w-lg w-full"},/*#__PURE__*/React.createElement("button",{onClick:()=>setScreen("menu"),className:"mb-4 px-4 py-2 rounded-xl font-bold text-sm text-white",style:{background:"rgba(255,255,255,.16)"}},"← Geri"),/*#__PURE__*/React.createElement("div",{className:"rounded-3xl p-8 text-center relative overflow-hidden",style:{background:"linear-gradient(160deg,#fffef8,#fff8e8)",boxShadow:"0 20px 60px rgba(0,0,0,.4)",border:"3px double #c9a227"}},/*#__PURE__*/React.createElement("div",{className:"absolute inset-2 rounded-2xl pointer-events-none",style:{border:"1px solid #e0c76a"}}),/*#__PURE__*/React.createElement("div",{className:"text-5xl mb-2"},"🏆"),/*#__PURE__*/React.createElement("div",{className:"text-xs font-bold tracking-widest mb-1",style:{color:"#9c7d24"}},"BAŞARI SERTİFİKASI"),/*#__PURE__*/React.createElement("div",{className:"text-2xl font-extrabold mb-3",style:{color:"#6b5518"}},"Bilgi Kâşifi"),/*#__PURE__*/React.createElement("div",{className:"w-16 h-0.5 mx-auto mb-3",style:{background:"#c9a227"}}),/*#__PURE__*/React.createElement("p",{className:"text-sm mb-1",style:{color:"#7a6428"}},"Bu belge"),/*#__PURE__*/React.createElement("p",{className:"text-xl font-bold mb-1",style:{color:"#3a2e0a"}},playerName),/*#__PURE__*/React.createElement("p",{className:"text-sm mb-4",style:{color:"#7a6428"}},"adlı kâşifin Bilgi Labirenti'nde gösterdiği başarıyı onaylar."),/*#__PURE__*/React.createElement("div",{className:"flex justify-center gap-1 mb-4"},Array.from({length:7},(_,i)=>/*#__PURE__*/React.createElement("span",{key:i,style:{fontSize:22,opacity:i<seals?1:0.25}},i<seals?"🏅":"⚪"))),/*#__PURE__*/React.createElement("div",{className:"grid grid-cols-3 gap-2 mb-2"},/*#__PURE__*/React.createElement("div",{className:"rounded-xl p-2",style:{background:"rgba(201,162,39,.12)"}},/*#__PURE__*/React.createElement("div",{className:"text-lg font-extrabold",style:{color:"#9c7d24"}},seals,"/7"),/*#__PURE__*/React.createElement("div",{className:"text-[10px]",style:{color:"#7a6428"}},"Mühür")),/*#__PURE__*/React.createElement("div",{className:"rounded-xl p-2",style:{background:"rgba(201,162,39,.12)"}},/*#__PURE__*/React.createElement("div",{className:"text-lg font-extrabold",style:{color:"#9c7d24"}},profile?profile.totalScore:0),/*#__PURE__*/React.createElement("div",{className:"text-[10px]",style:{color:"#7a6428"}},"Puan")),/*#__PURE__*/React.createElement("div",{className:"rounded-xl p-2",style:{background:"rgba(201,162,39,.12)"}},/*#__PURE__*/React.createElement("div",{className:"text-lg font-extrabold",style:{color:"#9c7d24"}},profile?profile.badges.length:0),/*#__PURE__*/React.createElement("div",{className:"text-[10px]",style:{color:"#7a6428"}},"Rozet"))),seals>=7&&/*#__PURE__*/React.createElement("div",{className:"text-sm font-bold mt-2",style:{color:"#c9a227"}},"👑 YEDİ MÜHRÜN USTASI — BİLGE")),/*#__PURE__*/React.createElement("button",{onClick:doShare,className:"w-full mt-5 py-3 rounded-2xl font-extrabold text-lg text-white transition-transform active:scale-95",style:{background:"linear-gradient(90deg,#43a047,#2e7d32)",boxShadow:"0 6px 20px rgba(67,160,71,.4)"}},"📤 Başarımı Paylaş"),/*#__PURE__*/React.createElement("p",{className:"text-center text-xs mt-3",style:{color:"rgba(255,255,255,.7)"}},"Arkadaşlarına meydan oku, onları da oyuna davet et!")));}// ══════════════════════════════════════════════
+if(screen==="certificate"){const playerName=profile&&profile.name||"Bilgi Kâşifi";const levelName=levelKey?LEVELS[levelKey]?.name||"":"";const shareText=`🏆 Bilgi Labirenti'nden Kaçış oyununda ${seals}/7 mührü kırdım! ${profile?profile.totalScore:0} puan topladım. Sen de dene!`;const doShare=async()=>{try{if(window.__labShare&&window.__labShare(shareText))return;if(navigator.share){await navigator.share({title:"Bilgi Labirenti Sertifikam",text:shareText});return;}await navigator.clipboard.writeText(shareText);if(window.__labToast)window.__labToast("Başarı metni kopyalandı!");}catch(e){}};return/*#__PURE__*/React.createElement("div",{className:"min-h-screen w-full overflow-auto flex items-center justify-center p-6",style:{background:"linear-gradient(165deg,#3a2e0a 0%,#6b5518 45%,#9c7d24 100%)",fontFamily:"'Trebuchet MS',system-ui,sans-serif"}},/*#__PURE__*/React.createElement("div",{className:"max-w-lg w-full"},/*#__PURE__*/React.createElement("button",{onClick:()=>setScreen("menu"),className:"mb-4 px-4 py-2 rounded-xl font-bold text-sm text-white",style:{background:"rgba(255,255,255,.16)"}},"← Geri"),/*#__PURE__*/React.createElement("div",{className:"rounded-3xl p-8 text-center relative overflow-hidden",style:{background:"linear-gradient(160deg,#fffef8,#fff8e8)",boxShadow:"0 20px 60px rgba(0,0,0,.4)",border:"3px double #c9a227"}},/*#__PURE__*/React.createElement("div",{className:"absolute inset-2 rounded-2xl pointer-events-none",style:{border:"1px solid #e0c76a"}}),/*#__PURE__*/React.createElement("div",{className:"text-5xl mb-2"},"🏆"),/*#__PURE__*/React.createElement("div",{className:"text-xs font-bold tracking-widest mb-1",style:{color:"#9c7d24"}},"BAŞARI SERTİFİKASI"),/*#__PURE__*/React.createElement("div",{className:"text-2xl font-extrabold mb-3",style:{color:"#6b5518"}},"Bilgi Kâşifi"),/*#__PURE__*/React.createElement("div",{className:"w-16 h-0.5 mx-auto mb-3",style:{background:"#c9a227"}}),/*#__PURE__*/React.createElement("p",{className:"text-sm mb-1",style:{color:"#7a6428"}},"Bu belge"),/*#__PURE__*/React.createElement("p",{className:"text-xl font-bold mb-1",style:{color:"#3a2e0a"}},playerName),/*#__PURE__*/React.createElement("p",{className:"text-sm mb-4",style:{color:"#7a6428"}},"adlı kâşifin Bilgi Labirenti'nde gösterdiği başarıyı onaylar."),/*#__PURE__*/React.createElement("div",{className:"flex justify-center gap-1 mb-4"},Array.from({length:7},(_,i)=>/*#__PURE__*/React.createElement("span",{key:i,style:{fontSize:22,opacity:i<seals?1:0.25}},i<seals?"🏅":"⚪"))),/*#__PURE__*/React.createElement("div",{className:"grid grid-cols-3 gap-2 mb-2"},/*#__PURE__*/React.createElement("div",{className:"rounded-xl p-2",style:{background:"rgba(201,162,39,.12)"}},/*#__PURE__*/React.createElement("div",{className:"text-lg font-extrabold",style:{color:"#9c7d24"}},seals,"/7"),/*#__PURE__*/React.createElement("div",{className:"text-[10px]",style:{color:"#7a6428"}},"Mühür")),/*#__PURE__*/React.createElement("div",{className:"rounded-xl p-2",style:{background:"rgba(201,162,39,.12)"}},/*#__PURE__*/React.createElement("div",{className:"text-lg font-extrabold",style:{color:"#9c7d24"}},profile?profile.totalScore:0),/*#__PURE__*/React.createElement("div",{className:"text-[10px]",style:{color:"#7a6428"}},"Puan")),/*#__PURE__*/React.createElement("div",{className:"rounded-xl p-2",style:{background:"rgba(201,162,39,.12)"}},/*#__PURE__*/React.createElement("div",{className:"text-lg font-extrabold",style:{color:"#9c7d24"}},profile?profile.badges.length:0),/*#__PURE__*/React.createElement("div",{className:"text-[10px]",style:{color:"#7a6428"}},"Rozet"))),seals>=7&&/*#__PURE__*/React.createElement("div",{className:"text-sm font-bold mt-2",style:{color:"#c9a227"}},"👑 YEDİ MÜHRÜN USTASI — BİLGE")),/*#__PURE__*/React.createElement("button",{onClick:doShare,className:"w-full mt-5 py-3 rounded-2xl font-extrabold text-lg text-white transition-transform active:scale-95",style:{background:"linear-gradient(90deg,#43a047,#2e7d32)",boxShadow:"0 6px 20px rgba(67,160,71,.4)"}},"📤 Başarımı Paylaş"),/*#__PURE__*/React.createElement("p",{className:"text-center text-xs mt-3",style:{color:"rgba(255,255,255,.7)"}},"Arkadaşlarına meydan oku, onları da oyuna davet et!")));}// ══════════════════════════════════════════════
 //  PROLOG — Yedi Mühür hikâyesinin girişi
 // ══════════════════════════════════════════════
 if(screen==="prolog"){return/*#__PURE__*/React.createElement("div",{className:"min-h-screen w-full flex items-center justify-center p-6",style:{background:"radial-gradient(ellipse at 50% 20%, #2a3f5c 0%, #101a2a 60%, #070c14 100%)",fontFamily:"'Trebuchet MS',system-ui,sans-serif"}},/*#__PURE__*/React.createElement("div",{className:"max-w-xl w-full text-center"},/*#__PURE__*/React.createElement("div",{className:"text-6xl mb-4",style:{animation:"prologDragon 3s ease-in-out infinite"}},"🐉"),/*#__PURE__*/React.createElement("h1",{className:"text-2xl font-bold mb-6",style:{color:"#ffd54f",letterSpacing:2}},"YEDİ MÜHÜR"),/*#__PURE__*/React.createElement("div",{className:"space-y-3 mb-8"},PROLOG_LINES.map((line,i)=>/*#__PURE__*/React.createElement("p",{key:i,className:"text-base md:text-lg leading-relaxed",style:{color:i>=4?"#ffe9b8":"rgba(255,255,255,.85)",fontWeight:i>=4?700:400,animation:`prologLine .8s ease-out ${i*0.9}s both`}},line))),/*#__PURE__*/React.createElement("button",{onClick:()=>{updateProfile(p=>{p.sawProlog=true;});const ps=pendingStart;setPendingStart(null);if(ps)startLevel(ps.key,ps.stg||1,ps.trk,true);else setScreen("menu");},className:"px-10 py-4 rounded-full font-bold text-lg text-white transition-transform hover:scale-105",style:{background:"linear-gradient(135deg,#e65100,#ff8f00)",boxShadow:"0 12px 34px rgba(255,143,0,.4)",animation:`prologLine .8s ease-out ${PROLOG_LINES.length*0.9}s both`}},"⚔️ İlk Mührü Kırmaya Git"),/*#__PURE__*/React.createElement("style",null,`
@@ -1673,6 +1673,88 @@ const q=activeQuestions[currentDoor]||{q:"",opts:[],a:0};return/*#__PURE__*/Reac
   el.textContent='Baslatma hatasi:\n\n'+(err.stack||err.message);
   var l2=document.getElementById('loading'); if(l2) l2.style.display='none';
 }
+})();
+</script>
+
+<script id="labShareNativeV1">
+/* ── BAŞARI PAYLAŞIMI ─────────────────────────────────────────────────────
+   WebView'da navigator.share yok (file:// güvenli bağlam değil). Oyun bu
+   yüzden panoya kopyalayıp ham alert() gösteriyordu — ekranda
+   '"file://" adresindeki sayfada şunlar belirtiliyor…' kutusu çıkıyordu.
+   Artık Flutter'ın ekran görüntüsü kanalı kullanılır: sertifika/başarı
+   tablosu ne haldeyse o görselle sistem paylaş menüsü açılır.
+   Ayrıca Başarı Tablosu ekranına da bir "Paylaş" düğmesi eklenir. */
+(function(){
+  if(window.__labShareInit) return; window.__labShareInit=1;
+
+  function nativeShare(){
+    try{
+      if(window.FlutterNativeShot && window.FlutterNativeShot.postMessage){
+        window.FlutterNativeShot.postMessage('1');
+        return true;
+      }
+    }catch(e){}
+    return false;
+  }
+  window.__labShare=function(){ return nativeShare(); };
+
+  /* alert() yerine sade, oyun içi bildirim */
+  window.__labToast=function(msg){
+    try{
+      var t=document.createElement('div');
+      t.textContent=msg;
+      t.style.cssText='position:fixed;left:50%;bottom:84px;transform:translateX(-50%);'
+        +'z-index:99999;background:rgba(20,26,40,.95);color:#F3E9D2;padding:10px 16px;'
+        +'border-radius:12px;font-size:13px;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.5);'
+        +'border:1.5px solid #C9A24B;max-width:80vw;text-align:center;';
+      document.body.appendChild(t);
+      setTimeout(function(){ try{ t.remove(); }catch(e){} }, 2200);
+    }catch(e){}
+  };
+
+  /* ── BAŞARI TABLOSU: paylaş düğmesi ────────────────────────────────────
+     Bu ekran React ile çiziliyor; işaretlemeye dokunmadan, ekran
+     görünürken beliren yüzen bir düğme eklenir. */
+  var btn=null;
+  function ensureBtn(){
+    if(btn) return btn;
+    btn=document.createElement('button');
+    btn.id='labShareFab';
+    btn.innerHTML='📤 Paylaş';
+    btn.style.cssText='display:none;position:fixed;right:14px;bottom:88px;z-index:99998;'
+      +'background:linear-gradient(135deg,#C9A24B,#E8C268);color:#1a1408;border:none;'
+      +'border-radius:22px;padding:10px 16px;font-family:inherit;font-size:13px;'
+      +'font-weight:800;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.45);';
+    btn.onclick=function(e){
+      e.stopPropagation();
+      if(!nativeShare()) window.__labToast('Paylaşım bu ortamda desteklenmiyor.');
+    };
+    document.body.appendChild(btn);
+    return btn;
+  }
+  function onAchievementScreen(){
+    /* Başlıktan tanı: "Başarı Tablosu" görünür durumdaysa */
+    var els=document.querySelectorAll('h1,h2,h3,div,span');
+    for(var i=0;i<els.length;i++){
+      var el=els[i];
+      if(el.children.length) continue;              /* yalnız yaprak düğüm */
+      var tx=(el.textContent||'').trim();
+      if(tx==='Başarı Tablosu' || tx==='Achievements' || tx==='Başarılarım'){
+        var r=el.getBoundingClientRect();
+        if(r.width>0 && r.height>0) return true;    /* gerçekten görünür */
+      }
+    }
+    return false;
+  }
+  function tick(){
+    try{
+      var b=ensureBtn();
+      b.style.display = onAchievementScreen() ? 'block' : 'none';
+    }catch(e){}
+  }
+  setInterval(tick, 600);
+  document.addEventListener('click', function(){ setTimeout(tick, 250); }, true);
+  tick();
 })();
 </script>
 </body>

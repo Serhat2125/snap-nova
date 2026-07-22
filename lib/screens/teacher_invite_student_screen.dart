@@ -65,7 +65,8 @@ class _TeacherInviteStudentScreenState
     if (ok) {
       setState(() => _invited.add(r.uid));
       messenger.showSnackBar(SnackBar(
-        content: Text('Davet gönderildi: @${r.username}'.tr()),
+        // İsim .tr() DIŞINDA — interpolasyonlu anahtar sözlükte eşleşmez.
+        content: Text('${'Davet gönderildi'.tr()}: @${r.username}'),
         behavior: SnackBarBehavior.floating,
       ));
     } else {

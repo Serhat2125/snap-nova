@@ -241,7 +241,9 @@ class _ParentLinkSheetState extends State<ParentLinkSheet> {
           ),
         ),
         const SizedBox(height: 6),
-        Text('24 saat geçerli.'.tr(),
+        // Kod TEK KULLANIMLIK — iki veli aynı kodu kullanamaz; bunu
+        // söylemeyince ikinci veli "süresi dolmuş" hatasına düşüyordu.
+        Text('24 saat geçerli, tek veli bağlar. İkinci veli için yeni kod oluştur.'.tr(),
             style: GoogleFonts.poppins(fontSize: 11, color: muted)),
         const SizedBox(height: 12),
         SizedBox(

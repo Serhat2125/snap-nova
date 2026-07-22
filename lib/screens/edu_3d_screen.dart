@@ -115,9 +115,9 @@ class Edu3DSubjectsScreen extends StatelessWidget {
             tooltip: 'Ayarlar'.tr(),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/gecis-studyosu.html',
-                  title: 'Ayarlar',
+                  title: 'Ayarlar'.tr(),
                 ),
               ),
             ),
@@ -130,14 +130,14 @@ class Edu3DSubjectsScreen extends StatelessWidget {
           // DENEME (tasarım kararı): Coğrafya yeni sayfaya gitmez — konular
           // kartın altında akordeon olarak açılır/kapanır. Beğenilirse
           // diğer derslere de uygulanacak.
-          const _ExpandableSubjectCard(
+          _ExpandableSubjectCard(
             icon: Icons.public_rounded,
-            title: 'Coğrafya',
-            color: Color(0xFF0EA5E9),
+            title: 'Coğrafya'.tr(),
+            color: const Color(0xFF0EA5E9),
           ),
           _SubjectCard(
             icon: Icons.calculate_rounded,
-            title: 'Matematik',
+            title: 'Matematik'.tr(),
             color: const Color(0xFFF97316),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const Edu3DMatematikScreen()),
@@ -145,7 +145,7 @@ class Edu3DSubjectsScreen extends StatelessWidget {
           ),
           _SubjectCard(
             icon: Icons.category_rounded,
-            title: 'Geometrik Cisimler',
+            title: 'Geometrik Cisimler'.tr(),
             color: const Color(0xFFEAB308),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const Edu3DGeometriScreen()),
@@ -153,7 +153,7 @@ class Edu3DSubjectsScreen extends StatelessWidget {
           ),
           _SubjectCard(
             icon: Icons.biotech_rounded,
-            title: 'Biyoloji',
+            title: 'Biyoloji'.tr(),
             color: const Color(0xFF16A34A),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const Edu3DBiyolojiScreen()),
@@ -161,7 +161,7 @@ class Edu3DSubjectsScreen extends StatelessWidget {
           ),
           _SubjectCard(
             icon: Icons.science_rounded,
-            title: 'Fizik',
+            title: 'Fizik'.tr(),
             color: const Color(0xFF7C3AED),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const Edu3DFizikScreen()),
@@ -169,7 +169,7 @@ class Edu3DSubjectsScreen extends StatelessWidget {
           ),
           _SubjectCard(
             icon: Icons.science_outlined,
-            title: 'Kimya',
+            title: 'Kimya'.tr(),
             color: const Color(0xFFE11D48),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const Edu3DKimyaScreen()),
@@ -247,8 +247,8 @@ class _ExpandableSubjectCardState extends State<_ExpandableSubjectCard> {
                     children: [
                       _TopicCard(
                         emoji: '🌍',
-                        title: 'Dünyanın Şekli ve Hareketi',
-                        subtitle: 'Gece-gündüz, mevsimler, Güneş sistemi',
+                        title: 'Dünyanın Şekli ve Hareketi'.tr(),
+                        subtitle: 'Gece-gündüz, mevsimler, Güneş sistemi'.tr(),
                         tint: const Color(0xFF0EA5E9),
                         onTap: () => _push(context,
                             'assets/dunyanin-hareketleri.html',
@@ -257,9 +257,9 @@ class _ExpandableSubjectCardState extends State<_ExpandableSubjectCard> {
                       const SizedBox(height: 8),
                       _TopicCard(
                         emoji: '🗺️',
-                        title: 'Yer Şekilleri ve İzohipsler',
+                        title: 'Yer Şekilleri ve İzohipsler'.tr(),
                         subtitle:
-                            'İzohips kuralları, eğim, profil, vadi/sırt, delta, plato/ova',
+                            'İzohips kuralları, eğim, profil, vadi/sırt, delta, plato/ova'.tr(),
                         tint: const Color(0xFF0EA5E9),
                         onTap: () => _push(context,
                             'assets/yer-sekilleri-izohipsler.html',
@@ -268,9 +268,9 @@ class _ExpandableSubjectCardState extends State<_ExpandableSubjectCard> {
                       const SizedBox(height: 8),
                       _TopicCard(
                         emoji: '🌋',
-                        title: 'Yerin İç Yapısı ve Levha Tektoniği',
+                        title: 'Yerin İç Yapısı ve Levha Tektoniği'.tr(),
                         subtitle:
-                            'Katmanlar, kıvrım/kırık dağlar, volkanizma, levha sınırları, depremler',
+                            'Katmanlar, kıvrım/kırık dağlar, volkanizma, levha sınırları, depremler'.tr(),
                         tint: const Color(0xFF0EA5E9),
                         onTap: () => _push(context,
                             'assets/yerin-ic-yapisi-levha-tektonigi.html',
@@ -279,9 +279,9 @@ class _ExpandableSubjectCardState extends State<_ExpandableSubjectCard> {
                       const SizedBox(height: 8),
                       _TopicCard(
                         emoji: '🌦️',
-                        title: 'Atmosfer ve İklim',
+                        title: 'Atmosfer ve İklim'.tr(),
                         subtitle:
-                            'Atmosfer katmanları, basınç merkezleri, Coriolis, küresel rüzgarlar',
+                            'Atmosfer katmanları, basınç merkezleri, Coriolis, küresel rüzgarlar'.tr(),
                         tint: const Color(0xFF38BDF8),
                         onTap: () => _push(context, 'assets/atmosfer-iklim.html',
                             'Atmosfer ve İklim'),
@@ -289,9 +289,9 @@ class _ExpandableSubjectCardState extends State<_ExpandableSubjectCard> {
                       const SizedBox(height: 8),
                       _TopicCard(
                         emoji: '🌍',
-                        title: 'Dünya Coğrafyası',
+                        title: 'Dünya Coğrafyası'.tr(),
                         subtitle:
-                            'İklim bölgeleri, kıtalar, dağlar, nehirler, boğazlar, kanallar, nüfus',
+                            'İklim bölgeleri, kıtalar, dağlar, nehirler, boğazlar, kanallar, nüfus'.tr(),
                         tint: const Color(0xFF22C55E),
                         onTap: () => _push(context,
                             'assets/dunya-cografyasi.html', 'Dünya Coğrafyası'),
@@ -339,70 +339,70 @@ class Edu3DCografyaScreen extends StatelessWidget {
         children: [
           _TopicCard(
             emoji: '🌍',
-            title: 'Dünyanın Şekli ve Hareketi',
-            subtitle: 'Gece-gündüz, mevsimler, Güneş sistemi',
+            title: 'Dünyanın Şekli ve Hareketi'.tr(),
+            subtitle: 'Gece-gündüz, mevsimler, Güneş sistemi'.tr(),
             tint: const Color(0xFF0EA5E9),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/dunyanin-hareketleri.html',
-                  title: 'Dünyanın Şekli ve Hareketi',
+                  title: 'Dünyanın Şekli ve Hareketi'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '🗺️',
-            title: 'Yer Şekilleri ve İzohipsler',
-            subtitle: 'İzohips kuralları, eğim, profil, vadi/sırt, delta, plato/ova',
+            title: 'Yer Şekilleri ve İzohipsler'.tr(),
+            subtitle: 'İzohips kuralları, eğim, profil, vadi/sırt, delta, plato/ova'.tr(),
             tint: const Color(0xFF0EA5E9),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/yer-sekilleri-izohipsler.html',
-                  title: 'Yer Şekilleri ve İzohipsler',
+                  title: 'Yer Şekilleri ve İzohipsler'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '🌋',
-            title: 'Yerin İç Yapısı ve Levha Tektoniği',
-            subtitle: 'Katmanlar, kıvrım/kırık dağlar, volkanizma, levha sınırları, depremler',
+            title: 'Yerin İç Yapısı ve Levha Tektoniği'.tr(),
+            subtitle: 'Katmanlar, kıvrım/kırık dağlar, volkanizma, levha sınırları, depremler'.tr(),
             tint: const Color(0xFF0EA5E9),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/yerin-ic-yapisi-levha-tektonigi.html',
-                  title: 'Yerin İç Yapısı ve Levha Tektoniği',
+                  title: 'Yerin İç Yapısı ve Levha Tektoniği'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '🌦️',
-            title: 'Atmosfer ve İklim',
-            subtitle: 'Atmosfer katmanları, basınç merkezleri, Coriolis, küresel rüzgarlar',
+            title: 'Atmosfer ve İklim'.tr(),
+            subtitle: 'Atmosfer katmanları, basınç merkezleri, Coriolis, küresel rüzgarlar'.tr(),
             tint: const Color(0xFF38BDF8),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/atmosfer-iklim.html',
-                  title: 'Atmosfer ve İklim',
+                  title: 'Atmosfer ve İklim'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '🌍',
-            title: 'Dünya Coğrafyası',
-            subtitle: 'İklim bölgeleri, kıtalar, dağlar, nehirler, boğazlar, kanallar, nüfus',
+            title: 'Dünya Coğrafyası'.tr(),
+            subtitle: 'İklim bölgeleri, kıtalar, dağlar, nehirler, boğazlar, kanallar, nüfus'.tr(),
             tint: const Color(0xFF22C55E),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/dunya-cografyasi.html',
-                  title: 'Dünya Coğrafyası',
+                  title: 'Dünya Coğrafyası'.tr(),
                 ),
               ),
             ),
@@ -447,14 +447,14 @@ class Edu3DMatematikScreen extends StatelessWidget {
         children: [
           _TopicCard(
             emoji: '🔢',
-            title: 'Üslü Sayılar',
-            subtitle: 'Üs, taban, kuvvet kuralları, 3B görselleştirme',
+            title: 'Üslü Sayılar'.tr(),
+            subtitle: 'Üs, taban, kuvvet kuralları, 3B görselleştirme'.tr(),
             tint: const Color(0xFF6366F1),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/uslu-sayilar.html',
-                  title: 'Üslü Sayılar',
+                  title: 'Üslü Sayılar'.tr(),
                 ),
               ),
             ),
@@ -462,14 +462,14 @@ class Edu3DMatematikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🟰',
-            title: 'Denklemler',
-            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            title: 'Denklemler'.tr(),
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test'.tr(),
             tint: const Color(0xFF8B5CF6),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/denklemler.html',
-                  title: 'Denklemler',
+                  title: 'Denklemler'.tr(),
                 ),
               ),
             ),
@@ -477,14 +477,14 @@ class Edu3DMatematikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🧮',
-            title: 'Problemler',
-            subtitle: 'Sözel problemler, kurulum ve çözüm adımları',
+            title: 'Problemler'.tr(),
+            subtitle: 'Sözel problemler, kurulum ve çözüm adımları'.tr(),
             tint: const Color(0xFFEC4899),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/problemler.html',
-                  title: 'Problemler',
+                  title: 'Problemler'.tr(),
                 ),
               ),
             ),
@@ -492,14 +492,14 @@ class Edu3DMatematikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🔵',
-            title: 'Kümeler',
-            subtitle: 'Küme işlemleri, Venn şemaları, 3B görselleştirme',
+            title: 'Kümeler'.tr(),
+            subtitle: 'Küme işlemleri, Venn şemaları, 3B görselleştirme'.tr(),
             tint: const Color(0xFF0EA5E9),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/kumeler.html',
-                  title: 'Kümeler',
+                  title: 'Kümeler'.tr(),
                 ),
               ),
             ),
@@ -507,14 +507,14 @@ class Edu3DMatematikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '📈',
-            title: 'Fonksiyonlar',
-            subtitle: 'Fonksiyon kavramı, grafikler ve dönüşümler',
+            title: 'Fonksiyonlar'.tr(),
+            subtitle: 'Fonksiyon kavramı, grafikler ve dönüşümler'.tr(),
             tint: const Color(0xFF10B981),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/fonksiyonlar.html',
-                  title: 'Fonksiyonlar',
+                  title: 'Fonksiyonlar'.tr(),
                 ),
               ),
             ),
@@ -522,14 +522,14 @@ class Edu3DMatematikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🔣',
-            title: 'Polinomlar',
-            subtitle: 'Polinom işlemleri, çarpanlara ayırma, 3B görselleştirme',
+            title: 'Polinomlar'.tr(),
+            subtitle: 'Polinom işlemleri, çarpanlara ayırma, 3B görselleştirme'.tr(),
             tint: const Color(0xFFF59E0B),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/polinomlar.html',
-                  title: 'Polinomlar',
+                  title: 'Polinomlar'.tr(),
                 ),
               ),
             ),
@@ -537,14 +537,14 @@ class Edu3DMatematikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🧠',
-            title: 'Mantık',
-            subtitle: 'Önermeler, bağlaçlar, doğruluk tabloları',
+            title: 'Mantık'.tr(),
+            subtitle: 'Önermeler, bağlaçlar, doğruluk tabloları'.tr(),
             tint: const Color(0xFF8B5CF6),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/mantik.html',
-                  title: 'Mantık',
+                  title: 'Mantık'.tr(),
                 ),
               ),
             ),
@@ -552,98 +552,98 @@ class Edu3DMatematikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '📚',
-            title: 'Temel Kavramlar',
-            subtitle: 'Sayılar, kümeler ve temel matematik kavramları',
+            title: 'Temel Kavramlar'.tr(),
+            subtitle: 'Sayılar, kümeler ve temel matematik kavramları'.tr(),
             tint: const Color(0xFF14B8A6),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/temel-kavramlar.html',
-                  title: 'Temel Kavramlar',
+                  title: 'Temel Kavramlar'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '➗',
-            title: 'Kesirler ve Rasyonel Sayılar',
-            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            title: 'Kesirler ve Rasyonel Sayılar'.tr(),
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test'.tr(),
             tint: const Color(0xFF14B8A6),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/kesirler-rasyonel.html',
-                  title: 'Kesirler ve Rasyonel Sayılar',
+                  title: 'Kesirler ve Rasyonel Sayılar'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '➗',
-            title: 'Bölme ve Bölünebilme',
-            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            title: 'Bölme ve Bölünebilme'.tr(),
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test'.tr(),
             tint: const Color(0xFF6366F1),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/bolme-bolunebilme.html',
-                  title: 'Bölme ve Bölünebilme',
+                  title: 'Bölme ve Bölünebilme'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '⚖️',
-            title: 'Basit Eşitsizlikler',
-            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            title: 'Basit Eşitsizlikler'.tr(),
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test'.tr(),
             tint: const Color(0xFFEC4899),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/basit-esitsizlikler.html',
-                  title: 'Basit Eşitsizlikler',
+                  title: 'Basit Eşitsizlikler'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '🔢',
-            title: 'Sayı Basamakları',
-            subtitle: 'Basamak değeri ve sayı çözümleme',
+            title: 'Sayı Basamakları'.tr(),
+            subtitle: 'Basamak değeri ve sayı çözümleme'.tr(),
             tint: const Color(0xFFFFC857),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/sayi-basamaklari.html',
-                  title: 'Sayı Basamakları',
+                  title: 'Sayı Basamakları'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '√',
-            title: 'Köklü Sayılar',
-            subtitle: 'Kök, üs ve rasyonel ifadeler — 3B sahneler',
+            title: 'Köklü Sayılar'.tr(),
+            subtitle: 'Kök, üs ve rasyonel ifadeler — 3B sahneler'.tr(),
             tint: const Color(0xFF22C55E),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/koklu-sayilar.html',
-                  title: 'Köklü Sayılar',
+                  title: 'Köklü Sayılar'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '|x|',
-            title: 'Mutlak Değer',
-            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            title: 'Mutlak Değer'.tr(),
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test'.tr(),
             tint: const Color(0xFFF59E0B),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/mutlak-deger.html',
-                  title: 'Mutlak Değer',
+                  title: 'Mutlak Değer'.tr(),
                 ),
               ),
             ),
@@ -651,14 +651,14 @@ class Edu3DMatematikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🔀',
-            title: 'Permütasyon ve Kombinasyon',
-            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            title: 'Permütasyon ve Kombinasyon'.tr(),
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test'.tr(),
             tint: const Color(0xFF14B8A6),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/permutasyon-kombinasyon.html',
-                  title: 'Permütasyon ve Kombinasyon',
+                  title: 'Permütasyon ve Kombinasyon'.tr(),
                 ),
               ),
             ),
@@ -666,14 +666,14 @@ class Edu3DMatematikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '📐',
-            title: 'İkinci Dereceden Denklemler',
-            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            title: 'İkinci Dereceden Denklemler'.tr(),
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test'.tr(),
             tint: const Color(0xFFEF4444),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/ikinci-dereceden-denklemler.html',
-                  title: 'İkinci Dereceden Denklemler',
+                  title: 'İkinci Dereceden Denklemler'.tr(),
                 ),
               ),
             ),
@@ -681,14 +681,14 @@ class Edu3DMatematikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🎲',
-            title: 'Olasılık',
-            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            title: 'Olasılık'.tr(),
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test'.tr(),
             tint: const Color(0xFF8B5CF6),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/olasilik.html',
-                  title: 'Olasılık',
+                  title: 'Olasılık'.tr(),
                 ),
               ),
             ),
@@ -696,14 +696,14 @@ class Edu3DMatematikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '📊',
-            title: 'Veri ve İstatistik',
-            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            title: 'Veri ve İstatistik'.tr(),
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test'.tr(),
             tint: const Color(0xFF0EA5E9),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/veri-istatistik.html',
-                  title: 'Veri ve İstatistik',
+                  title: 'Veri ve İstatistik'.tr(),
                 ),
               ),
             ),
@@ -711,14 +711,14 @@ class Edu3DMatematikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '📐',
-            title: 'Geometri',
-            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test',
+            title: 'Geometri'.tr(),
+            subtitle: '10 konu × 5 seviye, 3B sahneler, parametrik test'.tr(),
             tint: const Color(0xFFEC4899),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/geometri.html',
-                  title: 'Geometri',
+                  title: 'Geometri'.tr(),
                 ),
               ),
             ),
@@ -764,14 +764,14 @@ class Edu3DGeometriScreen extends StatelessWidget {
         children: [
           _TopicCard(
             emoji: '📐',
-            title: 'Geometrik Cisimler ve Hesaplamalar',
-            subtitle: 'Küp, prizma, silindir, koni, küre — hacim & alan',
+            title: 'Geometrik Cisimler ve Hesaplamalar'.tr(),
+            subtitle: 'Küp, prizma, silindir, koni, küre — hacim & alan'.tr(),
             tint: const Color(0xFFEAB308),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/geometrik-cisimler.html',
-                  title: 'Geometrik Cisimler ve Hesaplamalar',
+                  title: 'Geometrik Cisimler ve Hesaplamalar'.tr(),
                 ),
               ),
             ),
@@ -816,14 +816,14 @@ class Edu3DFizikScreen extends StatelessWidget {
         children: [
           _TopicCard(
             emoji: '⚛️',
-            title: 'Maddenin Yapısı ve Özellikleri',
-            subtitle: 'K-12 sınıf bazlı: İlkokul/Ortaokul/Lise — duyular, haller, tanecikler, atom, basınç, kuantum',
+            title: 'Maddenin Yapısı ve Özellikleri'.tr(),
+            subtitle: 'K-12 sınıf bazlı: İlkokul/Ortaokul/Lise — duyular, haller, tanecikler, atom, basınç, kuantum'.tr(),
             tint: const Color(0xFF7C3AED),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/maddenin-yapisi.html',
-                  title: 'Maddenin Yapısı',
+                  title: 'Maddenin Yapısı'.tr(),
                 ),
               ),
             ),
@@ -831,14 +831,14 @@ class Edu3DFizikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🔦',
-            title: 'Gölge Oluşumu ve Işığın Yayılması',
-            subtitle: 'Doğrusal yayılma, tam/yarı gölge, tutulmalar, iğne deliği kamerası',
+            title: 'Gölge Oluşumu ve Işığın Yayılması'.tr(),
+            subtitle: 'Doğrusal yayılma, tam/yarı gölge, tutulmalar, iğne deliği kamerası'.tr(),
             tint: const Color(0xFF7C3AED),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/golge-olusumu-isik-yayilmasi.html',
-                  title: 'Gölge Oluşumu ve Işığın Yayılması',
+                  title: 'Gölge Oluşumu ve Işığın Yayılması'.tr(),
                 ),
               ),
             ),
@@ -846,14 +846,14 @@ class Edu3DFizikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🧭',
-            title: 'Bileşke Kuvvet ve Vektörler',
-            subtitle: 'Vektörün bileşenleri, paralelkenar, dik/açılı kuvvetler, denge, eğik düzlem, bağıl hız',
+            title: 'Bileşke Kuvvet ve Vektörler'.tr(),
+            subtitle: 'Vektörün bileşenleri, paralelkenar, dik/açılı kuvvetler, denge, eğik düzlem, bağıl hız'.tr(),
             tint: const Color(0xFF7C3AED),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/bileske-kuvvet-vektorler.html',
-                  title: 'Bileşke Kuvvet ve Vektörler',
+                  title: 'Bileşke Kuvvet ve Vektörler'.tr(),
                 ),
               ),
             ),
@@ -861,14 +861,14 @@ class Edu3DFizikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '⚙️',
-            title: 'Basit Makineler',
-            subtitle: 'Kaldıraç, makara, palanga, eğik düzlem, vida, çıkrık, dişli — kuvvet kazancı ve verim',
+            title: 'Basit Makineler'.tr(),
+            subtitle: 'Kaldıraç, makara, palanga, eğik düzlem, vida, çıkrık, dişli — kuvvet kazancı ve verim'.tr(),
             tint: const Color(0xFF7C3AED),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/basit-makineler.html',
-                  title: 'Basit Makineler',
+                  title: 'Basit Makineler'.tr(),
                 ),
               ),
             ),
@@ -876,14 +876,14 @@ class Edu3DFizikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🌊',
-            title: 'Dalgalar',
-            subtitle: 'Temel kavramlar, dalga hızı, yansıma/kırılma/kırınım/girişim, ses/deprem dalgaları, Doppler, EM spektrum',
+            title: 'Dalgalar'.tr(),
+            subtitle: 'Temel kavramlar, dalga hızı, yansıma/kırılma/kırınım/girişim, ses/deprem dalgaları, Doppler, EM spektrum'.tr(),
             tint: const Color(0xFF7C3AED),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/dalgalar.html',
-                  title: 'Dalgalar',
+                  title: 'Dalgalar'.tr(),
                 ),
               ),
             ),
@@ -891,14 +891,14 @@ class Edu3DFizikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🔍',
-            title: 'Işığın Kırılması ve Mercekler',
-            subtitle: 'Kırılma, Snell, tam yansıma, prizma, mercekler, aynalar, göz, aydınlanma ve renk',
+            title: 'Işığın Kırılması ve Mercekler'.tr(),
+            subtitle: 'Kırılma, Snell, tam yansıma, prizma, mercekler, aynalar, göz, aydınlanma ve renk'.tr(),
             tint: const Color(0xFF7C3AED),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/optik-mercekler.html',
-                  title: 'Işığın Kırılması ve Mercekler',
+                  title: 'Işığın Kırılması ve Mercekler'.tr(),
                 ),
               ),
             ),
@@ -906,14 +906,14 @@ class Edu3DFizikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '⚡',
-            title: 'Elektrik',
-            subtitle: 'Elektrostatik, yük, alan, potansiyel, devreler, Ohm, direnç, kondansatör, güç',
+            title: 'Elektrik'.tr(),
+            subtitle: 'Elektrostatik, yük, alan, potansiyel, devreler, Ohm, direnç, kondansatör, güç'.tr(),
             tint: const Color(0xFF7C3AED),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/elektrik.html',
-                  title: 'Elektrik',
+                  title: 'Elektrik'.tr(),
                 ),
               ),
             ),
@@ -921,14 +921,14 @@ class Edu3DFizikScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🌊',
-            title: 'Basınç ve Kaldırma Kuvveti',
-            subtitle: 'Batma/yüzme, özkütle, Arşimet, katı/sıvı/açık hava basıncı, Pascal, bileşik kaplar, Bernoulli',
+            title: 'Basınç ve Kaldırma Kuvveti'.tr(),
+            subtitle: 'Batma/yüzme, özkütle, Arşimet, katı/sıvı/açık hava basıncı, Pascal, bileşik kaplar, Bernoulli'.tr(),
             tint: const Color(0xFF7C3AED),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/akiskanlar-mekanigi.html',
-                  title: 'Basınç ve Kaldırma Kuvveti',
+                  title: 'Basınç ve Kaldırma Kuvveti'.tr(),
                 ),
               ),
             ),
@@ -974,119 +974,119 @@ class Edu3DKimyaScreen extends StatelessWidget {
           // ── KİMYA KONULARI ──
           _TopicCard(
             emoji: '⚛️',
-            title: 'Atom Teorisi ve Kuantum Orbitalleri',
-            subtitle: 'Atom yapısı, modeller (Dalton→Bohr→Modern), Rutherford, izotop, iyon, Bohr/spektrum, kuantum sayıları, s/p/d/f orbitalleri',
+            title: 'Atom Teorisi ve Kuantum Orbitalleri'.tr(),
+            subtitle: 'Atom yapısı, modeller (Dalton→Bohr→Modern), Rutherford, izotop, iyon, Bohr/spektrum, kuantum sayıları, s/p/d/f orbitalleri'.tr(),
             tint: const Color(0xFFE11D48),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/atom-teorisi-orbitaller.html',
-                  title: 'Atom Teorisi ve Orbitaller',
+                  title: 'Atom Teorisi ve Orbitaller'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '🔗',
-            title: 'Kimyasal Türler Arası Etkileşimler (Bağlar)',
+            title: 'Kimyasal Türler Arası Etkileşimler (Bağlar)'.tr(),
             subtitle:
-                'İyonik/kovalent/metalik bağ, polar-apolar, NaCl örgü, London/dipol/iyon-dipol, hidrojen bağı, su ve buz',
+                'İyonik/kovalent/metalik bağ, polar-apolar, NaCl örgü, London/dipol/iyon-dipol, hidrojen bağı, su ve buz'.tr(),
             tint: const Color(0xFFE11D48),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/kimyasal-baglar.html',
-                  title: 'Kimyasal Bağlar',
+                  title: 'Kimyasal Bağlar'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '🧪',
-            title: 'Karışımlar ve Çözeltiler',
+            title: 'Karışımlar ve Çözeltiler'.tr(),
             subtitle:
-                'Saf madde/karışım, homojen-heterojen, çözünme, ayırma teknikleri, Tyndall, derişim, koligatif, ozmos, çözünürlük dengesi',
+                'Saf madde/karışım, homojen-heterojen, çözünme, ayırma teknikleri, Tyndall, derişim, koligatif, ozmos, çözünürlük dengesi'.tr(),
             tint: const Color(0xFFE11D48),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/karisimlar-cozeltiler.html',
-                  title: 'Karışımlar ve Çözeltiler',
+                  title: 'Karışımlar ve Çözeltiler'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '⚗️',
-            title: 'Kimyasal Tepkimeler ve Tepkime Hızı',
+            title: 'Kimyasal Tepkimeler ve Tepkime Hızı'.tr(),
             subtitle:
-                'Tepkime belirtileri, kütlenin korunumu, bağ enerjisi, sentez/analiz/yanma/nötrleşme, çarpışma teorisi, aktivasyon enerjisi, katalizör',
+                'Tepkime belirtileri, kütlenin korunumu, bağ enerjisi, sentez/analiz/yanma/nötrleşme, çarpışma teorisi, aktivasyon enerjisi, katalizör'.tr(),
             tint: const Color(0xFFE11D48),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/kimyasal-tepkimeler.html',
-                  title: 'Kimyasal Tepkimeler',
+                  title: 'Kimyasal Tepkimeler'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '⚛️',
-            title: 'Atom ve Periyodik Sistem',
+            title: 'Atom ve Periyodik Sistem'.tr(),
             subtitle:
-                'Atomun yapısı, atom modelleri (Dalton→Bohr), katman dizilimi, spektrum, yörünge/orbital, kuantum sayıları, elektron dizilimi, periyodik bloklar',
+                'Atomun yapısı, atom modelleri (Dalton→Bohr), katman dizilimi, spektrum, yörünge/orbital, kuantum sayıları, elektron dizilimi, periyodik bloklar'.tr(),
             tint: const Color(0xFFE11D48),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/atom-periyodik.html',
-                  title: 'Atom ve Periyodik Sistem',
+                  title: 'Atom ve Periyodik Sistem'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '🧪',
-            title: 'Organik Kimya',
+            title: 'Organik Kimya'.tr(),
             subtitle:
-                'Karbon kimyası, hidrokarbonlar, alkan/alken/alkin, fonksiyonel gruplar, izomeri, kiralite, benzen, polimerler, biyomoleküller',
+                'Karbon kimyası, hidrokarbonlar, alkan/alken/alkin, fonksiyonel gruplar, izomeri, kiralite, benzen, polimerler, biyomoleküller'.tr(),
             tint: const Color(0xFFE11D48),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/organik-kimya.html',
-                  title: 'Organik Kimya',
+                  title: 'Organik Kimya'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '🔷',
-            title: 'Molekül Geometrisi (VSEPR)',
+            title: 'Molekül Geometrisi (VSEPR)'.tr(),
             subtitle:
-                'Molekül şekilleri, elektron çiftleri, VSEPR, hibritleşme (sp/sp²/sp³), sigma/pi bağları, dipol momenti, polarite',
+                'Molekül şekilleri, elektron çiftleri, VSEPR, hibritleşme (sp/sp²/sp³), sigma/pi bağları, dipol momenti, polarite'.tr(),
             tint: const Color(0xFFE11D48),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/molekul-geometrisi.html',
-                  title: 'Molekül Geometrisi',
+                  title: 'Molekül Geometrisi'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '🧮',
-            title: 'Mol ve Stokiyometri',
+            title: 'Mol ve Stokiyometri'.tr(),
             subtitle:
-                'Mol kavramı, Avogadro sayısı, molar kütle/hacim, denklem denkleştirme, mol oranları, sınırlayıcı bileşen, verim, kütle hesabı',
+                'Mol kavramı, Avogadro sayısı, molar kütle/hacim, denklem denkleştirme, mol oranları, sınırlayıcı bileşen, verim, kütle hesabı'.tr(),
             tint: const Color(0xFFE11D48),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/mol-stokiyometri.html',
-                  title: 'Mol ve Stokiyometri',
+                  title: 'Mol ve Stokiyometri'.tr(),
                 ),
               ),
             ),
@@ -1131,14 +1131,14 @@ class Edu3DBiyolojiScreen extends StatelessWidget {
         children: [
           _TopicCard(
             emoji: '🧠',
-            title: 'Denetleyici ve Düzenleyici Sistem',
-            subtitle: 'Sinir sistemi, hormonlar, refleks',
+            title: 'Denetleyici ve Düzenleyici Sistem'.tr(),
+            subtitle: 'Sinir sistemi, hormonlar, refleks'.tr(),
             tint: const Color(0xFF16A34A),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/denetleyici-duzenleyici-sistem.html',
-                  title: 'Denetleyici ve Düzenleyici Sistem',
+                  title: 'Denetleyici ve Düzenleyici Sistem'.tr(),
                 ),
               ),
             ),
@@ -1146,14 +1146,14 @@ class Edu3DBiyolojiScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🦴',
-            title: 'Destek ve Hareket Sistemi',
-            subtitle: 'Kemikler, kaslar, eklemler',
+            title: 'Destek ve Hareket Sistemi'.tr(),
+            subtitle: 'Kemikler, kaslar, eklemler'.tr(),
             tint: const Color(0xFF16A34A),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/destek-hareket-sistemi.html',
-                  title: 'Destek ve Hareket Sistemi',
+                  title: 'Destek ve Hareket Sistemi'.tr(),
                 ),
               ),
             ),
@@ -1161,14 +1161,14 @@ class Edu3DBiyolojiScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🍽️',
-            title: 'Sindirim Sistemi',
-            subtitle: 'Ağız, mide, bağırsaklar, sindirim',
+            title: 'Sindirim Sistemi'.tr(),
+            subtitle: 'Ağız, mide, bağırsaklar, sindirim'.tr(),
             tint: const Color(0xFF16A34A),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/sindirim-sistemi.html',
-                  title: 'Sindirim Sistemi',
+                  title: 'Sindirim Sistemi'.tr(),
                 ),
               ),
             ),
@@ -1176,14 +1176,14 @@ class Edu3DBiyolojiScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🫀',
-            title: 'Dolaşım Sistemi',
-            subtitle: 'Kalp, damarlar, kan, dolaşım',
+            title: 'Dolaşım Sistemi'.tr(),
+            subtitle: 'Kalp, damarlar, kan, dolaşım'.tr(),
             tint: const Color(0xFF16A34A),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/dolasim-sistemi.html',
-                  title: 'Dolaşım Sistemi',
+                  title: 'Dolaşım Sistemi'.tr(),
                 ),
               ),
             ),
@@ -1191,14 +1191,14 @@ class Edu3DBiyolojiScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🫘',
-            title: 'Boşaltım Sistemi',
-            subtitle: 'Böbrek, nefron, idrar, mesane',
+            title: 'Boşaltım Sistemi'.tr(),
+            subtitle: 'Böbrek, nefron, idrar, mesane'.tr(),
             tint: const Color(0xFF16A34A),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/bosaltim-sistemi.html',
-                  title: 'Boşaltım Sistemi',
+                  title: 'Boşaltım Sistemi'.tr(),
                 ),
               ),
             ),
@@ -1206,14 +1206,14 @@ class Edu3DBiyolojiScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🌱',
-            title: 'Üreme Sistemi ve Embriyonal Gelişim',
-            subtitle: 'Erkek/kadın üreme, gametler, döllenme, gebelik',
+            title: 'Üreme Sistemi ve Embriyonal Gelişim'.tr(),
+            subtitle: 'Erkek/kadın üreme, gametler, döllenme, gebelik'.tr(),
             tint: const Color(0xFF16A34A),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/ureme-sistemi.html',
-                  title: 'Üreme Sistemi',
+                  title: 'Üreme Sistemi'.tr(),
                 ),
               ),
             ),
@@ -1221,14 +1221,14 @@ class Edu3DBiyolojiScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🔬',
-            title: 'Hücre ve Organelleri',
-            subtitle: 'Hayvan/bitki hücresi, çekirdek, mitokondri, organeller',
+            title: 'Hücre ve Organelleri'.tr(),
+            subtitle: 'Hayvan/bitki hücresi, çekirdek, mitokondri, organeller'.tr(),
             tint: const Color(0xFF16A34A),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/hucre-organeller.html',
-                  title: 'Hücre ve Organelleri',
+                  title: 'Hücre ve Organelleri'.tr(),
                 ),
               ),
             ),
@@ -1236,14 +1236,14 @@ class Edu3DBiyolojiScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🧬',
-            title: 'DNA Yapısı ve Replikasyon',
-            subtitle: 'Çift sarmal, nükleotit, replikasyon, RNA, protein sentezi',
+            title: 'DNA Yapısı ve Replikasyon'.tr(),
+            subtitle: 'Çift sarmal, nükleotit, replikasyon, RNA, protein sentezi'.tr(),
             tint: const Color(0xFF16A34A),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/dna-replikasyon.html',
-                  title: 'DNA Yapısı ve Replikasyon',
+                  title: 'DNA Yapısı ve Replikasyon'.tr(),
                 ),
               ),
             ),
@@ -1251,70 +1251,70 @@ class Edu3DBiyolojiScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _TopicCard(
             emoji: '🔬',
-            title: 'Mitoz ve Mayoz Bölünme',
-            subtitle: 'Hücre döngüsü, mitoz/mayoz evreleri, krossing-over, gametler',
+            title: 'Mitoz ve Mayoz Bölünme'.tr(),
+            subtitle: 'Hücre döngüsü, mitoz/mayoz evreleri, krossing-over, gametler'.tr(),
             tint: const Color(0xFF16A34A),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/mitoz-mayoz.html',
-                  title: 'Mitoz ve Mayoz Bölünme',
+                  title: 'Mitoz ve Mayoz Bölünme'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '🌿',
-            title: 'Bitki Anatomisi',
-            subtitle: 'Bitkisel dokular, kök/gövde kesitleri, yaprak, stoma ve terleme',
+            title: 'Bitki Anatomisi'.tr(),
+            subtitle: 'Bitkisel dokular, kök/gövde kesitleri, yaprak, stoma ve terleme'.tr(),
             tint: const Color(0xFF16A34A),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/bitki-anatomisi.html',
-                  title: 'Bitki Anatomisi',
+                  title: 'Bitki Anatomisi'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '🌞',
-            title: 'Fotosentez',
-            subtitle: 'Kloroplast, ışık reaksiyonları, Calvin döngüsü, C3/C4/CAM',
+            title: 'Fotosentez'.tr(),
+            subtitle: 'Kloroplast, ışık reaksiyonları, Calvin döngüsü, C3/C4/CAM'.tr(),
             tint: const Color(0xFF16A34A),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/fotosentez.html',
-                  title: 'Fotosentez',
+                  title: 'Fotosentez'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '🌍',
-            title: 'Ekosistem ve Besin Zinciri',
-            subtitle: 'Üretici/tüketici/ayrıştırıcı, besin ağı, enerji piramidi, madde döngüleri',
+            title: 'Ekosistem ve Besin Zinciri'.tr(),
+            subtitle: 'Üretici/tüketici/ayrıştırıcı, besin ağı, enerji piramidi, madde döngüleri'.tr(),
             tint: const Color(0xFF16A34A),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/ekosistem-besin-zinciri.html',
-                  title: 'Ekosistem ve Besin Zinciri',
+                  title: 'Ekosistem ve Besin Zinciri'.tr(),
                 ),
               ),
             ),
           ),
           _TopicCard(
             emoji: '🧬',
-            title: 'Kalıtım, Genotip ve Fenotip',
-            subtitle: 'DNA→kromozom, Mendel yasaları, çaprazlamalar, kan grupları, X\'e bağlı kalıtım',
+            title: 'Kalıtım, Genotip ve Fenotip'.tr(),
+            subtitle: 'DNA→kromozom, Mendel yasaları, çaprazlamalar, kan grupları, X\'e bağlı kalıtım'.tr(),
             tint: const Color(0xFF16A34A),
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => const Lesson3DScreen(
+                builder: (_) => Lesson3DScreen(
                   assetHtml: 'assets/kalitim-genotip-fenotip.html',
-                  title: 'Kalıtım, Genotip ve Fenotip',
+                  title: 'Kalıtım, Genotip ve Fenotip'.tr(),
                 ),
               ),
             ),

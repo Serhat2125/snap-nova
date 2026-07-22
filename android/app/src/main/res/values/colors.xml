@@ -3,4 +3,7 @@
     <!-- Splash arka plan rengi — TAM BEYAZ. Flutter splash da beyaz
          olduğu için geçiş kesintisiz. -->
     <color name="qualsar_splash_bg">#FFFFFF</color>
+    <!-- Bildirim ikonunun boyama rengi (marka yeşili) — status bar ikonu
+         beyaz silüet, açılır bildirimde bu renkle boyanır. -->
+    <color name="qualsar_notification">#00DC3C</color>
 </resources>

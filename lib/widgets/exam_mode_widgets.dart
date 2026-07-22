@@ -66,7 +66,7 @@ class ExamModeCard extends StatelessWidget {
         onTap: onTap,
         child: Container(
           padding: EdgeInsets.symmetric(
-              horizontal: 16, vertical: compact ? 12 : 14),
+              horizontal: 18, vertical: compact ? 16 : 20),
           decoration: BoxDecoration(
             // Her iki varyantta da iç TAM BEYAZ (kullanıcı isteği; eskiden
             // normal varyant teal tonluydu).
@@ -106,7 +106,7 @@ class ExamModeCard extends StatelessWidget {
                                     : 'Sınav moduyla devam etmek ister misin?')
                                 .tr(),
                             style: GoogleFonts.inter(
-                              fontSize: compact ? 15 : 13.5,
+                              fontSize: compact ? 16.5 : 16,
                               fontWeight: FontWeight.w800,
                               color: const Color(0xFF111111),
                               height: 1.25,
@@ -118,7 +118,7 @@ class ExamModeCard extends StatelessWidget {
                                 ? examsHint
                                 : '(LGS, YKS, KPSS…)',
                             style: GoogleFonts.inter(
-                              fontSize: 13,
+                              fontSize: 14.5,
                               fontWeight: FontWeight.w800,
                               color: kExamModeAccent,
                               letterSpacing: 0.2,
@@ -128,7 +128,7 @@ class ExamModeCard extends StatelessWidget {
                       ),
               ),
               const SizedBox(width: 6),
-              Icon(Icons.chevron_right_rounded, color: kExamModeAccent, size: 22),
+              Icon(Icons.chevron_right_rounded, color: kExamModeAccent, size: 28),
             ],
           ),
         ),

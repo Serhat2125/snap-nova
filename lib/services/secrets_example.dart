@@ -14,6 +14,9 @@ class Secrets {
   /// Boş bırakılabilir; gerçek anahtarlarını secrets.dart'ta doldur.
   static const List<String> geminiFallbacks = [];
 
-  /// OpenAI API key (Gemini kotası dolunca fallback). Boş bırakılabilir.
+  /// OpenAI API key (Gemini kotası dolunca 2. sıra fallback). Boş bırakılabilir.
   static const openai = '';
+
+  /// xAI (Grok) API key (OpenAI de olmazsa 3. sıra fallback). Boş bırakılabilir.
+  static const grok = '';
 }

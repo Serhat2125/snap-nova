@@ -23,6 +23,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'error_logger.dart';
+import 'user_profile_service.dart';
 
 // Eşleşme isteği kriterleri.
 class DueloMatchCriteria {
@@ -40,6 +41,11 @@ class DueloMatchCriteria {
   final String subjectKey;
   final String? topic;
   final int elo;
+  /// Oyun tipi: 'test' (soru çözme) | 'match' (eşleştirme kartları).
+  /// Kuyruk filtresine dahildir — eskiden kriter değildi ve test arayan,
+  /// eşleştirme arayanla "eşleşip" iki tarafın da kilitlenmesine yol
+  /// açabiliyordu (uyumsuz modlar aynı session'a düşüyordu).
+  final String raceType;
 
   DueloMatchCriteria({
     required this.userId,
@@ -54,6 +60,7 @@ class DueloMatchCriteria {
     required this.subjectKey,
     this.topic,
     this.elo = 1000,
+    this.raceType = 'test',
   });
 
   Map<String, dynamic> toMap() => {
@@ -69,6 +76,7 @@ class DueloMatchCriteria {
         'subjectKey': subjectKey,
         'topic': topic,
         'elo': elo,
+        'raceType': raceType,
         'status': 'waiting',
         'createdAt': FieldValue.serverTimestamp(),
       };
@@ -198,7 +206,10 @@ class DueloMatchmakingService {
           .where('scope', isEqualTo: c.scope)
           .where('level', isEqualTo: c.level)
           .where('grade', isEqualTo: c.grade)
-          .where('subjectKey', isEqualTo: c.subjectKey);
+          .where('subjectKey', isEqualTo: c.subjectKey)
+          // Oyun tipi eşleşmesi — test arayanla eşleştirme arayan artık
+          // birbirine düşmez.
+          .where('raceType', isEqualTo: c.raceType);
       if (c.scope == 'country') {
         q = q.where('country', isEqualTo: c.country);
       }
@@ -206,9 +217,21 @@ class DueloMatchmakingService {
       // Topic varsa önce topic-eşleşen aday; yoksa aynı dersten herhangi biri
       // (lobby aşamasında konu zorunlu tutulmuyorsa bu esnek).
       final snap = await q.limit(10).get();
-      final candidates = snap.docs
-          .where((d) => d.data()['userId'] != c.userId)
-          .toList();
+      final now = DateTime.now();
+      final candidates = snap.docs.where((d) {
+        final m = d.data();
+        if (m['userId'] == c.userId) return false;
+        // HAYALET kayıt filtresi: uygulama beklerken kill edilirse queue doc
+        // 'waiting' olarak sonsuza dek kalıyordu; sonraki kullanıcı bu ölü
+        // kayıtla "eşleşip" hiç gelmeyecek rakibi bekliyordu. 3 dk'dan eski
+        // kayıtlar aday sayılmaz.
+        final ts = m['createdAt'];
+        if (ts is Timestamp &&
+            now.difference(ts.toDate()) > const Duration(minutes: 3)) {
+          return false;
+        }
+        return true;
+      }).toList();
 
       // Topic tercihi: eşleşen topic varsa önce onlar.
       DocumentSnapshot<Map<String, dynamic>>? pick;
@@ -247,46 +270,65 @@ class DueloMatchmakingService {
           'elo': pickData['elo'] ?? 1000,
         };
 
-        await db.runTransaction((tx) async {
-          tx.set(sessionRef, {
-            'ownerUserId':
-                ownerIsMe ? c.userId : pickData['userId'],
-            'playerA': playerA,
-            'playerB': playerB,
-            'subjectKey': c.subjectKey,
-            'topic': c.topic ?? pickData['topic'],
-            'scope': c.scope,
-            'createdAt': FieldValue.serverTimestamp(),
-            'questions': [], // owner üretecek
-            'progress': {
-              c.userId: {'solved': 0, 'finished': false, 'elapsed': 0},
-              pickData['userId']: {
-                'solved': 0,
-                'finished': false,
-                'elapsed': 0,
+        // YARIŞ KOŞULU DÜZELTMESİ: iki kullanıcı aynı bekleyen adayı aynı
+        // anda seçerse eskiden iki ayrı session açılıyor, ikinci yazan
+        // matchedSessionId'yi eziyor ve ilk session'ın sahibi rakipsiz
+        // oturuma kilitleniyordu. Artık transaction adayı YENİDEN OKUR;
+        // hâlâ 'waiting' değilse claim başarısız sayılır ve kuyruğa girilir.
+        var claimed = true;
+        try {
+          await db.runTransaction((tx) async {
+            final fresh = await tx.get(pick!.reference);
+            if ((fresh.data()?['status'] ?? '') != 'waiting') {
+              throw StateError('candidate-already-matched');
+            }
+            tx.set(sessionRef, {
+              'ownerUserId':
+                  ownerIsMe ? c.userId : pickData['userId'],
+              'playerA': playerA,
+              'playerB': playerB,
+              'subjectKey': c.subjectKey,
+              'topic': c.topic ?? pickData['topic'],
+              'scope': c.scope,
+              'raceType': c.raceType,
+              'createdAt': FieldValue.serverTimestamp(),
+              'questions': [], // owner üretecek
+              'progress': {
+                c.userId: {'solved': 0, 'finished': false, 'elapsed': 0},
+                pickData['userId']: {
+                  'solved': 0,
+                  'finished': false,
+                  'elapsed': 0,
+                },
               },
-            },
+            });
+            tx.update(pick.reference, {
+              'status': 'matched',
+              'matchedSessionId': sessionId,
+              'matchedAt': FieldValue.serverTimestamp(),
+            });
           });
-          tx.update(pick!.reference, {
-            'status': 'matched',
-            'matchedSessionId': sessionId,
-            'matchedAt': FieldValue.serverTimestamp(),
-          });
-        });
+        } catch (e) {
+          _log('Aday başka biriyle eşleşmiş, kuyruğa giriliyor: $e');
+          claimed = false;
+        }
 
-        _log('Eşleştirildi → session $sessionId (owner=$ownerIsMe)');
-        return DueloMatchResult(
-          sessionId: sessionId,
-          opponentUserId: (pickData['userId'] ?? '').toString(),
-          opponentUsername:
-              (pickData['username'] ?? 'anonim').toString(),
-          opponentFlag: (pickData['flag'] ?? '🏳️').toString(),
-          opponentCountry: (pickData['country'] ?? '').toString(),
-          opponentCity: (pickData['city'] ?? '').toString(),
-          opponentElo:
-              (pickData['elo'] as num?)?.toInt() ?? 1000,
-          isOwner: ownerIsMe,
-        );
+        if (claimed) {
+          _log('Eşleştirildi → session $sessionId (owner=$ownerIsMe)');
+          return DueloMatchResult(
+            sessionId: sessionId,
+            opponentUserId: (pickData['userId'] ?? '').toString(),
+            opponentUsername:
+                (pickData['username'] ?? 'anonim').toString(),
+            opponentFlag: (pickData['flag'] ?? '🏳️').toString(),
+            opponentCountry: (pickData['country'] ?? '').toString(),
+            opponentCity: (pickData['city'] ?? '').toString(),
+            opponentElo:
+                (pickData['elo'] as num?)?.toInt() ?? 1000,
+            isOwner: ownerIsMe,
+          );
+        }
+        // claim başarısız → aşağıdaki kuyruk yoluna düş.
       }
 
       // ── Rakip yok. Kendimizi kuyruğa koy + snapshot dinle. ──────────
@@ -409,25 +451,48 @@ class DueloMatchmakingService {
         .snapshots();
   }
 
-  // Rövanş isteği — rakibin userId'sini biliyorsak Firestore'a bildirim
-  // dokümanı yazar. Client tarafı bu koleksiyonu dinleyince bildirim gösterir.
-  // Şu an dev modda opponent mock olduğu için yalnızca best-effort log.
-  static Future<void> requestRematch({
+  // Rövanş isteği — GERÇEK düello daveti olarak gönderilir. Eski hâli hiçbir
+  // tarafın dinlemediği `rematch_requests` koleksiyonuna hedef uid'siz doc
+  // yazıyordu: buton "istek gönderildi" dese de karşıya HİÇ ulaşmıyordu.
+  // Artık kullanıcı adı `usernames/{name}` kaydından uid'ye çözülür ve normal
+  // davet (duelo_invites inbox + bildirim) yolu kullanılır.
+  /// true → davet gerçekten gönderildi; false → kullanıcı bulunamadı/hata.
+  static Future<bool> requestRematch({
     required String opponentUsername,
     required String subjectName,
     required String topicName,
   }) async {
     try {
       final db = FirebaseFirestore.instance;
-      await db.collection('rematch_requests').add({
-        'opponentUsername': opponentUsername,
-        'subjectName': subjectName,
-        'topicName': topicName,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      _log('Rövanş isteği yazıldı → @$opponentUsername');
+      // '@' önekiyle gelirse temizle (sonuç ekranı adları '@ad' basar).
+      final uname = opponentUsername.trim().toLowerCase().replaceFirst('@', '');
+      if (uname.isEmpty) return false;
+      String targetUid = '';
+      final reg = await db.collection('usernames').doc(uname).get();
+      targetUid = (reg.data()?['uid'] ?? '').toString();
+      // YEDEK: rezervasyon sistemi öncesi hesapların `usernames/{ad}` kaydı
+      // yok — rövanş HİÇ gönderilemiyordu. users koleksiyonundan çöz.
+      if (targetUid.isEmpty) {
+        final snap = await db
+            .collection('users')
+            .where('username', isEqualTo: uname)
+            .limit(1)
+            .get();
+        if (snap.docs.isNotEmpty) targetUid = snap.docs.first.id;
+      }
+      if (targetUid.isEmpty) {
+        _log('requestRematch: @$opponentUsername uid bulunamadı');
+        return false;
+      }
+      return invite(
+        targetUid: targetUid,
+        targetUsername: opponentUsername,
+        subjectKey: subjectName,
+        topic: topicName.isEmpty ? null : topicName,
+      );
     } catch (e) {
       _log('requestRematch hata: $e');
+      return false;
     }
   }
 
@@ -453,11 +518,25 @@ class DueloMatchmakingService {
       // Kendi profili (snapshot)
       final mySnap = await db.collection('users').doc(me).get();
       final myProfile = mySnap.data() ?? const <String, dynamic>{};
-      // Karşı tarafta DAİMA kullanıcı adı görünsün; boşsa displayName.
-      final myName = () {
-        final un = (myProfile['username'] ?? '').toString().trim();
-        return un.isNotEmpty ? un : (myProfile['displayName'] ?? '').toString();
-      }();
+      // Alıcı hem İSMİ hem kullanıcı adını görsün. users doc'u eksik/boşsa
+      // (profil hiç upsert edilmemiş) YEREL profile ve auth adına düşülür —
+      // eskiden her ikisi de boş kalınca push "Birisi seninle..." diyordu.
+      var myUname = (myProfile['username'] ?? '').toString().trim();
+      var myDisplay = (myProfile['displayName'] ?? '').toString().trim();
+      if (myUname.isEmpty || myDisplay.isEmpty) {
+        try {
+          final p = UserProfileService.instance;
+          await p.init(); // idempotent
+          if (myUname.isEmpty) myUname = p.username.trim();
+          if (myDisplay.isEmpty) myDisplay = p.displayName.trim();
+        } catch (_) {}
+      }
+      if (myDisplay.isEmpty) myDisplay = myUname;
+      if (myDisplay.isEmpty) {
+        myDisplay =
+            (FirebaseAuth.instance.currentUser?.displayName ?? '').trim();
+      }
+      final myName = myDisplay;
 
       // Davet doc'u — fromUid + profile snapshot ile (trigger function bunları okur)
       await db
@@ -467,7 +546,7 @@ class DueloMatchmakingService {
           .doc()
           .set({
         'fromUid': me,
-        'fromUsername': myProfile['username'] ?? '',
+        'fromUsername': myUname,
         'fromDisplayName': myName,
         'fromAvatar': myProfile['avatar'] ?? '',
         'targetUid': targetUid,
@@ -488,7 +567,7 @@ class DueloMatchmakingService {
           .set({
         'type': 'duelo_invite',
         'fromUid': me,
-        'fromUsername': myProfile['username'] ?? '',
+        'fromUsername': myUname,
         'fromDisplayName': myName,
         'fromAvatar': myProfile['avatar'] ?? '',
         'targetUsername': targetUsername,
@@ -517,13 +596,35 @@ class DueloMatchmakingService {
         .doc(me)
         .collection('inbox')
         .where('status', isEqualTo: 'pending')
-        .orderBy('sentAt', descending: true)
+        // orderBy('sentAt') KULLANILMAZ: (1) eşitlik + orderBy bileşik indeks
+        // ister, indeks yoksa sorgu HATA verip liste sessizce boş kalıyordu
+        // (zil rozeti/davet listesi "görünmüyor" şikayeti); (2) sentAt alanı
+        // henüz yazılmamış (pending serverTimestamp) doc'lar sorgudan
+        // düşürülüyordu. İstemcide sıralanır.
         .snapshots()
-        .map((s) => s.docs.map(DueloInvite.fromDoc).toList())
-        .handleError((e) {
-      debugPrint('[Duelo] watchInvites error: $e');
-      return const <DueloInvite>[];
-    });
+        .map((s) {
+          // SÜRE AŞIMI: davetler süresiz geçerliydi — saatler sonra kabul
+          // edilen davette gönderen çoktan gitmiş oluyor, kabul eden taraf
+          // hiç yazılmayacak soruları bekleyip kilitleniyordu. 2 saatten
+          // eski pending davetler listelenmez.
+          final cutoff =
+              DateTime.now().subtract(const Duration(hours: 2));
+          return s.docs
+              .map(DueloInvite.fromDoc)
+              .where((i) => i.sentAt.isAfter(cutoff))
+              .toList()
+            ..sort((a, b) => b.sentAt.compareTo(a.sentAt));
+        })
+        // handleError'ın return değeri YAYILMAZ (friend_service'te belgelenen
+        // aynı tuzak) — hata anında sink'e boş liste basılmazsa davet sheet'i
+        // sonsuz spinner'da kalıyordu.
+        .transform(
+            StreamTransformer<List<DueloInvite>, List<DueloInvite>>.fromHandlers(
+          handleError: (e, st, sink) {
+            debugPrint('[Duelo] watchInvites error: $e');
+            sink.add(const <DueloInvite>[]);
+          },
+        ));
   }
 
   /// Düello davetini kabul et → Cloud Function tetiklenir, session açar.

@@ -2102,15 +2102,21 @@ $solution''';
           maxTokens: 8192,
         );
         var text = aiText.replaceAll(RegExp(r'```json\s*'), '').replaceAll(RegExp(r'```\s*'), '').trim();
-        Map<String, dynamic> parsed;
-        try { parsed = jsonDecode(text) as Map<String, dynamic>; }
-        on FormatException { parsed = jsonDecode(_repairTruncatedJson(text)) as Map<String, dynamic>; }
+        // LaTeX-ağır JSON: tek backslash'lı komutları da kurtaran kademeli decode.
+        final parsed = _decodeAiJsonMap(text);
         if (parsed.containsKey('similar_questions') && parsed.containsKey('info_cards')) {
           final similarRaw = parsed['similar_questions'];
           final infoRaw    = parsed['info_cards'];
           if (similarRaw is List && infoRaw is List) return parsed;
         }
-      } catch (_) {}
+        _log('[!] fetchStudySuite: zincir yanıtı beklenen JSON şemasında değil, '
+            'doğrudan Gemini yoluna düşülüyor.');
+      } catch (e) {
+        // Zincir (Gemini → ChatGPT → Grok → DeepSeek) tamamen başarısız olursa
+        // aşağıdaki doğrudan Gemini yolu son çare olarak denenir.
+        _log('[!] fetchStudySuite: sağlayıcı zinciri başarısız ($e), '
+            'doğrudan Gemini yoluna düşülüyor.');
+      }
     }
 
     try {
@@ -2134,13 +2140,8 @@ $solution''';
         _log('[!] fetchStudySuite MAX_TOKENS — JSON yarıda kesildi.');
       }
       _log('fetchStudySuite OK: ${text.length} karakter');
-      try {
-        return jsonDecode(text) as Map<String, dynamic>;
-      } on FormatException {
-        // Yarım kapanmış JSON'u kurtarmaya çalış: eksik } ve ] ekle, deneme.
-        final repaired = _repairTruncatedJson(text);
-        return jsonDecode(repaired) as Map<String, dynamic>;
-      }
+      // Kademeli kurtarma: ham → LaTeX backslash/kontrol onar → truncation onar.
+      return _decodeAiJsonMap(text);
 
     } on GeminiException { rethrow; }
      on TimeoutException  { throw GeminiException.serverTimeout(); }
@@ -2174,6 +2175,67 @@ $solution''';
     while (square > 0) { t = '$t]'; square--; }
     while (curly  > 0) { t = '$t}'; curly--;  }
     return t;
+  }
+
+  /// LaTeX-ağır JSON dayanıklılığı: model, string DEĞERİ içinde tek backslash'lı
+  /// LaTeX komutu (\sqrt, \frac, \alpha, \( ...) yazınca bu geçersiz bir JSON
+  /// escape'i olur (\s, \f, \a) ve jsonDecode FormatException atar → TÜM içerik
+  /// boşa düşer. Bu fonksiyon YALNIZ string içindeyken: geçerli JSON escape
+  /// setinde OLMAYAN backslash'ları çiftler (\ → \\) ve ham satır sonu/tab'ı
+  /// escape'ler. test_page.parseTestQuestions'daki kanıtlanmış mantığın aynısı.
+  static String _sanitizeAiJson(String s) {
+    final sb = StringBuffer();
+    bool inStr = false;
+    bool esc = false;
+    for (int i = 0; i < s.length; i++) {
+      final c = s[i];
+      if (inStr) {
+        if (esc) {
+          sb.write(c);
+          esc = false;
+        } else if (c == '\\') {
+          final next = (i + 1 < s.length) ? s[i + 1] : '';
+          // Geçerli JSON escape'i ise aynen geçir; değilse backslash'ı çiftle.
+          if (next.isNotEmpty && '"\\/bfnrtu'.contains(next)) {
+            sb.write(c);
+            esc = true;
+          } else {
+            sb.write(r'\\');
+          }
+        } else if (c == '"') {
+          sb.write(c);
+          inStr = false;
+        } else if (c == '\n') {
+          sb.write(r'\n');
+        } else if (c == '\r') {
+          sb.write(r'\r');
+        } else if (c == '\t') {
+          sb.write(r'\t');
+        } else {
+          sb.write(c);
+        }
+      } else {
+        sb.write(c);
+        if (c == '"') inStr = true;
+      }
+    }
+    return sb.toString();
+  }
+
+  /// AI JSON'unu kademeli kurtarma ile decode eder:
+  /// ham → backslash/kontrol-karakteri onar → truncation onar.
+  /// Hiçbiri tutmazsa son FormatException'ı yükseltir.
+  static Map<String, dynamic> _decodeAiJsonMap(String text) {
+    try {
+      return jsonDecode(text) as Map<String, dynamic>;
+    } on FormatException {
+      try {
+        return jsonDecode(_sanitizeAiJson(text)) as Map<String, dynamic>;
+      } on FormatException {
+        return jsonDecode(_repairTruncatedJson(_sanitizeAiJson(text)))
+            as Map<String, dynamic>;
+      }
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -2760,16 +2822,18 @@ YAPI (sırayla):
 🔴 TUZAK: [öğrencilerin bu konuda en sık yaptığı 1 hata/kavram yanılgısı
    ve doğrusu — ders kitaplarının "sık yapılan yanlış" kutusu gibi]
 
-GÖRSEL KURALI: Konu görsel-zorunlu ise (hücre, anatomi, atom modeli,
-dalga, devre, optik, harita, geometri, kesir — veya ilkokul/ortaokul
-konusu) TEMEL KAVRAMLAR bölümünden sonra TAM 1 şema çiz:
+GÖRSEL KURALI: Konu bir SÜREÇ/AKIŞ içeriyorsa (besin zinciri, döngü,
+işlem sırası, enerji akışı vb.) TEMEL KAVRAMLAR bölümünden sonra TAM 1
+akış şeması ekle — YALNIZCA şu yapısal formatta:
    [ŞEMA: <Ad>]
-   <Unicode kutu/ok karakterleriyle kompakt çizim, 4-8 satır,
-    genişlik ≤ 45 karakter>
-   ─────────
-   <lejant: sembol = anlam satırları>
+   <Adım 1> → <Adım 2> → <Adım 3> → <Adım 4>
+   <Adım 1>: <tek cümle rolü/açıklaması>
+   <Adım 2>: <tek cümle rolü/açıklaması>
    [/ŞEMA]
-Görsel-zorunlu olmayan konuda şema YOK.
+KESİN YASAK: kutu/çizgi/ASCII-art karakterleri (│ ┌ └ ─ ▼ vb.),
+boşlukla hizalama, çok satırlı çizim. Şema SADECE tek satırlık → zinciri
++ "Ad: açıklama" satırlarından oluşur (uygulama bunu renkli kutulu
+diyagram olarak çizer). Akış içermeyen konuda şema YOK.
 
 DOĞRULUK: Sabit/tarih/formül değerleri ders kitabı konsensüsüyle birebir;
 emin olmadığın spesifik değeri yazma. Terminoloji, öğrencinin ülkesindeki
@@ -3731,6 +3795,68 @@ $historyBlock
      on TimeoutException  { throw GeminiException.serverTimeout(); }
      on SocketException   { throw GeminiException.noInternet(); }
      catch (e)            { throw GeminiException.unknown(e.toString()); }
+  }
+
+  // ── 3D DERS İÇİ "AI DESTEK" (hızlı konu öğretmeni) ────────────────────────
+  // 3D ders ekranındaki Araçlar → AI Destek yolu. Eskiden chatWithCoach'a
+  // gidiyordu: ~8 KB'lık AI KOÇ kimliği + güvenlik bloğu HER mesajda
+  // gönderiliyordu → hem yavaş hem de cevaplar koçluk tonuna kayıyordu
+  // (öğrenci konu sorusu soruyor, koç motivasyon dili kuruyor).
+  // Burada kompakt bir KONU ÖĞRETMENİ sistem promptu kullanılır; geçmiş de
+  // düz metne gömülmek yerine gerçek sohbet mesajları olarak geçirilir.
+  static Future<String> askLessonTutor({
+    required String question,
+    String topic = '',
+    String level = '',
+    String levelRule = '',
+    String styleRules = '',
+    List<Map<String, String>> history = const [],
+  }) async {
+    final sys = StringBuffer()
+      ..writeln(styleRules.isEmpty
+          ? 'Sen alanında uzman bir ders öğretmenisin. Kısa, net, düz metin cevap ver; markdown veya yıldız kullanma.'
+          : styleRules);
+    if (levelRule.isNotEmpty) sys.writeln(levelRule);
+    if (topic.isNotEmpty) sys.writeln('Öğrencinin incelediği konu: $topic');
+    if (level.isNotEmpty) sys.writeln('Öğrencinin seviyesi: $level');
+    sys.writeln(
+        'Yalnızca bu konuyla ilgili, doğrudan ve öğretici cevap ver. '
+        'Konu dışı istekleri kısaca derse yönlendir.');
+
+    // Son 6 mesaj yeter — uzun geçmiş gecikmeyi büyütür, faydası az.
+    final trimmed = history.length > 6
+        ? history.sublist(history.length - 6)
+        : history;
+    final msgs = <AiChatMessage>[
+      for (final m in trimmed)
+        AiChatMessage(m['role'] == 'user' ? 'user' : 'assistant',
+            (m['text'] ?? '').trim()),
+      AiChatMessage('user', question),
+    ];
+
+    if (AiProviderService.kEnabled) {
+      try {
+        final t = await AiProviderService.chatTask(
+          AiTask.factual, // hızlı zincir: Gemini flash → ChatGPT → DeepSeek → …
+          isPremium: AiQuotaService.instance.isPremium,
+          messages: msgs,
+          system: sys.toString(),
+          maxTokens: 600, // kısa cevap kuralıyla uyumlu; uzun üretim = gecikme
+          timeout: const Duration(seconds: 45),
+        );
+        if (t.trim().isNotEmpty) return t.trim();
+      } catch (e) {
+        _log('askLessonTutor çoklu başarısız → Gemini fallback: $e');
+      }
+    }
+    final text = await _callGemini(
+      systemPrompt: sys.toString(),
+      userMessage: question,
+      maxTokens: 600,
+      temperature: 0.5,
+      timeout: const Duration(seconds: 25),
+    );
+    return text.trim();
   }
 
   // ── KONUYA AİT TÜM FORMÜLLER ──────────────────────────────────────────────

@@ -63,6 +63,16 @@ service cloud.firestore {
       allow create: if true;
       allow read, update, delete: if isAdmin();
     }
+    //    question_error_reports → havuz sorusu "hatalı" bildirimi (düz kopya;
+    //    günlük admin özeti dailyReportDigest CF buradan sayar)
+    match /question_error_reports/{doc} {
+      allow create: if isSignedIn()
+        && request.resource.data.poolKey is string
+        && request.resource.data.questionId is string
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() < 500;
+      allow read, update, delete: if isAdmin();
+    }
 
     // ── users/{uid}: kullanıcı profili (arkadaş araması için public read) ─
     //    Read: oturum açmış herkes (username search, profil önizleme).
@@ -323,11 +333,66 @@ service cloud.firestore {
 
       match /questions/{qid} {
         allow read: if true;
-        allow create: if isAdmin(); // SADECE Cloud Function generator
+        // CF generator (admin) + istemci ORGANİK doluş (insertQuestions —
+        // AI'ın ürettiği test havuza yazılır ki sonraki öğrenci AI beklemesin).
+        // Eski hali admin-only idi → organik doluş sessizce reddediliyordu;
+        // labirent_pool ile aynı şema-doğrulamalı create'e açıldı.
+        allow create: if isAdmin()
+          || (isSignedIn()
+            && request.resource.data.stem is string
+            && request.resource.data.stem.size() >= 20
+            && request.resource.data.stem.size() < 2000
+            && request.resource.data.options is list
+            && request.resource.data.options.size() >= 2
+            && request.resource.data.options.size() <= 5
+            && request.resource.data.correctIndex is int
+            && request.resource.data.correctIndex >= 0
+            && request.resource.data.correctIndex
+                < request.resource.data.options.size());
         allow update: if isSignedIn()
           && request.resource.data.diff(resource.data).affectedKeys()
               .hasOnly(['timesServed', 'errorReports', 'reports']);
         allow delete: if isAdmin();
+      }
+    }
+
+    // ── labirent_pool: Bilgi Labirenti topluluk içerik havuzu ────────────
+    //   Read: herkes (havuzdan çekme). Parent doc: kullanıcı init edebilir,
+    //   sayaçları organik doluşta artırabilir. İçerik (q/f): imzalı kullanıcı
+    //   ŞEMA DOĞRULAMALI create edebilir (organik doluş) — CF judge/admin
+    //   temizler; update/delete yalnız admin.
+    match /labirent_pool/{key} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isAdmin()
+        || (isSignedIn() && request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['questionCount', 'factCount', 'updatedAt']));
+      allow delete: if isAdmin();
+
+      match /q/{qid} {
+        allow read: if true;
+        allow create: if isAdmin()
+          || (isSignedIn()
+            && request.resource.data.q is string
+            && request.resource.data.q.size() >= 10
+            && request.resource.data.q.size() < 2000
+            && request.resource.data.opts is list
+            && request.resource.data.opts.size() >= 3
+            && request.resource.data.opts.size() <= 5
+            && request.resource.data.a is int
+            && request.resource.data.a >= 0
+            && request.resource.data.a < request.resource.data.opts.size());
+        allow update, delete: if isAdmin();
+      }
+
+      match /f/{fid} {
+        allow read: if true;
+        allow create: if isAdmin()
+          || (isSignedIn()
+            && request.resource.data.t is string
+            && request.resource.data.t.size() >= 10
+            && request.resource.data.t.size() < 400);
+        allow update, delete: if isAdmin();
       }
     }
 
@@ -402,10 +467,22 @@ service cloud.firestore {
     //   viaCode kanıtıyla DOĞRUDAN 'active' bağlantıya izin verilir.
     //   Kod kullanılınca ebeveyn tarafından silinir (tek kullanımlık).
     match /parent_link_codes/{code} {
-      allow read: if isSignedIn();
+      // get: kodu ibraz eden veli childUid'i çözer (doc id'yi BİLMEK şart).
+      allow get: if isSignedIn();
+      // list: yalnız KENDİ kodlarını sorgulayan çocuk — eskiden `read` hem
+      // get hem list'e izin veriyordu: oturum açan herkes TÜM aktif kodları
+      // listeleyip rastgele çocuklara "veli" olarak bağlanabilirdi (kodun
+      // tahmin edilemezliği anlamsızlaşıyordu).
+      allow list: if isSignedIn()
+        && resource.data.childUid == request.auth.uid;
       allow create: if isSignedIn()
         && request.resource.data.childUid == request.auth.uid;
-      allow delete: if isSignedIn();
+      // delete: kodu üreten çocuk YA DA kodu az önce tüketip bağlanan veli
+      // (bağlantı dokümanı mevcut) — eskiden herkes herkesin kodunu silip
+      // bağlanmayı engelleyebiliyordu.
+      allow delete: if isSignedIn()
+        && (resource.data.childUid == request.auth.uid
+            || exists(/databases/$(database)/documents/parent_links/$(request.auth.uid)/children/$(resource.data.childUid)));
     }
 
     // ── classes/{classId}: öğretmen sınıfı ────────────────────────────────
@@ -422,8 +499,21 @@ service cloud.firestore {
       // students alt koleksiyonu — öğrenci kendini ekler, öğretmen yönetir
       //   (öğretmen ayrıca demo öğrenci ekleyebilir → önizleme/test için).
       match /students/{studentUid} {
-        allow read: if isSignedIn();
-        allow create: if isOwner(studentUid)
+        // Eskiden isSignedIn() — HERHANGİ bir kullanıcı herhangi bir sınıfın
+        // öğrenci listesini (isim/foto/ülke) çekebiliyordu. Artık yalnız:
+        // öğrencinin kendisi, bağlı velisi ve sınıf öğretmeni.
+        allow read: if isOwner(studentUid)
+          || isLinkedParent(studentUid)
+          || (isSignedIn()
+              && get(/databases/$(database)/documents/classes/$(classId))
+                  .data.teacherUid == request.auth.uid);
+        // Öğrencinin KENDİNİ eklemesi: ya 'pending' (kodla katılım, öğretmen
+        // onaylar) ya da öğretmenin yazdığı davet kanıtı (invites/{uid})
+        // mevcutsa doğrudan 'active'. Eskiden status hiç doğrulanmıyordu —
+        // classId'yi bilen herkes onay adımını atlayıp 'active' yazabiliyordu.
+        allow create: if (isOwner(studentUid)
+              && (request.resource.data.status == 'pending'
+                  || exists(/databases/$(database)/documents/classes/$(classId)/invites/$(studentUid))))
           || (isSignedIn()
               && get(/databases/$(database)/documents/classes/$(classId))
                   .data.teacherUid == request.auth.uid);
@@ -444,9 +534,15 @@ service cloud.firestore {
             || (isSignedIn()
                 && get(/databases/$(database)/documents/classes/$(classId))
                     .data.teacherUid == request.auth.uid);
-          allow create, update, delete: if isSignedIn()
+          allow create, update: if isSignedIn()
             && get(/databases/$(database)/documents/classes/$(classId))
                 .data.teacherUid == request.auth.uid;
+          // delete: öğretmen VE (sınıftan ayrılırken kendi verisini
+          // temizleyen) öğrencinin kendisi — leaveClass yetim not bırakmasın.
+          allow delete: if isOwner(studentUid)
+            || (isSignedIn()
+                && get(/databases/$(database)/documents/classes/$(classId))
+                    .data.teacherUid == request.auth.uid);
         }
 
         // notes alt koleksiyonu — öğretmenin öğrenci hakkındaki notları.
@@ -460,15 +556,47 @@ service cloud.firestore {
                     .data.teacherUid == request.auth.uid)
             || ((isOwner(studentUid) || isLinkedParent(studentUid))
                 && resource.data.sharedWithParent == true);
-          allow create, update, delete: if isSignedIn()
+          allow create, update: if isSignedIn()
             && get(/databases/$(database)/documents/classes/$(classId))
                 .data.teacherUid == request.auth.uid;
+          // delete: öğretmen VE sınıftan ayrılan öğrencinin kendisi
+          // (leaveClass temizliği — yetim not kalmasın).
+          allow delete: if isOwner(studentUid)
+            || (isSignedIn()
+                && get(/databases/$(database)/documents/classes/$(classId))
+                    .data.teacherUid == request.auth.uid);
         }
       }
 
-      // content alt koleksiyonu — sadece öğretmen ekler, öğrenciler okur
+      // invites — öğretmenin kalıcı davet kanıtı: students create kuralı bu
+      // dokümanın varlığına bakarak davetli öğrencinin doğrudan 'active'
+      // katılmasına izin verir (bildirim tek başına kanıt DEĞİLDİR; öğrenci
+      // kendi inbox'una sahte bildirim yazabilir).
+      match /invites/{studentUid} {
+        allow read: if isOwner(studentUid)
+          || (isSignedIn()
+              && get(/databases/$(database)/documents/classes/$(classId))
+                  .data.teacherUid == request.auth.uid);
+        allow create, update: if isSignedIn()
+          && get(/databases/$(database)/documents/classes/$(classId))
+              .data.teacherUid == request.auth.uid;
+        // Davetli öğrenci katılınca kanıtı kendisi temizleyebilir.
+        allow delete: if isOwner(studentUid)
+          || (isSignedIn()
+              && get(/databases/$(database)/documents/classes/$(classId))
+                  .data.teacherUid == request.auth.uid);
+      }
+
+      // content alt koleksiyonu — sadece öğretmen ekler; SINIFIN AKTİF
+      // öğrencileri okur. Eskiden isSignedIn() — sınıftan çıkarılan/hiç
+      // katılmamış herkes classId ile tüm kaynakları okuyabiliyordu.
+      // (status alanı olmayan eski üyelik kayıtları 'active' sayılır.)
       match /content/{contentId} {
-        allow read: if isSignedIn();
+        allow read: if isSignedIn()
+          && (get(/databases/$(database)/documents/classes/$(classId))
+                  .data.teacherUid == request.auth.uid
+              || get(/databases/$(database)/documents/classes/$(classId)/students/$(request.auth.uid))
+                  .data.get('status', 'active') == 'active');
         allow create, update, delete: if isSignedIn()
           && get(/databases/$(database)/documents/classes/$(classId))
               .data.teacherUid == request.auth.uid;
@@ -507,9 +635,13 @@ service cloud.firestore {
             || (isSignedIn()
                 && get(/databases/$(database)/documents/classes/$(classId))
                     .data.teacherUid == request.auth.uid);
-          allow delete: if isSignedIn()
-            && get(/databases/$(database)/documents/classes/$(classId))
-                .data.teacherUid == request.auth.uid;
+          // delete: öğretmen VE sınıftan ayrılırken kendi teslimini
+          // temizleyen öğrenci (leaveClass — yetim submission "hayalet
+          // öğrenci" satırı üretiyordu).
+          allow delete: if isOwner(studentUid)
+            || (isSignedIn()
+                && get(/databases/$(database)/documents/classes/$(classId))
+                    .data.teacherUid == request.auth.uid);
         }
       }
     }
@@ -624,6 +756,14 @@ service cloud.firestore {
     //   (usedCode + cihaz hash'i); yazma yine sadece sahibinde.
     match /{path=**}/referral/{doc} {
       allow read: if isSignedIn();
+    }
+
+    // ── lesson_packs: indirilebilir dil paketi manifest'i ────────────────
+    //   { version, count, path, status } — küçük, hassas değil. İstemci
+    //   diline göre okur; yazma yalnızca sunucu (admin SDK) → istemci kapalı.
+    match /lesson_packs/{lang} {
+      allow read: if true;
+      allow write: if false;
     }
 
     // ── Varsayılan: reddet ───────────────────────────────────────────────

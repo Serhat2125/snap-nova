@@ -30,6 +30,11 @@ class QuAlsarNumericLoader extends StatefulWidget {
   /// false → 3 sn sonra [primaryText] → [secondaryText] geçişi yapılır.
   final bool staticLabel;
 
+  /// Durum metninin ÜSTÜNDE gösterilen büyük başlık (örn. ülke adı).
+  /// null → gösterilmez. Eşleştirme ekranı "Türkiye" (büyük) + altında
+  /// "Rakip Aranıyor" düzeni için kullanır.
+  final String? headline;
+
   /// Sembol varyantı. numeric = matematik/fizik/kimya sembolleri.
   /// verbal = harfler, kelimeler, edebiyat/tarih odaklı simgeler.
   final QuAlsarLoaderVariant variant;
@@ -51,6 +56,7 @@ class QuAlsarNumericLoader extends StatefulWidget {
     this.primaryText,
     this.secondaryText,
     this.staticLabel = false,
+    this.headline,
     this.variant = QuAlsarLoaderVariant.numeric,
     this.stages,
     this.stageInterval = const Duration(seconds: 3),
@@ -94,8 +100,10 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
   final ValueNotifier<int> _dots = ValueNotifier<int>(0);
   Timer? _dotTimer;
 
-  // Tip kartları — ValueNotifier
-  final ValueNotifier<int> _tipIdx = ValueNotifier<int>(0);
+  // Tip kartları — ValueNotifier. Her açılışta FARKLI bir ipucuyla başlar
+  // (rastgele indeks) — 50 ipucu döngüsel akar.
+  final ValueNotifier<int> _tipIdx =
+      ValueNotifier<int>(math.Random().nextInt(_tips.length));
   Timer? _tipTimer;
 
   // Uzun süreli istek için "lütfen ayrılmayın" göstergesi
@@ -103,15 +111,60 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
   Timer? _longRunningTimer;
 
   static const _tips = [
+    // ── Öğrenme bilimi ─────────────────────────────────────────────────
     'Biliyor muydunuz? Düzenli özet çıkarmak, öğrenmeyi %30 hızlandırır.',
     'Biliyor muydunuz? 25 dakikalık odak + 5 dakikalık mola en verimli ritimdir.',
     'Anahtar kavramları farklı renklerle vurgulamak hatırlamayı güçlendirir.',
-    'Bir konuyu kendi cümlelerinizle özetlemek, ezberden 3 kat etkilidir.',
-    'Etik değerler, toplumsal huzurun temelidir — Sokrates.',
-    'Öğrenmek, beynin yeni nöral bağlantılar kurmasıdır.',
+    'Bir konuyu kendi cümlelerinle özetlemek, ezberden 3 kat etkilidir.',
     'Kendi kendine sınav yapmak, en güçlü öğrenme tekniklerinden biridir.',
-    'Uyku, öğrenilen bilginin kalıcılığa geçtiği süreçtir.',
-    'Karmaşık konularda küçük zaferler kutlamak motivasyonu artırır.',
+    'Uyku, öğrenilen bilginin kalıcı hafızaya geçtiği süreçtir.',
+    'Biliyor muydunuz? Bir bilgiyi başkasına anlatmak, onu en kalıcı öğrenme yoludur.',
+    'Aralıklı tekrar, aynı süreyi tek seferde çalışmaktan çok daha etkilidir.',
+    'Yanlış yapmak öğrenmenin parçasıdır — beyin en çok hatalardan öğrenir.',
+    'Biliyor muydunuz? El yazısıyla not tutmak, klavyeden daha kalıcı öğrenme sağlar.',
+    'Zor soruyla boğuşmak, kolay soruyu çözmekten daha çok geliştirir.',
+    'Kısa ama düzenli çalışma, uzun ama düzensiz çalışmayı her zaman yener.',
+    'Biliyor muydunuz? Egzersiz yapmak hafızayı ve odaklanmayı güçlendirir.',
+    'Konuyu bir arkadaşına öğretebiliyorsan, gerçekten öğrenmişsin demektir.',
+    'Biliyor muydunuz? Su içmek konsantrasyonu belirgin şekilde artırır.',
+    'Sınavdan önce derin nefes almak kaygıyı azaltır, performansı yükseltir.',
+    'Bilgiyi hikâyeleştirmek, hatırlama oranını ikiye katlar.',
+    'Biliyor muydunuz? Müzik olmadan çalışmak, sözel konularda odağı artırır.',
+    'Çalışmaya en zor konudan başlamak, zihnin en taze olduğu anı değerlendirir.',
+    'Bir konuyu farklı kaynaklardan okumak, anlamayı derinleştirir.',
+    // ── Bilim & dünya ──────────────────────────────────────────────────
+    'Biliyor muydunuz? İnsan beyninde yaklaşık 86 milyar nöron vardır.',
+    'Biliyor muydunuz? Işık Güneş\'ten Dünya\'ya yaklaşık 8 dakikada ulaşır.',
+    'Biliyor muydunuz? Bal, doğru saklanırsa binlerce yıl bozulmaz.',
+    'Biliyor muydunuz? Ahtapotların üç kalbi ve mavi kanı vardır.',
+    'Biliyor muydunuz? Bir yıldırım, Güneş yüzeyinden 5 kat daha sıcaktır.',
+    'Biliyor muydunuz? DNA\'nı düz bir çizgi yapsan Güneş\'e gidip dönebilirdi.',
+    'Biliyor muydunuz? Venüs\'te bir gün, bir yıldan daha uzundur.',
+    'Biliyor muydunuz? Vücudundaki atomların çoğu yıldızlarda üretildi.',
+    'Biliyor muydunuz? Karıncalar kendi ağırlıklarının 50 katını taşıyabilir.',
+    'Biliyor muydunuz? Okyanusların yalnızca %5\'i keşfedilebildi.',
+    // ── Motivasyon ─────────────────────────────────────────────────────
+    'Başarı, her gün tekrarlanan küçük çabaların toplamıdır.',
+    'Bugün yaptığın küçük bir tekrar, yarın büyük bir fark yaratır.',
+    'Şampiyonlar, kimse izlemezken çalışanlardır.',
+    'Dünün rekoru, bugünün başlangıç çizgisidir.',
+    'Zor olan, imkânsız olandan çok uzaktır — sadece biraz zaman ister.',
+    'Her uzman, bir zamanlar acemiydi.',
+    'Pes etmediğin sürece kaybetmiş sayılmazsın.',
+    'Bir şeyi gerçekten öğrenmek istiyorsan, ona her gün 15 dakika ayır.',
+    'Rakibin dünkü hâlin olsun — her gün ondan biraz daha iyi ol.',
+    'Damlaya damlaya göl olur; soru çöze çöze başarı gelir.',
+    'Hedefe giden yol, tek bir doğru cevapla değil, binlerce denemeyle döşenir.',
+    'Beyin bir kas gibidir: kullandıkça güçlenir.',
+    'Bilgi, kimsenin senden alamayacağı tek hazinedir.',
+    'Yavaş ilerlemekten korkma; yerinde saymaktan kork.',
+    'Bir kitap, bir soru, bir gün — hepsi birikir ve seni sen yapar.',
+    // ── Düşünürlerden ──────────────────────────────────────────────────
+    'Etik değerler, toplumsal huzurun temelidir — Sokrates.',
+    'Bildiğim tek şey, hiçbir şey bilmediğimdir — Sokrates.',
+    'Eğitim, karanlıktan aydınlığa açılan kapıdır — Platon.',
+    'Hayatta en hakiki mürşit ilimdir — Mustafa Kemal Atatürk.',
+    'Öğrenmek, beynin yeni bağlantılar kurmasıdır; her soru yeni bir köprüdür.',
   ];
 
   @override
@@ -315,9 +368,10 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
               alignment: Alignment(0, 0.10),
               child: _buildStageText(),
             ),
-            // Tip kartı + uzun-süre mesajı (klasik mod için tutuluyor)
+            // Tip kartı + uzun-süre mesajı — daha yukarıda dursun
+            // (eskiden 0.78'de ekranın en dibindeydi).
             Align(
-              alignment: Alignment(0, 0.78),
+              alignment: Alignment(0, 0.52),
               child: _buildBottomInfo(),
             ),
           ],
@@ -537,7 +591,7 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
       letterSpacing: 1.2,
       fontWeight: FontWeight.w700,
     );
-    return AnimatedSwitcher(
+    final labelRow = AnimatedSwitcher(
       duration: Duration(milliseconds: 320),
       transitionBuilder: (child, anim) =>
           FadeTransition(opacity: anim, child: child),
@@ -559,6 +613,28 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
           ),
         ],
       ),
+    );
+    // Başlık verildiyse: BÜYÜK başlık üstte (örn. ülke adı), altında biraz
+    // boşlukla durum satırı ("Rakip Aranıyor…").
+    if (widget.headline == null || widget.headline!.trim().isEmpty) {
+      return labelRow;
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          widget.headline!,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.black,
+            fontSize: 26,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.4,
+          ),
+        ),
+        const SizedBox(height: 10),
+        labelRow,
+      ],
     );
   }
 
@@ -718,12 +794,12 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
               ),
               child: Container(
                 key: ValueKey('tip_$idx'),
-                constraints: BoxConstraints(maxWidth: 320),
+                constraints: BoxConstraints(maxWidth: 340),
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
+                    horizontal: 16, vertical: 13),
                 decoration: BoxDecoration(
                   color: Color(0xFFF5F3FF),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: Color(0xFF7C3AED).withValues(alpha: 0.20),
                     width: 0.6,
@@ -733,17 +809,17 @@ class _QuAlsarNumericLoaderState extends State<QuAlsarNumericLoader>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.lightbulb_rounded,
-                        size: 14, color: Color(0xFF7C3AED)),
-                    SizedBox(width: 8),
+                        size: 18, color: Color(0xFF7C3AED)),
+                    SizedBox(width: 10),
                     Flexible(
                       child: Text(
                         _tips[idx].tr(),
                         textAlign: TextAlign.start,
                         style: TextStyle(
-                          fontSize: 11.5,
-                          height: 1.4,
+                          fontSize: 13.5,
+                          height: 1.45,
                           color: Color(0xFF1F1F2E),
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),

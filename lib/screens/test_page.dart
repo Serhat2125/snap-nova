@@ -52,7 +52,10 @@ class TestQuestion {
     final opts = <String, String>{};
     if (rawOpts is Map) {
       rawOpts.forEach((k, v) {
-        if (v != null) opts[k.toString()] = v.toString();
+        // Şık anahtarını "ans" ile aynı biçime (BÜYÜK harf) normalize et.
+        // AI bazen "a".."e" üretir ama "ans" hep uppercase → aksi halde
+        // hiçbir seçim "ans"a eşit olmaz ve TÜM test yanlış puanlanırdı.
+        if (v != null) opts[k.toString().trim().toUpperCase()] = v.toString();
       });
     }
     return TestQuestion(
@@ -3594,23 +3597,28 @@ class _ResultCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-            color: AppPalette.card(context),
+                          // QR her zaman siyah-beyaz: karanlık modda tema
+                          // renkleri kullanılırsa QR ters (açık modül/koyu
+                          // zemin) çıkıp taranamaz oluyordu. Kart daima beyaz
+                          // marka kartı olduğu için sabit siyah/beyaz garanti
+                          // taranabilirlik sağlar.
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(8),
-                          border:
-                              Border.all(color: AppPalette.border(context), width: 1),
+                          border: Border.all(
+                              color: const Color(0xFFE5E7EB), width: 1),
                         ),
                         child: QrImageView(
                           data: 'https://qualsar.app',
                           version: QrVersions.auto,
                           size: 56,
-                          backgroundColor: AppPalette.card(context),
+                          backgroundColor: Colors.white,
                           eyeStyle: QrEyeStyle(
                             eyeShape: QrEyeShape.square,
-                            color: AppPalette.textPrimary(context),
+                            color: Colors.black,
                           ),
                           dataModuleStyle: QrDataModuleStyle(
                             dataModuleShape: QrDataModuleShape.square,
-                            color: AppPalette.textPrimary(context),
+                            color: Colors.black,
                           ),
                           padding: EdgeInsets.zero,
                         ),

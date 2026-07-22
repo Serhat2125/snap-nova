@@ -422,13 +422,15 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
       statusColor = const Color(0xFFFBBF24); statusLabel = 'Bekliyor'.tr();
     }
     final remaining = hw.timeRemaining;
+    // Sayı .tr() DIŞINDA — interpolasyonlu anahtar sözlükte hiç eşleşmez,
+    // metin tüm dillerde Türkçe kalıyordu.
     final remainingStr = remaining.isNegative
         ? 'Süre doldu'.tr()
         : remaining.inDays > 0
-            ? '${remaining.inDays} gün kaldı'.tr()
+            ? '${remaining.inDays} ${'gün kaldı'.tr()}'
             : remaining.inHours > 0
-                ? '${remaining.inHours} saat kaldı'.tr()
-                : '${remaining.inMinutes} dakika kaldı'.tr();
+                ? '${remaining.inHours} ${'saat kaldı'.tr()}'
+                : '${remaining.inMinutes} ${'dakika kaldı'.tr()}';
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -519,7 +521,7 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
                 children: [
                   Icon(Icons.help_outline_rounded, size: 14, color: muted),
                   const SizedBox(width: 4),
-                  Text('${hw.questionCount} soru'.tr(),
+                  Text('${hw.questionCount} ${'soru'.tr()}',
                       style: GoogleFonts.poppins(
                         fontSize: 11, color: muted,
                       )),

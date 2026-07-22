@@ -52,6 +52,7 @@ import 'services/error_logger.dart';
 import 'services/geolocation_service.dart';
 import 'services/remote_config_service.dart';
 import 'services/runtime_translator.dart';
+import 'services/lesson_pack_service.dart';
 import 'services/subscription_service.dart';
 import 'widgets/smart_sidebar.dart';
 import 'widgets/force_update_gate.dart';
@@ -357,6 +358,10 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
         // Her dil değişiminde önce tüm kaynakların kayıtlı olduğunu garanti et.
         RuntimeTranslator.instance
             .bulkRegister(LocaleService.allTrSourceStrings);
+        // ÖNCE indirilebilir dil paketini (sunucuda dil-başına-bir-kez üretilen
+        // toplu offline çeviri) uygula; SONRA yalnızca pakette olmayan
+        // uzun-kuyruk için Gemini preload çalışsın (çok daha az API çağrısı).
+        await LessonPackService.instance.sync(lang);
         await RuntimeTranslator.instance.preloadAll(lang);
       });
       // LocaleService.tr() içinde bir key'in çevirisi yoksa Türkçe kaynağı
@@ -371,6 +376,8 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
         unawaited(() async {
           RuntimeTranslator.instance
               .bulkRegister(LocaleService.allTrSourceStrings);
+          // Önce offline dil paketi, sonra kuyruk için Gemini preload.
+          await LessonPackService.instance.sync(localeService.localeCode);
           await RuntimeTranslator.instance
               .preloadAll(localeService.localeCode);
         }());

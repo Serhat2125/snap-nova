@@ -27,7 +27,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'friend_service.dart';
 import 'user_profile_service.dart';
 
 class ContestGroup {
@@ -196,6 +198,49 @@ class ContestGroupService {
     }
   }
 
+  /// Yazım anında kullanılacak (username, avatar) çifti — yerel profil boşsa
+  /// users/{uid} doc'undan çözülür. Eskiden doğrudan 'Oyuncu' yazılıyor ve
+  /// grup üyeleri birbirinin kullanıcı adını göremiyordu.
+  static Future<(String, String)> _myNameAvatar(String uid) async {
+    final p = UserProfileService.instance;
+    try {
+      await p.init(); // idempotent
+    } catch (_) {}
+    var uname = p.username.trim();
+    var avatar = p.avatar.trim();
+    if (uname.isEmpty) {
+      try {
+        final u = await FriendService.getUserByUid(uid);
+        if (u != null) {
+          uname = u.username.trim().isNotEmpty
+              ? u.username.trim()
+              : u.displayName.trim();
+          if ((avatar.isEmpty || avatar == '👤') &&
+              u.avatar.trim().isNotEmpty) {
+            avatar = u.avatar.trim();
+          }
+        }
+      } catch (_) {}
+    }
+    // Kullanıcı adı hiç belirlenmemişse GERÇEK AD zinciri: yerel profil adı
+    // → profil ekranındaki isim (profile_name) → Google hesabı adı. Eskiden
+    // hepsi boşken 'Oyuncu' yazılıyordu.
+    if (uname.isEmpty) uname = p.displayName.trim();
+    if (uname.isEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        uname = (prefs.getString('profile_name') ?? '').trim();
+      } catch (_) {}
+    }
+    if (uname.isEmpty) {
+      try {
+        uname =
+            (FirebaseAuth.instance.currentUser?.displayName ?? '').trim();
+      } catch (_) {}
+    }
+    return (uname, avatar.isEmpty ? '👤' : avatar);
+  }
+
   // ─── Oluştur ───────────────────────────────────────────────────────────────
 
   /// Yeni grup oluşturur (sahibi ilk üye). [seedMembers] verilirse (ör. bir
@@ -210,8 +255,8 @@ class ContestGroupService {
     if (uid == null) return null;
     try {
       final p = UserProfileService.instance;
-      final ownerName =
-          p.username.trim().isNotEmpty ? p.username.trim() : 'Oyuncu';
+      final (uname, myAvatar) = await _myNameAvatar(uid);
+      final ownerName = uname.isNotEmpty ? uname : 'Oyuncu';
 
       // Sahip + tohum üyeleri tekilleştir (uid bazında).
       // avatarData (base64 profil fotoğrafı) da üye kaydına eklenir —
@@ -222,7 +267,7 @@ class ContestGroupService {
         {
           'uid': uid,
           'username': ownerName,
-          'avatar': p.avatar,
+          'avatar': myAvatar,
           if (p.avatarData.isNotEmpty && p.avatarData.length < 60000)
             'avatarData': p.avatarData,
         }
@@ -337,28 +382,51 @@ class ContestGroupService {
   }
 
   /// Kullanıcıyı gruba ekle (davet linkinden/yarışa katılınca çağrılır).
+  /// Üye zaten varsa kaydı ONARIR: 'Oyuncu' yazılmış eski kayıt gerçek
+  /// kullanıcı adıyla değiştirilir (arrayUnion farklı map'i İKİNCİ üye
+  /// olarak eklerdi — o yüzden transaction ile liste yeniden kurulur).
   static Future<void> joinGroup(String groupId) async {
     final uid = _uid;
     if (uid == null) return;
     try {
       final p = UserProfileService.instance;
-      final name =
-          p.username.trim().isNotEmpty ? p.username.trim() : 'Oyuncu';
-      await _fs.collection(_collection).doc(groupId).set({
-        'memberUids': FieldValue.arrayUnion([uid]),
-        'members': FieldValue.arrayUnion([
-          {
-            'uid': uid,
-            'username': name,
-            'avatar': p.avatar,
-            // Profil fotoğrafı — diğer üyeler listede görsün (boyut guard'ı
-            // createGroup ile aynı gerekçe: members tek dokümanda, 1MB limit).
-            if (p.avatarData.isNotEmpty && p.avatarData.length < 60000)
-              'avatarData': p.avatarData,
-          }
-        ]),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      final (uname, avatar) = await _myNameAvatar(uid);
+      final name = uname.isNotEmpty ? uname : 'Oyuncu';
+      final myEntry = <String, dynamic>{
+        'uid': uid,
+        'username': name,
+        'avatar': avatar,
+        // Profil fotoğrafı — diğer üyeler listede görsün (boyut guard'ı
+        // createGroup ile aynı gerekçe: members tek dokümanda, 1MB limit).
+        if (p.avatarData.isNotEmpty && p.avatarData.length < 60000)
+          'avatarData': p.avatarData,
+      };
+      final ref = _fs.collection(_collection).doc(groupId);
+      await _fs.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        if (!snap.exists) return;
+        final d = snap.data() ?? const <String, dynamic>{};
+        final members = ((d['members'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        final idx =
+            members.indexWhere((m) => (m['uid'] ?? '').toString() == uid);
+        if (idx >= 0) {
+          final old = (members[idx]['username'] ?? '').toString().trim();
+          // Kayıt sağlamsa dokunma (gereksiz yazma yok).
+          if (old.isNotEmpty && old != 'Oyuncu') return;
+          if (name == 'Oyuncu') return; // elimizde daha iyisi yok
+          members[idx] = {...members[idx], ...myEntry};
+        } else {
+          members.add(myEntry);
+        }
+        tx.update(ref, {
+          'memberUids': FieldValue.arrayUnion([uid]),
+          'members': members,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      });
     } catch (e) {
       debugPrint('[ContestGroup] joinGroup fail: $e');
     }
@@ -401,8 +469,8 @@ class ContestGroupService {
     if (uid == null) return;
     try {
       final me = UserProfileService.instance;
-      final myName =
-          me.username.trim().isNotEmpty ? me.username.trim() : 'Oyuncu';
+      final (uname, myAvatar) = await _myNameAvatar(uid);
+      final myName = uname.isNotEmpty ? uname : 'Oyuncu';
       final batch = _fs.batch();
       for (final m in group.memberUids) {
         if (m == uid) continue;
@@ -417,9 +485,9 @@ class ContestGroupService {
           'groupId': group.id,
           'groupName': group.name,
           'fromUid': uid,
-          'fromUsername': me.username,
+          'fromUsername': uname.isNotEmpty ? uname : me.username,
           'fromDisplayName': myName,
-          'fromAvatar': me.avatar,
+          'fromAvatar': myAvatar,
           'subjectName': subjectName,
           'topic': topic,
           'when': FieldValue.serverTimestamp(),

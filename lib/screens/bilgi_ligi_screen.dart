@@ -265,9 +265,9 @@ class _BilgiLigiHowItWorksPage extends StatelessWidget {
             _HowStepCard(
               step: 2,
               icon: Icons.quiz_rounded,
-              title: '10 soruyu çöz'.tr(),
+              title: 'Soruları çöz'.tr(),
               desc:
-                  'Çoktan seçmeli 10 soru. Süre tutulur — eşit puanda hızlı olan üstte. Yanlış cevaplar net puandan düşülür (ÖSYM tarzı).'.tr(),
+                  'Çoktan seçmeli 5-20 soru (sayıyı sen seçersin). Süre tutulur — eşit puanda hızlı olan üstte. Yanlış cevaplar net puandan düşülür.'.tr(),
               accent: purple,
             ),
             _HowStepCard(
@@ -283,7 +283,7 @@ class _BilgiLigiHowItWorksPage extends StatelessWidget {
               icon: Icons.access_time_rounded,
               title: 'Periyot seç'.tr(),
               desc:
-                  'Günlük • Haftalık • Aylık • Genel. Günlük seçersen TÜM kullanıcılar O GÜN için aynı 10 soruyu çözer — adil challenge.'.tr(),
+                  'Günlük • Haftalık • Aylık • Genel. Günlük seçersen TÜM kullanıcılar o gün aynı soruları çözer — adil challenge.'.tr(),
               accent: orange,
             ),
             _HowStepCard(
@@ -291,15 +291,15 @@ class _BilgiLigiHowItWorksPage extends StatelessWidget {
               icon: Icons.local_fire_department_rounded,
               title: 'Streak\'i koru'.tr(),
               desc:
-                  'Her gün en az 1 test çöz, 🔥 streak göstergesin büyür. 7 gün üst üste = +rozet, ek motivasyon.'.tr(),
+                  'Her gün en az 1 test çöz, 🔥 streak göstergen büyür.'.tr(),
               accent: orange,
             ),
             _HowStepCard(
               step: 6,
               icon: Icons.emoji_events_rounded,
-              title: 'Podyuma çık'.tr(),
+              title: 'Zirveye oyna'.tr(),
               desc:
-                  'İlk 3 sıraya girersen 🥇🥈🥉 podyumda görünürsün. Yakın rakipler kartı kaç puan farkla yükseleceğini söyler.'.tr(),
+                  'İlk 3\'e girersen adının yanında 🥇🥈🥉 madalya görünür. Listede değilsen "Senin Sıran" kartı ve sana en yakın rakip satırları konumunu gösterir.'.tr(),
               accent: purple,
             ),
             const SizedBox(height: 18),
@@ -317,7 +317,7 @@ class _BilgiLigiHowItWorksPage extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Cloud\'a bağlanamazsan örnek bir liste gösterilir. Test çözünce skorun gerçek sıralamaya yazılır, anında podyuma yansır.'
+                      'Cloud\'a bağlanamazsan örnek bir liste gösterilebilir. Test çözünce skorun gerçek sıralamaya yazılır ve tabloya anında yansır.'
                           .tr(),
                       style: GoogleFonts.inter(
                         fontSize: 12,
@@ -576,7 +576,9 @@ class _MyRankCard extends StatelessWidget {
       }
       return buf.toString();
     }
-    return n.toStringAsFixed(2);
+    // Ondalık ayraç VİRGÜL (TR kuralı) — nokta kalsaydı "1.234" (binlik) ile
+    // "1.23" (ondalık) ekranda ayırt edilemiyordu.
+    return n.toStringAsFixed(2).replaceAll('.', ',');
   }
 
   @override
@@ -886,6 +888,11 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     try {
       loc = await _loadSavedLocation()
           .timeout(const Duration(seconds: 5));
+      // ONARIM: eski sürüm IP'den gelen İLÇEYİ (örn. "Dalaman") şehir diye
+      // kaydetmiş olabilir. Ülkenin il kataloğu varsa ve kayıtlı şehir
+      // katalogda yoksa kaydı geçersiz say — kullanıcı ilini kendisi seçer
+      // (bölge yalnızca il/ülke/dünya olabilir).
+      loc = _validateLocation(loc);
     } catch (_) {
       loc = null;
     }
@@ -994,12 +1001,18 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       // eşleşirse doğru yerelleştirilmiş ad + kararlı slug kullanılır.
       final norm = _normalizeCityKey(rawCity);
       CityEntry? matched;
-      for (final c in country?.cities ?? const <CityEntry>[]) {
+      final catalogCities = country?.cities ?? const <CityEntry>[];
+      for (final c in catalogCities) {
         if (_normalizeCityKey(c.name) == norm) {
           matched = c;
           break;
         }
       }
+      // Ülkenin resmi şehir kataloğu VARSA ve IP'den gelen ad eşleşmiyorsa
+      // bu bir İLÇE/kasaba demektir (örn. "Dalaman") — bölge yalnızca
+      // il/ülke/dünya olabilir; ilçeyi otomatik SEÇME, kullanıcı ilini
+      // kendisi seçsin.
+      if (catalogCities.isNotEmpty && matched == null) return null;
       return UserLocation(
         country: country?.name ?? countryCode,
         countryCode: countryCode,
@@ -1009,6 +1022,29 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Kayıtlı konumu il kataloğuna göre doğrular. Katalogda karşılığı olan
+  /// şehirse ad/slug katalog hâliyle normalize edilir; ülkenin kataloğu
+  /// olduğu hâlde şehir eşleşmiyorsa (ilçe/kasaba yazılmış) null döner.
+  /// Kataloğu olmayan ülkelerde olduğu gibi bırakılır (doğrulanamaz).
+  UserLocation? _validateLocation(UserLocation? loc) {
+    if (loc == null) return null;
+    final country = LocationCatalog.findByCode(loc.countryCode.toUpperCase());
+    final cities = country?.cities ?? const <CityEntry>[];
+    if (cities.isEmpty) return loc;
+    final norm = _normalizeCityKey(loc.city);
+    for (final c in cities) {
+      if (_normalizeCityKey(c.name) == norm) {
+        return UserLocation(
+          country: country!.name,
+          countryCode: loc.countryCode,
+          city: c.name,
+          cityCode: c.code,
+        );
+      }
+    }
+    return null;
   }
 
   /// Türkçe karakterleri ASCII karşılığına çevirip küçük harfe indirger —
@@ -1092,9 +1128,27 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
   // stream açmamak için 250ms debounce. Hızlı tıklamalarda son seçim aktif.
   Timer? _refreshDebounce;
 
+  // Yeni refresh isteğinden sonraki İLK gerçek stream emission'ını bekleyenler
+  // için (skor sonrası "Skorun kaydediliyor…" overlay'i). Eskiden
+  // `_leaderboardFuture` beklenirdi ama o anında tamamlanan Future.value —
+  // bekleme fiilen no-op'tu, overlay taze tablo gelmeden kapanıyordu.
+  Completer<void>? _firstEmission;
+
+  // Stream hata verdi ve liste boş → kullanıcıya mesaj + Tekrar Dene göster
+  // (demo dolgu kapalıyken sonsuz boş tablo kalıyordu).
+  bool _streamError = false;
+
   void _refreshLeaderboard() {
     _refreshDebounce?.cancel();
+    final old = _firstEmission;
+    if (old != null && !old.isCompleted) old.complete();
+    _firstEmission = Completer<void>();
     _refreshDebounce = Timer(const Duration(milliseconds: 250), _doRefresh);
+  }
+
+  void _signalFirstEmission() {
+    final c = _firstEmission;
+    if (c != null && !c.isCompleted) c.complete();
   }
 
   /// Sorgularda kullanılan ETKİN konum. Kullanıcı konum seçmemişse skor
@@ -1142,6 +1196,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
         _myRankFuture = Future.value(null);
         _neighborsFuture = Future.value(null);
       });
+      _signalFirstEmission(); // bekleyen overlay 6sn boşuna beklemesin
       return;
     }
     // Real-time: snapshot stream'i kur, her emission'da future'ı güncel
@@ -1158,6 +1213,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     );
     if (!mounted) return;
     setState(() {
+      _streamError = false;
       // Gerçek satırlar gelene kadar demo öğrenciler görünsün — kapalı
       // testte liste hiçbir an boş kalmaz.
       _leaderboardFuture = Future.value(_mergeWithDemo(const []));
@@ -1175,10 +1231,14 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     _leaderboardSub = stream.listen((rows) {
       if (!mounted) return;
       setState(() {
+        _streamError = false;
         _leaderboardFuture = Future.value(_mergeWithDemo(rows));
       });
+      _signalFirstEmission();
     }, onError: (e) {
       debugPrint('[bilgi_ligi_screen] leaderboard stream error: $e');
+      if (mounted) setState(() => _streamError = true);
+      _signalFirstEmission();
     });
   }
 
@@ -1221,15 +1281,10 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
   List<LeagueLeaderRow> _mergeWithDemo(List<LeagueLeaderRow> real) {
     final demo = _demoRowsForView();
     if (demo.isEmpty) return real;
-    final all = [...real, ...demo]..sort((a, b) {
-        final cmp = b.score.compareTo(a.score);
-        if (cmp != 0) return cmp;
-        final aEff =
-            a.score == 0 ? double.infinity : a.durationSec / a.score;
-        final bEff =
-            b.score == 0 ? double.infinity : b.durationSec / b.score;
-        return aEff.compareTo(bEff);
-      });
+    // Servis compareRows'u ile AYNI kural (puan → verimlilik → süre → uid):
+    // eski comparator 0-0 eşitliğinde infinity==infinity → 0 döndürüyordu ve
+    // Dart sort kararsız olduğundan liste emission'dan emission'a titriyordu.
+    final all = [...real, ...demo]..sort(LeagueLeaderboardService.compareRows);
     return all.length > 20 ? all.sublist(0, 20) : all;
   }
 
@@ -1251,15 +1306,28 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     final modeKey = _currentModeKey();
     if (modeKey == null) return real;
     double myScore = 0;
+    int myDur = 0;
     try {
       final my = await LeagueScores.myCloudTotal(
         modeKey: modeKey,
         period: _period,
       );
       myScore = my?.score ?? 0;
+      myDur = my?.durationSec ?? 0;
     } catch (_) {/* offline → demo düzeltmesi yapılmaz */}
     if (myScore <= 0) return real;
-    return real + demo.where((d) => d.score > myScore).length;
+    // Puanı benden yüksek OLAN + puanı EŞİT olup verimlilik tiebreaker'ıyla
+    // üstüme geçen demo öğrenciler sayılır — eskiden yalnız ">" sayıldığı
+    // için rozetteki sıra ile listedeki görünür konum 1+ kayabiliyordu.
+    final myEff = myScore == 0 ? double.infinity : myDur / myScore;
+    return real +
+        demo.where((d) {
+          if (d.score > myScore) return true;
+          if (d.score != myScore) return false;
+          final dEff =
+              d.score == 0 ? double.infinity : d.durationSec / d.score;
+          return dEff < myEff;
+        }).length;
   }
 
   Future<void> _refreshMySummary() async {
@@ -1508,6 +1576,47 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
                   height: 1,
                   color: AppPalette.border(context),
                 ),
+                // Liste boş: stream hatasında mesaj + Tekrar Dene (demo
+                // dolgu kapalıyken sonsuz boş tablo kalmasın), veri yoksa
+                // bilgilendirme.
+                if (visibleEntries.isEmpty)
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+                    child: Column(
+                      children: [
+                        Icon(
+                          _streamError
+                              ? Icons.wifi_off_rounded
+                              : Icons.emoji_events_outlined,
+                          color: AppPalette.textSecondary(context),
+                          size: 34,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          _streamError
+                              ? 'Sıralama yüklenemedi. Bağlantını kontrol edip tekrar dene.'
+                                  .tr()
+                              : 'Bu görünümde henüz skor yok — ilk sırayı kapmak için bir test çöz!'
+                                  .tr(),
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.inter(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppPalette.textSecondary(context),
+                            height: 1.4,
+                          ),
+                        ),
+                        if (_streamError) ...[
+                          const SizedBox(height: 12),
+                          OutlinedButton(
+                            onPressed: _refreshLeaderboard,
+                            child: Text('Tekrar Dene'.tr()),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 // Podyum kaldırıldı — ilk 3 de normal satır; madalya
                 // (🥇🥈🥉) satırın SAĞINDA gösterilir (kullanıcı talebi).
                 for (int i = 0; i < visibleEntries.length; i++)
@@ -2004,8 +2113,11 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
             rect.top -
             MediaQuery.of(ctx).padding.bottom -
             12;
-        final maxHeight =
-            availBelow.clamp(220.0, screen.height * 0.62).toDouble();
+        // clamp(min, max) için min <= max garantisi: çok küçük/split-screen
+        // pencerelerde screen.height*0.62 < 220 olursa ArgumentError atardı.
+        final upper =
+            screen.height * 0.62 < 220.0 ? 220.0 : screen.height * 0.62;
+        final maxHeight = availBelow.clamp(220.0, upper).toDouble();
         return Stack(
           children: [
             Positioned(
@@ -2083,11 +2195,16 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       headerText: 'DERS'.tr(),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) {
-          final q = query.trim().toLowerCase();
+          // Türkçe 'İ' tuzağı: Dart'ta 'İ'.toLowerCase() → 'i' + U+0307
+          // (combining dot) ürettiği için "ingilizce" araması "İngilizce"yi
+          // bulamıyordu. Önce İ/I'yı elle indirip sonra lowercase yapıyoruz.
+          String fold(String s) =>
+              s.replaceAll('İ', 'i').replaceAll('I', 'ı').toLowerCase();
+          final q = fold(query.trim());
           final filtered = q.isEmpty
               ? ordered
               : ordered
-                  .where((s) => s.displayName.toLowerCase().contains(q))
+                  .where((s) => fold(s.displayName).contains(q))
                   .toList();
           // "Tüm Dersler" satırı sadece arama boşken görünür.
           final showAll = q.isEmpty;
@@ -2318,8 +2435,14 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _filterRow(
-              emoji: '',
-              icon: Icons.location_on_rounded,
+              // Şehir belliyse kendi simgesi (İstanbul 🕌, Muğla 🏖️ …);
+              // henüz seçilmemişse jenerik konum iğnesi.
+              emoji: (eff?.city.isNotEmpty ?? false)
+                  ? CityEmojis.of(eff!.countryCode, eff.city)
+                  : '',
+              icon: (eff?.city.isNotEmpty ?? false)
+                  ? null
+                  : Icons.location_on_rounded,
               label: cityName,
               selected: _scope == _Scope.city,
               onTap: () async {
@@ -2926,7 +3049,10 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
               style: GoogleFonts.fraunces(
                 fontSize: 17,
                 fontWeight: FontWeight.w900,
-                color: AppPalette.textPrimary(context),
+                // Zemin sabit BEYAZ olduğundan yazı da sabit koyu — koyu
+                // temada AppPalette.textPrimary açığa dönüp beyaz üstünde
+                // okunmaz oluyordu.
+                color: Colors.black,
                 letterSpacing: -0.3,
               ),
             ),
@@ -2938,7 +3064,7 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
               style: GoogleFonts.inter(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w500,
-                color: AppPalette.textSecondary(context),
+                color: Colors.black54,
                 height: 1.4,
               ),
             ),
@@ -3006,6 +3132,11 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       _topic = picked.topic;
       _mode = _Mode.subject;
     });
+    // Filtre ANINDA tabloya yansısın — quiz iptal edilse/paywall'a takılsa
+    // bile etiket ile liste ayrışmasın (eskiden yalnız quiz tamamlanınca
+    // yenileniyordu).
+    unawaited(_refreshMySummary());
+    _refreshLeaderboard();
     await _startQuizFor(synthetic,
         topic: picked.topic,
         examLabel: picked.exam.displayName,
@@ -3130,6 +3261,10 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     // Seçilen konu state'e yansır → hero CTA'da o ad görünür.
     // "Tüm Konular" seçilirse _topic null kalır (etiket "Konu Seç" döner).
     setState(() => _topic = topic);
+    // Filtre ANINDA tabloya yansısın — quiz iptal edilse bile etiket ile
+    // liste ayrışmasın.
+    unawaited(_refreshMySummary());
+    _refreshLeaderboard();
     await _startQuizFor(s, topic: topic);
   }
 
@@ -3812,12 +3947,19 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
     // deneme kaydının kendisi sayaçtır (attemptsInBucket ile sayılır).
     final score = (result['score'] ?? 0).toDouble();
     final durationSec = (result['durationSec'] ?? 0).toInt();
+    // Sonuç ekranındaki "Yeni Test" → skor işlendikten SONRA aynı seçimle
+    // yeni test başlatılır (günlük kapı dahil tüm kontroller baştan çalışır).
+    final again = (result['again'] ?? 0) == 1;
     final user = _safeAuthUser();
 
     // Skor submission + leaderboard refresh ZİNCİRİ uzun (1-3sn).
     // Bu sürede UI'ya intermediate rebuild gelirse race (eski tablo yeni
     // skor gelmeden render olur). Modal loading overlay ile blokla.
     if (!mounted) return;
+    // Root navigator referansı DİYALOG AÇILMADAN alınır: State unmount olsa
+    // bile overlay kapatılabilsin (eskiden dismissDialog `mounted` şartına
+    // bağlıydı → unmount durumunda kapatılamayan dialog asılı kalabilirdi).
+    final rootNav = Navigator.of(context, rootNavigator: true);
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -3850,9 +3992,11 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
 
     bool dialogShown = true;
     void dismissDialog() {
-      if (dialogShown && mounted) {
+      if (dialogShown) {
         dialogShown = false;
-        Navigator.of(context, rootNavigator: true).pop();
+        try {
+          rootNav.pop();
+        } catch (_) {/* navigator çoktan dispose olduysa yok say */}
       }
     }
 
@@ -3863,9 +4007,11 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       final cloudDisplayName = _anonymousMode
           ? () {
               final u = user?.uid ?? '';
+              // .tr() ile — ekranda gösterilen _myDisplayName ile aynı dil
+              // (eskiden buluta sabit Türkçe yazılıyordu; GLOBAL-FIRST).
               return u.length >= 5
-                  ? 'Öğrenci #${u.substring(0, 5)}'
-                  : 'Anonim';
+                  ? '${'Öğrenci'.tr()} #${u.substring(0, 5)}'
+                  : 'Anonim'.tr();
             }()
           // DAİMA kullanıcı adı; boşsa profil adı, o da boşsa Auth adı.
           : (UserProfileService.instance.username.isNotEmpty
@@ -3903,14 +4049,22 @@ class _BilgiLigiScreenState extends State<BilgiLigiScreen> {
       await _refreshMySummary();
       _refreshLeaderboard();
       await _refreshAttemptCounts();
-      // Yeni leaderboard query'sinin sonucunu bekleyelim ki kullanıcı
-      // güncel tabloyu görsün — sonsuz beklemesin diye 6sn cap.
+      // Yeni stream'in İLK gerçek emission'ını bekle ki kullanıcı güncel
+      // tabloyu görsün — sonsuz beklemesin diye 6sn cap. (Eskiden anında
+      // tamamlanan _leaderboardFuture beklendiği için bekleme no-op'tu.)
       try {
-        await _leaderboardFuture
-            ?.timeout(const Duration(seconds: 6));
+        await (_firstEmission?.future ?? Future<void>.value())
+            .timeout(const Duration(seconds: 6));
       } catch (_) {/* timeout/error → cap, snapshot zaten dönecek */}
     } finally {
       dismissDialog();
+    }
+    if (again && mounted) {
+      await _startQuizFor(subject,
+          topic: topic,
+          examLabel: examLabel,
+          optionCount: optionCount,
+          scoreSubject: scoreSubject);
     }
   }
 
@@ -4343,8 +4497,8 @@ class _LeaderboardRow extends StatelessWidget {
     );
   }
 
-  /// Skoru görsel olarak formatla. Tam sayı ise binlik nokta, ondalık ise
-  /// 2 hane ile gösterim ("3.75", "1.234,50").
+  /// Skoru görsel olarak formatla. Tam sayı ise binlik nokta ("1.234"),
+  /// ondalık ise virgüllü 2 hane ("3,75") — TR ondalık kuralı.
   String _fmt(double n) {
     if (n == n.truncateToDouble()) {
       // Tam sayı — binlik ayraç
@@ -4356,8 +4510,8 @@ class _LeaderboardRow extends StatelessWidget {
       }
       return buf.toString();
     }
-    // Ondalıklı — 2 basamak
-    return n.toStringAsFixed(2);
+    // Ondalıklı — 2 basamak, VİRGÜL ayraçlı (nokta binlik ile karışmasın).
+    return n.toStringAsFixed(2).replaceAll('.', ',');
   }
 }
 

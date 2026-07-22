@@ -373,15 +373,36 @@ class _NotificationCard extends StatelessWidget {
         return (data['body'] ?? data['message'] ?? '').toString();
       case 'weekly_summary':
         return (data['body'] ?? '').toString();
-      case 'friend_request':
-        return '${data['fromDisplayName'] ?? data['fromUsername'] ?? 'Biri'.tr()} '
+      case 'friend_request': {
+        final frWho =
+            (data['fromDisplayName'] ?? data['fromUsername'] ?? 'Biri'.tr())
+                .toString();
+        final frUname = (data['fromUsername'] ?? '').toString();
+        final frWhoFull = frUname.isNotEmpty && frWho != frUname
+            ? '$frWho ($frUname)'
+            : frWho;
+        return '$frWhoFull '
             '${'seninle arkadaş olmak istiyor. Görmek için dokun.'.tr()}';
+      }
       case 'friend_accepted':
         return '${data['fromDisplayName'] ?? data['fromUsername'] ?? ''} '
             '${'arkadaşlık isteğini kabul etti.'.tr()}';
-      case 'duelo_invite':
-        return '${data['fromDisplayName'] ?? data['fromUsername'] ?? 'Bir arkadaşın'.tr()} '
-            '${'seninle yarışmak istiyor. Kabul etmek için dokun.'.tr()}';
+      case 'duelo_invite': {
+        // Kimden + hangi ders/konu — alıcı kabul etmeden ne yarışacağını görsün.
+        final duelWho =
+            (data['fromDisplayName'] ?? data['fromUsername'] ?? 'Bir arkadaşın'.tr())
+                .toString();
+        final duelUname = (data['fromUsername'] ?? '').toString();
+        final duelWhoFull = duelUname.isNotEmpty && duelWho != duelUname
+            ? '$duelWho ($duelUname)'
+            : duelWho;
+        final duelSubject = [data['subjectKey'], data['topic']]
+            .where((e) => e != null && e.toString().trim().isNotEmpty)
+            .join(' • ');
+        return '$duelWhoFull '
+            '${'seninle yarışmak istiyor. Kabul etmek için dokun.'.tr()}'
+            '${duelSubject.isNotEmpty ? '\n📚 $duelSubject' : ''}';
+      }
       case 'group_contest_invite':
         final who =
             (data['fromDisplayName'] ?? data['fromUsername'] ?? 'Bir arkadaşın'.tr())
@@ -541,8 +562,15 @@ class _NotificationCard extends StatelessWidget {
     String msg;
     if (res == JoinClassResult.success) {
       msg = 'Sınıfa katıldın 🎉'.tr();
-    } else if (res == JoinClassResult.alreadyJoined) {
-      msg = 'Zaten bu sınıftasın.'.tr();
+    } else if (res == JoinClassResult.pendingApproval) {
+      // Eski davetlerde (davet kanıtı doc'u yoksa) rules 'active' yazımını
+      // reddedip pending'e düşürür — kullanıcı doğru bilgilendirilsin.
+      msg = 'Katılma isteğin iletildi — öğretmen onayı bekleniyor.'.tr();
+    } else if (res == JoinClassResult.alreadyJoined ||
+        res == JoinClassResult.alreadyPending) {
+      msg = res == JoinClassResult.alreadyPending
+          ? 'İsteğin zaten iletildi — öğretmen onayı bekleniyor.'.tr()
+          : 'Zaten bu sınıftasın.'.tr();
     } else {
       msg = 'Katılınamadı. Tekrar dene.'.tr();
     }

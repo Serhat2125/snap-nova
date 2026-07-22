@@ -3089,6 +3089,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
   void initState() {
     super.initState();
     _loadLibraryColors();
+    _loadCardOrder();
   }
 
   Future<void> _loadLibraryColors() async {
@@ -3163,6 +3164,47 @@ class _LibraryLandingState extends State<LibraryLanding> {
       _cardInks.clear();
     });
     _saveLibraryColors();
+  }
+
+  // ── Kart sırası — kullanıcı kartı uzun basıp sürükleyerek taşır ──────────
+  static const _cardOrderKey = 'library_card_order_v1';
+  static const _kDefaultCardOrder = <String>[
+    'summary', 'questions', 'labirent', 'edu3d', 'league', 'contest',
+    'pomodoro', 'homeworks', 'ai_coach', 'calendar', 'materials', 'history',
+  ];
+  List<String> _cardOrder = List.of(_kDefaultCardOrder);
+
+  Future<void> _loadCardOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getStringList(_cardOrderKey);
+      if (saved == null || saved.isEmpty) return;
+      // Bilinmeyen slug'ları ele, sonradan eklenen yeni kartları sona koy.
+      final order = saved.where(_kDefaultCardOrder.contains).toList();
+      for (final s in _kDefaultCardOrder) {
+        if (!order.contains(s)) order.add(s);
+      }
+      if (!mounted) return;
+      setState(() => _cardOrder = order);
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
+  }
+
+  Future<void> _saveCardOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_cardOrderKey, _cardOrder);
+    } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'academic_planner'); }
+  }
+
+  void _moveCard(String dragged, String target) {
+    final from = _cardOrder.indexOf(dragged);
+    final to = _cardOrder.indexOf(target);
+    if (from < 0 || to < 0 || from == to) return;
+    setState(() {
+      _cardOrder.removeAt(from);
+      _cardOrder.insert(to, dragged);
+    });
+    _saveCardOrder();
   }
 
   @override
@@ -3281,21 +3323,20 @@ class _LibraryLandingState extends State<LibraryLanding> {
         // sistem çubuğu kadar boşluk bırakarak tam görünmesini sağla.
         padding: EdgeInsets.fromLTRB(
             16, 12, 16, 16 + 112 + MediaQuery.of(context).padding.bottom),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // (Ebeveyn Paneli banner'ı kaldırıldı — ebeveyn önizlemesi
-            //  artık öğrencinin gerçek ana sayfasını açıyor ve dönüş
-            //  alttaki "Ebeveyn Paneli" çipiyle yapılıyor.)
-            // ── ÜRET: Konu Özeti + Sınav Soruları — hero kartlar ─────
-            // (Üret/Kitaplığım/Yarış/Çalış/Sınıfım küçük bölüm başlıkları
-            //  kaldırıldı, bölüm araları daraltıldı — kullanıcı isteği.)
-            // Diğer bölümler gibi yan yana (kullanıcı isteği) — solda Konu
-            // Özeti, sağda Sınav Soruları.
-            Row(
-              children: [
-                Expanded(
-                  child: _LandingCard(
+        // Kartlar uzun basılıp sürüklenerek yeniden sıralanabilir; sıra
+        // kalıcıdır (library_card_order_v1).
+        child: _buildReorderableCards(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Kart tanımları — slug → widget; çizim sırasını _cardOrder belirler ───
+  Map<String, Widget> _libraryCards() {
+    return <String, Widget>{
+      'summary': _LandingCard(
                     icon: Icons.summarize_rounded,
                     // Yeni ikon: tasarım sayfasındaki 2. alternatif
                     // ("Integrated Knowledge" — ışıyan kitap).
@@ -3316,10 +3357,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                       ),
                     ),
                   ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: _LandingCard(
+      'questions': _LandingCard(
                     icon: Icons.fact_check_rounded,
                     // Yeni ikon: tasarım sayfasındaki 7. alternatif
                     // ("Kitap & Soru" — soru işaretli açık kitap).
@@ -3338,17 +3376,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            SizedBox(height: 10),
-            // ── KİTAPLIĞIM: Bilgi Labirenti | 3D Eğitim Modelleri ────
-            // (Çözümlerim en alta, Sınıf Kaynaklarım'ın yanına taşındı —
-            //  Bilgi Labirenti diğer kartlarla aynı boyut/tasarımda.)
-            Row(
-              children: [
-                Expanded(
-                  child: _LandingCard(
+      'labirent': _LandingCard(
                     icon: Icons.castle_rounded,
                     // Diğer kartlar gibi kartı kaplayan CANLI görsel: oyunun
                     // kuşbakışı dairesel labirenti yavaşça döner, ortada
@@ -3370,10 +3398,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                       ),
                     ),
                   ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: _LandingCard(
+      'edu3d': _LandingCard(
                     icon: Icons.view_in_ar_rounded,
                     // Güneş sistemi — görselin bej zemini tool/whiten_edu3d
                     // ile BEYAZA çevrildi: kartın içi diğer kartlarla aynı
@@ -3418,15 +3443,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            SizedBox(height: 10),
-            // ── YARIŞ: Dünya Sıralaması | Bilgi Yarışı ───────────────
-            Row(
-              children: [
-                Expanded(
-                  child: _LandingCard(
+      'league': _LandingCard(
                     icon: Icons.public_rounded,
                     // Düello Arenası'ndaki dünya kartıyla AYNI görünüm:
                     // koyu lacivert gradyan zemin + kartın üst/alt çizgisine
@@ -3483,10 +3500,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                       ),
                     ),
                   ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: _LandingCard(
+      'contest': _LandingCard(
                     icon: Icons.sports_esports_rounded,
                     // Sabit görsel yerine CANLI eşleşme sahnesi: solda
                     // kullanıcının kendi profili, ortada büyük VS, sağda
@@ -3509,15 +3523,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            SizedBox(height: 10),
-            // ── ÇALIŞ: Pomodoro | Ödevler + AI Koç | Takvim ──────────
-            Row(
-              children: [
-                Expanded(
-                  child: _LandingCard(
+      'pomodoro': _LandingCard(
                     icon: Icons.timer_rounded,
                     // CANLI kum saati: bej kum sürekli alta akar, cam mavi
                     // tonlu; dolunca 180° dönüp baştan başlar. Palet rengi
@@ -3539,10 +3545,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                       ),
                     ),
                   ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: _LandingCard(
+      'homeworks': _LandingCard(
                     icon: Icons.rocket_launch_rounded,
                     // Yeni 3D görsel (Gemini): mor zeminde açık kitap +
                     // mezuniyet kepi + kalem — kartın TAMAMINI kaplar.
@@ -3569,14 +3572,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _LandingCard(
+      'ai_coach': _LandingCard(
                     icon: Icons.smart_toy_rounded,
                     // Yeni 3D görsel (Gemini): mavi zeminde beyin + tokalaşma
                     // — kartın TAMAMINI kaplar.
@@ -3602,10 +3598,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                       ),
                     ),
                   ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: _LandingCard(
+      'calendar': _LandingCard(
                     icon: Icons.edit_calendar_rounded,
                     // Yeni 3D görsel (Gemini): takvim + kum saati + telefon
                     // listesi — kartın TAMAMINI kaplar.
@@ -3632,15 +3625,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            SizedBox(height: 10),
-            // ── SINIFIM: Kaynaklar (Ödevler yukarıda "Çalış"a taşındı) ──
-            Row(
-              children: [
-                Expanded(
-                  child: _LandingCard(
+      'materials': _LandingCard(
                     icon: Icons.hub_rounded,
                     // Yeni 3D görsel (Gemini): kitap yığını + klasör + bulut
                     // indirme — kartın TAMAMINI kaplar.
@@ -3667,10 +3652,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
                       ),
                     ),
                   ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: _LandingCard(
+      'history': _LandingCard(
                     icon: Icons.history_rounded,
                     // Yeni 3D görsel (Gemini): grafik + onay tiki — kartın
                     // TAMAMINI kaplayan arka plan (mockup ile birebir).
@@ -3698,15 +3680,71 @@ class _LibraryLandingState extends State<LibraryLanding> {
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
-        ),
-            ),
+    };
+  }
+
+  // ── Sürükle-bırak dizilim: _cardOrder sırasına göre 2'li satırlar ────────
+  Widget _buildReorderableCards() {
+    final cards = _libraryCards();
+    final rows = <Widget>[];
+    for (var i = 0; i < _cardOrder.length; i += 2) {
+      rows.add(Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+              child: _draggableCard(_cardOrder[i], cards[_cardOrder[i]]!)),
+          SizedBox(width: 10),
+          Expanded(
+            child: i + 1 < _cardOrder.length
+                ? _draggableCard(_cardOrder[i + 1], cards[_cardOrder[i + 1]]!)
+                : const SizedBox.shrink(),
           ),
         ],
-      ),
+      ));
+      if (i + 2 < _cardOrder.length) rows.add(SizedBox(height: 10));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: rows,
+    );
+  }
+
+  /// Kartı uzun basınca sürüklenebilir yapar; başka bir kartın üzerine
+  /// bırakılınca sürüklenen kart o konuma taşınır (araya sokulur).
+  Widget _draggableCard(String slug, Widget card) {
+    // Kart genişliği = (ekran - yatay padding 32 - satır içi boşluk 10) / 2.
+    final cardWidth = (MediaQuery.of(context).size.width - 32 - 10) / 2;
+    return DragTarget<String>(
+      onWillAcceptWithDetails: (d) => d.data != slug,
+      onAcceptWithDetails: (d) => _moveCard(d.data, slug),
+      builder: (context, candidates, _) {
+        final hovered = candidates.isNotEmpty;
+        return LongPressDraggable<String>(
+          data: slug,
+          maxSimultaneousDrags: 1,
+          // Parmağın altında kartın yarı saydam kopyası taşınır.
+          feedback: Material(
+            color: Colors.transparent,
+            child: SizedBox(
+              width: cardWidth,
+              child: Opacity(opacity: 0.85, child: card),
+            ),
+          ),
+          childWhenDragging: Opacity(opacity: 0.25, child: card),
+          child: AnimatedContainer(
+            duration: Duration(milliseconds: 150),
+            // Üzerine kart sürüklenirken mavi çerçeveyle vurgula.
+            foregroundDecoration: hovered
+                ? BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    border:
+                        Border.all(color: Color(0xFF2563EB), width: 2),
+                  )
+                : null,
+            child: card,
+          ),
+        );
+      },
     );
   }
 
@@ -9367,14 +9405,14 @@ Bu listeyi çıktıya YAZMA — sadece uygula.
   }
 
   // Hata mesajı + Tekrar Dene aksiyonu olan snack — AI çağrıları için.
-  // En fazla 5 saniye ekranda kalır, sonra otomatik kaybolur.
+  // En fazla 3 saniye ekranda kalır, sonra otomatik kaybolur.
   void _showRetrySnack(String msg, VoidCallback onRetry) {
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(SnackBar(
       content: Text(msg),
       behavior: SnackBarBehavior.floating,
-      duration: Duration(seconds: 5),
+      duration: Duration(seconds: 3),
       shape:
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       action: SnackBarAction(
@@ -10454,30 +10492,51 @@ Bu listeyi çıktıya YAZMA — sadece uygula.
               children: [
                 Row(
                   children: [
+                    // Renkli "?" rozeti — sayfa tek renk/çizgiseldi, artık
+                    // ilk bakışta yardım olduğu anlaşılıyor.
                     Container(
-                      width: 32,
-                      height: 32,
+                      width: 38,
+                      height: 38,
                       alignment: Alignment.center,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppPalette.textPrimary(context), width: 1),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF6366F1), Color(0xFF06B6D4)],
+                        ),
                       ),
-                      child: Icon(
-                        Icons.question_mark_rounded,
-                        size: 18,
-                        color: AppPalette.textPrimary(context),
+                      child: const Icon(
+                        Icons.lightbulb_rounded,
+                        size: 20,
+                        color: Colors.white,
                       ),
                     ),
                     SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        '$pageLabel — ${'Bu sayfa nasıl çalışır?'.tr()}',
-                        style: GoogleFonts.poppins(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: AppPalette.textPrimary(context),
+                      // Sade başlık + hangi sayfanın anlatıldığı küçük alt satır.
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Nasıl Çalışır?'.tr(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                color: AppPalette.textPrimary(context),
+                              ),
+                            ),
+                            Text(
+                              pageLabel,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFF6366F1),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
                     ),
                     Material(color: AppPalette.card(context),
                       shape: CircleBorder(),
@@ -10518,13 +10577,15 @@ Bu listeyi çıktıya YAZMA — sadece uygula.
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 9),
                       decoration: BoxDecoration(
-                        color: AppPalette.textPrimary(context),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF6366F1), Color(0xFF06B6D4)],
+                        ),
                         borderRadius: BorderRadius.circular(999),
                       ),
                       child: Text(
                         'Anladım'.tr(),
                         style: GoogleFonts.poppins(
-                          fontSize: 12,
+                          fontSize: 13.5,
                           fontWeight: FontWeight.w800,
                           color: Colors.white,
                           letterSpacing: 0.2,
@@ -10541,28 +10602,40 @@ Bu listeyi çıktıya YAZMA — sadece uygula.
     );
   }
 
+  /// Adım rozetleri için canlı palet — her adım farklı renk (sade ama renkli).
+  static const List<Color> _helpStepColors = [
+    Color(0xFF6366F1), // indigo
+    Color(0xFF06B6D4), // camgöbeği
+    Color(0xFF10B981), // yeşil
+    Color(0xFFF59E0B), // amber
+    Color(0xFFEC4899), // pembe
+    Color(0xFF8B5CF6), // mor
+  ];
+
   Widget _helpStep(String n, String title, String body) {
+    final idx = (int.tryParse(n) ?? 1) - 1;
+    final c = _helpStepColors[idx.clamp(0, _helpStepColors.length - 1)];
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 24,
-          height: 24,
+          width: 30,
+          height: 30,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: AppPalette.textPrimary(context),
+            color: c,
           ),
           child: Text(
             n,
             style: GoogleFonts.poppins(
-              fontSize: 11,
+              fontSize: 13,
               fontWeight: FontWeight.w800,
               color: Colors.white,
             ),
           ),
         ),
-        SizedBox(width: 10),
+        SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -10570,19 +10643,19 @@ Bu listeyi çıktıya YAZMA — sadece uygula.
               Text(
                 title,
                 style: GoogleFonts.poppins(
-                  fontSize: 13,
+                  fontSize: 14.5,
                   fontWeight: FontWeight.w800,
-                  color: AppPalette.textPrimary(context),
+                  color: c,
                 ),
               ),
-              SizedBox(height: 2),
+              SizedBox(height: 3),
               Text(
                 body,
                 style: GoogleFonts.poppins(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: AppPalette.textPrimary(context),
-                  height: 1.35,
+                  color: AppPalette.textSecondary(context),
+                  height: 1.4,
                 ),
               ),
             ],
@@ -12465,29 +12538,35 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
                 ),
               ),
               SizedBox(height: 14),
-              Container(height: 1, color: Colors.black),
-              InkWell(
-                onTap: () => Navigator.of(ctx).pop('regen'),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.refresh_rounded, size: 20,
-                          color: Colors.black),
-                      SizedBox(width: 10),
-                      Text(
-                        'Yeniden Oluştur'.tr(),
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppPalette.textPrimary(context),
+              // "Yeniden Oluştur" yalnız Özet modunda: o modda konu başına tek
+              // özet olduğu için yeniden üretmek mantıklı. Sınav Soruları
+              // modunda ise konu 6 teste kadar tutar; regen hepsini silip tek
+              // test üretiyordu (veri kaybı) → bu modda gizli.
+              if (widget.mode != LibraryMode.questions) ...[
+                Container(height: 1, color: Colors.black),
+                InkWell(
+                  onTap: () => Navigator.of(ctx).pop('regen'),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.refresh_rounded, size: 20,
+                            color: Colors.black),
+                        SizedBox(width: 10),
+                        Text(
+                          'Yeniden Oluştur'.tr(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppPalette.textPrimary(context),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
               Container(height: 1, color: Colors.black),
               InkWell(
                 onTap: () => Navigator.of(ctx).pop('delete'),
@@ -12518,6 +12597,35 @@ class _SubjectDetailPageState extends State<_SubjectDetailPage> {
     );
     if (!mounted || action == null) return;
     if (action == 'delete') {
+      // Onay iste — Sınav Soruları modunda bu konudaki TÜM testleri (6'ya
+      // kadar) ve sonuçlarını sildiği için geri alınamaz.
+      final isQuestions = widget.mode == LibraryMode.questions;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (dctx) => AlertDialog(
+          title: Text(sum.topic,
+              style: GoogleFonts.poppins(fontWeight: FontWeight.w800)),
+          content: Text(
+            isQuestions
+                ? 'Bu konudaki tüm testleri ve sonuçlarını silmek ister misin?'
+                    .tr()
+                : 'Bu özeti silmek ister misin?'.tr(),
+            style: GoogleFonts.poppins(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dctx).pop(false),
+              child: Text('İptal'.tr()),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dctx).pop(true),
+              child: Text('Sil'.tr(),
+                  style: const TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
       await widget.onDelete(sum);
       if (mounted) setState(() {});
     } else if (action == 'regen') {

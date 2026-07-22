@@ -1124,7 +1124,7 @@ function applyBulletsCol(){if(bulletsCol)document.querySelectorAll('#pbody li').
 function _sadeOf(full){
   // detaylı metnin ilk 1-2 cümlesini al (seviyeye göre sade özet)
   const sents=(''+full).split(/(?<=[.!?])\s+/).filter(s=>s.trim());
-  return sents.slice(0,2).join(' ');
+  return sents.slice(0,4).join(' ');
 }
 function refreshPanel(){if(solving)return;const a=ACTS[act];const vs=VSET[act];const v=vs[vi];const multi=vs.length>1;
   const _lv=(level==='universite')?'lise':level;   /* lise = üniversite */
@@ -1194,6 +1194,8 @@ function fracify(s){if(s==null)return s;var SUP='⁰¹²³⁴⁵⁶⁷⁸⁹⁻�
 function _grp(s,i){if(s[i]!=='{')return [s[i]||'',i+1];var dep=0,start=i+1,k=i;for(;k<s.length;k++){if(s[k]==='{')dep++;else if(s[k]==='}'){dep--;if(dep===0)return [s.slice(start,k),k+1];}}return [s.slice(start),k];}
 function texRender(s){s=''+s;var out='',i=0,n=s.length,g;
   while(i<n){
+    /* kume parantezi: \{ ve \} literal olarak yazilmali (grup ayraci degil) */
+    if(s[i]==='\\'&&(s[i+1]==='{'||s[i+1]==='}')){out+=s[i+1];i+=2;continue;}
     if(s.substr(i,4)==='\\gen'){
       i+=4;while(s[i]===' ')i++;
       var ga=_grp(s,i);i=ga[1];while(s[i]===' ')i++;var gb=_grp(s,i);i=gb[1];while(s[i]===' ')i++;var gk=_grp(s,i);i=gk[1];
@@ -1797,7 +1799,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
 <style id="mathSceneWhiteBg">
 /* 3D sahne zemini soluk beyaz — UI panelleri kendi renklerinde kalır. */
-canvas{ background:#F2F4F7 !important; }
+canvas{ background:#FAFAFA !important; }
 </style>
 
 <style id="gxScrollHintCss">
@@ -1845,5 +1847,452 @@ canvas{ background:#F2F4F7 !important; }
   function boot(){ scan(); for(var i=0;i<items.length;i++)upd(items[i]); mo.observe(document.body,{childList:true,subtree:true,attributes:true,characterData:true}); }
   if(document.readyState==='loading')addEventListener('DOMContentLoaded',boot);else boot();
 })();</script>
+<style id="chemDockMathV3">
+/* === KİMYA TARZI ALT DOCK v3 + BEYAZ BİLGİ PANELİ + TEK BAŞLIK === */
+.header{ display:none !important; }
+#b-help{ position:fixed !important; top:10px; right:10px; left:auto !important; z-index:31;
+  width:40px; height:40px; border-radius:12px; background:#ffffff !important;
+  border:2px solid #e8a33d !important; color:#c2410c !important; font-size:19px; font-weight:800;
+  cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,.18); padding:0 !important; }
+.sub{ top:10px !important; }
+.hint{ top:48px !important; }
+.vnav{ top:58px !important; }
+/* dock: tam genişlik, sekmeler köşelerden içeride, orta tam ortada */
+.tools{ position:fixed !important; left:10px !important; right:10px !important; bottom:6px !important;
+  transform:none !important; width:auto !important; max-width:none !important;
+  background:#f4f6fa !important; border:2px solid #2f8fd0 !important; border-radius:20px !important;
+  padding:6px 18px !important; display:flex !important; justify-content:space-between !important;
+  align-items:center !important; gap:0 !important; box-shadow:0 3px 12px rgba(0,0,0,.25) !important;
+  z-index:30 !important; }
+.tools .tbtn,.tools .level{ background:#ffffff !important; margin-left:0 !important; }
+.tools .tbtn .t{ font-size:9px !important; }
+#b-detail,#t-detail{ color:#0d9488 !important; border-color:#14b8a6 !important;
+  width:72px !important; height:44px !important; border-radius:12px !important; }
+#bAraclarMath{ border:2px solid #5fd99a !important; color:#111318 !important; background:#ffffff !important;
+  width:auto !important; min-width:72px; height:44px; padding:2px 12px; border-radius:12px; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+  box-shadow:0 3px 8px rgba(0,0,0,.12); }
+#bAraclarMath:active{ transform:scale(.95); }
+#bAraclarMath .g{ font-size:17px; line-height:1; }
+#bAraclarMath .t{ font-size:10px; font-weight:800; letter-spacing:.02em; color:#111318; }
+#b-level,#t-level{ width:72px !important; height:44px !important; border-radius:12px !important; }
+/* popuplar: kimya combo-pop tasarımı */
+#mathArcPop,#mathLvlPop{ display:none; position:fixed; z-index:70; flex-direction:column; gap:5px;
+  width:min(240px,82vw); background:#161b2e; border:2px solid #3b82f6; border-radius:14px;
+  padding:8px; box-shadow:0 12px 32px rgba(0,0,0,.55); }
+#mathLvlPop{ width:min(210px,70vw); }
+.map-item{ display:flex; align-items:center; gap:10px; background:#1f2540; border:1.5px solid #2f3a5f;
+  border-radius:10px; padding:9px 12px; cursor:pointer; font-family:inherit; font-weight:600;
+  font-size:13px; color:#eef0ff; text-align:left; transition:all .12s; }
+.map-item:hover{ background:#2f3a5f; }
+.map-item:active{ transform:scale(.97); }
+.map-ico{ font-size:14px; display:flex; align-items:center; border-radius:8px; padding:3px 5px; }
+.map-ico svg{ width:15px; height:15px; display:block; fill:currentColor; }
+#mathArcBack{ display:none; position:fixed; inset:0; z-index:69; background:rgba(0,0,0,.55); }
+/* bilgi paneli: beyaz + alt kenari dock arkasina uzanir */
+.bwrap{ bottom:0 !important; }
+.panel{ background:#ffffff !important; border:2px solid #2f8fd0 !important; bottom:0 !important;
+  border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
+.pbody{ color:#1a2233 !important; padding-bottom:74px !important; }
+.pbody li{ color:#1a2233 !important; }
+.pbody li::before{ background:#2f8fd0 !important; }
+.phead .pt,.phead .pt .ptt,.phead .pt .ps{ color:#3b5bd9 !important; }
+.pgrip{ background:#f4f6fa !important; border-color:#2f8fd0 !important; color:#3b5bd9 !important; }
+.pprog{ background:rgba(0,0,0,.07) !important; }
+</style>
+<script id="chemDockMathJs">
+(function(){
+  var LBL={'b-mix':'Karışık Sorular','t-mix':'Karışık Sorular',
+    'b-cmp':'Karşılaştırma Tablosu','t-cmp':'Karşılaştırma Tablosu',
+    'b-info':'Bilgi Tablosu','t-info':'Bilgi Tablosu','b-cmpinfo':'Bilgi Tablosu',
+    'b-send':'Arkadaşına Gönder','t-send':'Arkadaşına Gönder',
+    'b-palette':'Renk Seçenekleri','t-pal':'Renk Seçenekleri'};
+  function toRgba(c,a){ var m=(''+c).match(/rgba?\(([^)]+)\)/); if(m){ return 'rgba('+m[1].split(',').slice(0,3).join(',')+','+a+')'; } return c; }
+  function init(){
+    var bar=document.querySelector('.tools'); if(!bar||bar.dataset.chemDock) return; bar.dataset.chemDock='1';
+    var hb=document.getElementById('b-help'); if(hb) document.body.appendChild(hb);
+    var hd=document.querySelector('.header'); if(hd) hd.style.display='none';
+    var detail=document.getElementById('b-detail')||document.getElementById('t-detail');
+    var level=document.getElementById('b-level')||document.getElementById('t-level');
+    var guide=document.getElementById('b-guide')||document.getElementById('t-guide');
+    var kids=Array.prototype.slice.call(bar.children);
+    var mids=kids.filter(function(b){ return b!==detail && b!==level && b!==guide; });
+    if(guide) guide.style.display='none';
+    /* orta: Araçlar */
+    var ab=document.createElement('button');
+    ab.id='bAraclarMath'; ab.type='button';
+    ab.innerHTML='<span class="g">🌿</span><span class="t">Araçlar</span>';
+    if(mids.length) bar.insertBefore(ab,mids[0]); else if(level) bar.insertBefore(ab,level); else bar.appendChild(ab);
+    var pop=document.createElement('div'); pop.id='mathArcPop';
+    mids.forEach(function(b){
+      b.style.display='none';
+      var t=b.querySelector('.t'); var lab=LBL[b.id]||(t?t.textContent:(b.title||''));
+      var g=b.querySelector('.g'); var icon=g?g.innerHTML:'•';
+      var bc='#5fc8e0'; try{ var cs=getComputedStyle(b).borderTopColor; if(cs) bc=cs; }catch(e){}
+      var it=document.createElement('button'); it.type='button'; it.className='map-item';
+      it.style.borderColor=bc;
+      it.innerHTML='<span class="map-ico" style="background:'+toRgba(bc,0.18)+';color:'+bc+'">'+icon+'</span><span style="color:'+bc+'">'+lab+'</span>';
+      it.onclick=function(){ hide(); b.click(); };
+      pop.appendChild(it);
+    });
+    document.body.appendChild(pop);
+    /* sağ: Eğitim Seviyesi + Konu Rehberi mini menüsü */
+    var lp=document.createElement('div'); lp.id='mathLvlPop';
+    function mkOpt(icon,lab,col,fn){
+      var it=document.createElement('button'); it.type='button'; it.className='map-item';
+      it.style.borderColor=col;
+      it.innerHTML='<span class="map-ico" style="background:'+toRgba(col,0.18)+';color:'+col+'">'+icon+'</span><span style="color:'+col+'">'+lab+'</span>';
+      it.onclick=function(){ hide(); fn(); };
+      lp.appendChild(it);
+    }
+    var origLvl=null;
+    if(level){
+      origLvl=level.onclick;
+      mkOpt('🎓','Eğitim Seviyesi','#4D8DFF',function(){ if(origLvl) origLvl.call(level,{stopPropagation:function(){}}); });
+    }
+    if(guide) mkOpt('📖','Konu Rehberi','#B98CFF',function(){ guide.click(); });
+    document.body.appendChild(lp);
+    if(level){ level.onclick=function(e){ if(e&&e.stopPropagation)e.stopPropagation(); if(lp.style.display==='flex'){hide();}else{showLvl();} }; }
+    var bd=document.createElement('div'); bd.id='mathArcBack'; document.body.appendChild(bd);
+    function place(el,anchorRight){
+      var r=bar.getBoundingClientRect();
+      el.style.bottom=(window.innerHeight-r.top+10)+'px';
+      if(anchorRight){ el.style.left='auto'; el.style.right='14px'; el.style.transform='none'; }
+      else{ el.style.right='auto'; el.style.left='50%'; el.style.transform='translateX(-50%)'; }
+    }
+    function showArc(){ hide(); place(pop,false); pop.style.display='flex'; bd.style.display='block'; }
+    function showLvl(){ hide(); place(lp,true); lp.style.display='flex'; bd.style.display='block'; }
+    function hide(){ pop.style.display='none'; lp.style.display='none'; bd.style.display='none'; }
+    ab.onclick=function(){ if(pop.style.display==='flex'){hide();}else{showArc();} };
+    bd.onclick=hide;
+  }
+  function boot(){ setTimeout(init,700); }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',boot); } else { boot(); }
+})();
+</script>
+<style id="mathSheetLightV1">
+/* sheet overlays: big frame pale white, items pure white, dark text */
+.sheet{ background:#f4f6fa !important; border:2px solid #2f8fd0 !important; }
+.sheet .sh{ border-bottom:1px solid #d5dbe6 !important; }
+.sheet .sh h3{ color:#111318 !important; }
+.sheet .x{ background:#e2e8f0 !important; border:1px solid #c9d2e0 !important; color:#111318 !important; }
+.sheet .body{ color:#1a2233; }
+.stabs{ border-bottom:1px solid #d5dbe6 !important; }
+.stab{ color:#5a6a88 !important; }
+.stab.on{ color:#111318 !important; }
+.stab:hover:not(.on){ color:#111318 !important; }
+.snav{ border-top:1px solid #d5dbe6 !important; }
+.snav button{ background:#ffffff !important; border:1px solid #c9d2e0 !important; color:#1a2233 !important; }
+.snav button:hover{ background:#eef1f5 !important; color:#111318 !important; }
+.snav .s-ind{ color:#5a6a88 !important; }
+.guide-item{ background:#ffffff !important; }
+.guide-item .gt{ color:#111318; }
+.guide-item .gd{ color:#5a6a88; }
+.menu-opt{ background:#ffffff !important; border:1px solid #c9d2e0 !important; color:#1a2233 !important; }
+.menu-opt .ms{ color:#5a6a88 !important; }
+.menu-opt.sel{ background:#f3ecff !important; }
+.help-card p{ color:#3a4256 !important; }
+table.cmp th,table.cmp td{ border:1px solid #c9d2e0 !important; }
+table.cmp th{ background:#eef1f5 !important; color:#111318 !important; }
+table.cmp td{ color:#1a2233 !important; }
+table.cmp td:first-child{ color:#111318 !important; }
+</style><style id="mathPanelFixV1">
+/* bilgi paneli: tum yazilar siyah, renkli arka plan vurgulari yok */
+.pbody{ color:#111318 !important; }
+.pbody *{ color:#111318 !important; background:transparent !important; text-shadow:none !important; }
+/* alt bar: dis buyuk cerceve kaldirildi, sekmelerin kendi cerceveleri kaldi */
+.tools{ background:transparent !important; border:none !important; box-shadow:none !important; }
+</style><style id="mathPanelHalfV1">
+/* bilgi paneli daima ekranin yarisina kadar */
+.panel{ height:50vh !important; max-height:50vh !important; overflow:hidden !important; }
+/* yazilar alt kontrollerin USTUNDE; sigmazsa yalniz pbody icinde kayar */
+.panel .pbody{ flex:1 1 auto !important; min-height:0 !important; overflow-y:auto !important; }
+.panel .phead, .panel .pctrls{ flex:0 0 auto !important; }
+.pbody{ overflow-y:auto !important; flex:1 1 auto !important; }
+</style>
+<style id="mathScene5">
+/* ileri-geri ustundeki ince cizgi (panel progress) kaldirildi */
+.pprog{ display:none !important; }
+/* ? gizli (helpHideV1) — sahne gecis sekmesi EN SAG USTTE */
+#b-help{ top:8px !important; }
+.vnav{ top:8px !important; right:12px !important; left:auto !important; }
+.scenenav{ position:fixed !important; top:8px !important; right:12px !important; left:auto !important;
+  bottom:auto !important; transform:none !important; z-index:31; }
+/* konu basligi ust siranin hemen altinda */
+.sub{ top:56px !important; }
+.hint{ top:96px !important; }
+/* ileri-geri butonlarinin ustundeki cizgi (tutamac alt cizgisi) kaldirildi */
+.pgrip{ border-bottom:none !important; }
+.pctrls{ border:none !important; }
+/* 3d sahne arka plani daha soluk beyaz */
+canvas{ background:#FAFAFA !important; }
+</style>
+<script id="mathScene5Js">
+(function(){
+  function getCam(){ var c=null; try{ if(typeof camera!=='undefined'&&camera) c=camera; }catch(e){}
+    if(!c){ try{ if(typeof cam!=='undefined'&&cam) c=cam; }catch(e){} }
+    if(c&&(c.isPerspectiveCamera||c.isOrthographicCamera)) return c; return null; }
+  function getScene(){ try{ if(typeof scene!=='undefined'&&scene&&scene.isScene) return scene; }catch(e){} return null; }
+  function emptyGroup(){ try{ return new THREE.Group(); }catch(e){ return null; } }
+  /* kareli zemin uretici fonksiyonlari etkisizlestir */
+  function killGridFns(){
+    ['buildGroundGrid','grid','makeGrid','groundGrid','buildGrid'].forEach(function(n){
+      try{
+        if(typeof window[n]==='function' && !window[n].__gridOff){
+          var f=function(){ return emptyGroup(); }; f.__gridOff=1; window[n]=f;
+        }
+      }catch(e){}
+    });
+  }
+  /* sahnede kurulu kalmis izgara/cizgi zeminleri gizle */
+  var _sgBox=null;
+  function stripGrids(root){
+    if(!root||!root.traverse||!window.THREE) return;
+    if(!_sgBox) _sgBox=new THREE.Box3();
+    var hits=[];
+    root.traverse(function(o){
+      if(o.type==='Group'&&o.children.length>=6){
+        var lines=0;
+        o.children.forEach(function(c){ if(c.isLine||c.isLineSegments) lines++; });
+        if(lines>=o.children.length*0.8){ hits.push(o); return; }
+      }
+      /* tek parca duz-genis cizgi zemini (grid floor) */
+      if((o.isLine||o.isLineSegments)&&o.visible){
+        try{
+          _sgBox.setFromObject(o);
+          var sx=_sgBox.max.x-_sgBox.min.x, sy=_sgBox.max.y-_sgBox.min.y, sz=_sgBox.max.z-_sgBox.min.z;
+          if(sy<0.2&&sx>8&&sz>8) hits.push(o);
+        }catch(e){}
+      }
+    });
+    hits.forEach(function(o){ o.visible=false; });
+  }
+  /* renk paleti: Arka Plan secimi 3D sahneyi de boyasin */
+  function hookPalette(){
+    try{
+      if(typeof applyPaletteColor==='function' && !applyPaletteColor.__bgHook){
+        var orig=applyPaletteColor;
+        var w=function(tg,c,s){
+          orig(tg,c,s);
+          if(tg==='bg'||tg==='scene'){
+            try{ var sc=getScene(); if(sc&&window.THREE){ sc.background=new THREE.Color(c); } }catch(e){}
+            try{ var cv=document.querySelector('canvas'); if(cv) cv.style.setProperty('background',c,'important'); }catch(e){}
+          }
+        };
+        w.__bgHook=1; applyPaletteColor=w;
+      }
+    }catch(e){}
+    /* applyPal sayfa-yerel (shim erisemiyor) → swatch tiklamasini dinle:
+       hedef 'Arka Plan' ise rengi canvas'a uygula (stil blogundaki
+       !important beyazi ancak inline important ezer). Reset → beyaza don. */
+    try{
+      if(!document.__palBgFix){
+        document.__palBgFix=1;
+        document.addEventListener('click',function(ev){
+          var t=ev.target; if(!t||!t.closest) return;
+          if(t.closest('#pal-reset')){
+            var cv0=document.querySelector('canvas');
+            if(cv0) cv0.style.removeProperty('background');
+            try{ var s0=getScene(); if(s0) s0.background=null; }catch(e2){}
+            return;
+          }
+          /* Varyant B (fonksiyonlar/problemler): hedefler .pal-tg (ilki=Arka plan),
+             kutucuklar .sw — hedef secimini isaretle, bg aktifken canvas'i boya */
+          var tg2=t.closest('.pal-tg');
+          if(tg2&&tg2.parentNode){ document.__palVarBg=(tg2===tg2.parentNode.firstElementChild); return; }
+          var sw2=t.closest('.sw');
+          if(sw2&&sw2.parentNode&&sw2.parentNode.id==='pal-swatches'){
+            if(document.__palVarBg===false) return;
+            var c2=sw2.style.backgroundColor||sw2.style.background; if(!c2) return;
+            var cv2=document.querySelector('canvas');
+            if(cv2) cv2.style.setProperty('background',c2,'important');
+            try{ var s2=getScene(); if(s2) s2.background=null; }catch(e4){}
+            return;
+          }
+          /* Varyant A: hedefler .pal-t[data-tg], kutucuklar .pal-sw */
+          var sw=t.closest('.pal-sw'); if(!sw) return;
+          var act=document.querySelector('.pal-t.active');
+          if(!act||act.getAttribute('data-tg')!=='bg') return;
+          var c=sw.style.backgroundColor||sw.style.background; if(!c) return;
+          var cv=document.querySelector('canvas');
+          if(cv) cv.style.setProperty('background',c,'important');
+          try{ var sc=getScene(); if(sc) sc.background=null; }catch(e3){}
+        }, true);
+      }
+    }catch(e){}
+  }
+  /* === OTOMATIK SIGDIRMA: hicbir sekil/etiket yatayda ekran disina tasmasin === */
+  var _corners=null,_tmpBox=null,_box=null;
+  function fitCam(){
+    try{
+      var camera=getCam(); var scene=getScene();
+      if(!camera||!scene||!window.THREE) return;
+      if(!_tmpBox){ _tmpBox=new THREE.Box3(); _box=new THREE.Box3(); _corners=[]; for(var i=0;i<8;i++) _corners.push(new THREE.Vector3()); }
+      _box.makeEmpty(); var has=false;
+      scene.updateMatrixWorld(true);
+      scene.traverse(function(o){
+        if(!o.visible) return;
+        if(o.isPoints) return;
+        if(!(o.isMesh||o.isSprite||o.isLine)) return;
+        var p=o; while(p){ if(p.visible===false) return; p=p.parent; }
+        _tmpBox.setFromObject(o);
+        if(!isFinite(_tmpBox.min.x)||!isFinite(_tmpBox.max.x)) return;
+        var sx=_tmpBox.max.x-_tmpBox.min.x, sy=_tmpBox.max.y-_tmpBox.min.y, sz=_tmpBox.max.z-_tmpBox.min.z;
+        if(sx>26||sy>26||sz>26) return; /* zemin/dev dekor sayilir */
+        if(sy<0.1&&(sx>8||sz>8)) return; /* duz-genis zemin plakasi */
+        _box.union(_tmpBox); has=true;
+      });
+      if(!has||_box.isEmpty()) return;
+      var mn=_box.min, mx=_box.max, k=0;
+      for(var xi=0;xi<2;xi++) for(var yi=0;yi<2;yi++) for(var zi=0;zi<2;zi++){
+        _corners[k++].set(xi?mx.x:mn.x, yi?mx.y:mn.y, zi?mx.z:mn.z);
+      }
+      camera.updateMatrixWorld(true);
+      var maxX=0, loY=Infinity, hiY=-Infinity;
+      for(var j=0;j<8;j++){
+        var pr=_corners[j].clone().project(camera);
+        if(isFinite(pr.x)&&pr.z<1){
+          maxX=Math.max(maxX,Math.abs(pr.x));
+          if(isFinite(pr.y)){ loY=Math.min(loY,pr.y); hiY=Math.max(hiY,pr.y); }
+        }
+      }
+      if(!isFinite(maxX)||maxX<=0) return;
+      /* dikey: icerigin ust kenari basligin hemen altinda (NDC ~0.80) baslasin,
+         alt kenari panel ustunun (NDC ~-0.08) altina inmesin */
+      if(isFinite(loY)&&isFinite(hiY)){
+        var shift=0.80-hiY;
+        if(loY+shift<0.02) shift=0.02-loY;
+        if(Math.abs(shift)>0.03){
+          var cv=document.querySelector('canvas');
+          var W=(cv&&cv.clientWidth)||window.innerWidth, H=(cv&&cv.clientHeight)||window.innerHeight;
+          if(camera.__voy==null) camera.__voy=0;
+          camera.__voy += shift*0.9*(H/2);
+          var lim=H*0.45; if(camera.__voy>lim)camera.__voy=lim; if(camera.__voy<-lim)camera.__voy=-lim;
+          camera.setViewOffset(W,H,0,camera.__voy,W,H);
+          camera.updateProjectionMatrix();
+        }
+      }
+      if(camera.__baseZoom==null){ camera.__baseZoom=camera.zoom||1; }
+      var mY=(isFinite(hiY)&&isFinite(loY))?((hiY-loY)/0.78):0;
+      var m=Math.max(maxX/0.84, mY); /* referans kadraj: cerceveye yakin, degmeyen (~%8 kenar payi) */
+      var target=camera.zoom;
+      if(m>1.02){ target=Math.max(0.4, camera.zoom/m); }
+      else if(m<0.90){ target=Math.min(camera.__baseZoom*1.8, camera.zoom*(0.96/Math.max(m,0.05))); }
+      if(Math.abs(target-camera.zoom)/camera.zoom>0.03){
+        camera.zoom=target; camera.updateProjectionMatrix();
+      }
+    }catch(e){}
+  }
+  /* 3D geometri iceren onden-bakisli sahneleri egik goster;
+     yalniz yazi/denklem sahnelerinde kamera TAM KARSIDAN baksin */
+  function applyTilt(){
+    try{
+      var c=getCam(), s=getScene(); if(!c||!s) return;
+      var meshes=0;
+      s.traverse(function(o){ if(o.isMesh && !(o.material&&o.material.map)) meshes++; });
+      var want=meshes>=2; /* gercek 3D model var mi */
+      var p=c.position, d=Math.sqrt(p.x*p.x+p.z*p.z)||1;
+      var frontal=(Math.abs(p.x)<0.18*d)&&(p.y<0.30*d);
+      if(want && frontal && !s.__tilted){ s.rotation.x+=0.50; s.rotation.y+=0.28; s.__tilted=1; }
+      else if(!want && s.__tilted){ s.rotation.x-=0.50; s.rotation.y-=0.28; s.__tilted=0; }
+    }catch(e){}
+  }
+  function tick(){
+    killGridFns(); hookPalette(); applyTilt();
+    try{ var sc2=getScene(); if(sc2) stripGrids(sc2); }catch(e){}
+  }
+  killGridFns();
+  var n=0; var iv=setInterval(function(){ tick(); if(++n>=8) clearInterval(iv); },1200);
+  var _fc=0;
+  setInterval(function(){ applyTilt(); fitCam(); if((++_fc)%3===0){ try{ var s3=getScene(); if(s3) stripGrids(s3); }catch(e){} } },700);
+  [300,600,1000,1400,1800,2200].forEach(function(ms){ setTimeout(function(){ applyTilt(); fitCam(); },ms); });
+  document.addEventListener('pointerup',function(){ [200,450,800,1200,1700].forEach(function(ms){ setTimeout(fitCam,ms); }); },true);
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',tick); } else { tick(); }
+})();
+</script>
+
+
+
+
+
+
+
+
+
+<style id="mathSheetLightV2">
+/* sheet icerigi: tum yazilar siyah, koyu kartlar beyaz, tablolar beyaz */
+.sheet .body, .sheet .body *{ color:#111318 !important; text-shadow:none !important; }
+.sheet .body *{ background:transparent !important; border-color:#c9d2e0 !important; }
+.sheet .body > div{ background:#ffffff !important; }
+.sheet .body table{ background:#ffffff !important; }
+.sheet .body td{ background:#ffffff !important; }
+.sheet .body th{ background:#eef1f5 !important; }
+.sheet .body .guide-item{ background:#ffffff !important; }
+</style><style id="mathPheadV1">
+/* panel butonlari (klaket/soru/geri/ileri) panelin sag ust kosesinde tek sira */
+.pctrls{ top:6px !important; right:6px !important; left:auto !important; }
+.phead > .pbtn{ position:absolute !important; top:6px !important; margin:0 !important; }
+.phead > #p-next{ right:6px !important; }
+.phead > #p-prev{ right:52px !important; }
+.phead > #p-quiz{ right:98px !important; }
+.phead > #p-clap{ right:144px !important; }
+/* baslik tek satir, alt baslik hemen altinda kucuk */
+.phead{ min-height:50px; }
+.phead .pt{ display:block !important; white-space:nowrap !important; overflow:hidden !important;
+  text-overflow:ellipsis !important; padding-right:176px !important; }
+.phead .pt span[style*="font-size:11px"]{ display:block !important; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; font-size:11.5px !important; margin-top:2px; }
+</style><style id="helpHideV1">#btnHelp,#b-help,.scene-help,.tool-icon-btn.help{display:none !important;}</style>
+<style id="mathSheetLightV3">
+/* fonksiyonlar/problemler sheet govdesi (.sheet-body) icin acik tema */
+.sheet-body, .sheet-body *{ color:#111318 !important; text-shadow:none !important; }
+.sheet-body *{ background:transparent !important; border-color:#c9d2e0 !important; }
+.sheet-body > div{ background:#ffffff !important; }
+.sheet-body table{ background:#ffffff !important; }
+.sheet-body td{ background:#ffffff !important; }
+.sheet-body th{ background:#eef1f5 !important; }
+/* ust chip + ipucu beyaz zeminde okunur */
+.sub .fbox{ color:#16233f !important; background:#e8eefc !important; border-color:#4D8DFF !important; text-shadow:none !important; }
+.sub{ text-shadow:none !important; }
+.hint{ color:#3a4a6b !important; }
+</style>
+<script id="mathSpriteInkV1">
+/* beyaz zeminde okunmayan acik renkli yazi spritelarini koyulastir */
+(function(){
+  function getScene(){ try{ if(typeof scene!=='undefined'&&scene&&scene.isScene) return scene; }catch(e){} return null; }
+  var probe=null,pc=null;
+  function lumFix(){
+    var s=getScene(); if(!s||!window.THREE) return;
+    if(!probe){ probe=document.createElement('canvas'); probe.width=probe.height=24; pc=probe.getContext('2d',{willReadFrequently:true}); }
+    var budget=14;
+    s.traverse(function(o){
+      if(budget<=0) return;
+      if(!o.isSprite||!o.material||o.material.__ink) return;
+      var m=o.material, img=m.map&&m.map.image; if(!img||!img.width) return;
+      m.__ink=1; budget--;
+      try{
+        pc.clearRect(0,0,24,24); pc.drawImage(img,0,0,24,24);
+        var d=pc.getImageData(0,0,24,24).data, sum=0,n=0;
+        for(var i=0;i<d.length;i+=4){ var a=d[i+3]; if(a>40){ sum+=(0.299*d[i]+0.587*d[i+1]+0.114*d[i+2])/255; n++; } }
+        if(n>8 && (sum/n)>0.70){ m.color.setHex(0x243049); }
+      }catch(e){}
+    });
+  }
+  setInterval(lumFix,1500);
+  [600,1200,2000].forEach(function(ms){ setTimeout(lumFix,ms); });
+})();
+</script><style id="mathBoardFullV1">
+/* soru sayfasi (karisik test + kalem sorulari): TAM SAYFA, soru kitabi gibi acik tema */
+.board{ position:fixed !important; top:0 !important; left:0 !important; right:0 !important; bottom:0 !important;
+  z-index:90 !important; border-radius:0 !important; border:none !important;
+  background:#f6f7f9 !important; }
+.board, .board *{ color:#111318 !important; text-shadow:none !important; }
+.board *{ background:transparent !important; }
+.board .bd-head{ background:#eef1f5 !important; border-bottom:1px solid #d5dbe6 !important; }
+.board button{ background:#ffffff !important; }
+.board .bd-scroll > div, .board .bd-body > div{ background:#ffffff !important; border-radius:12px; }
+.board .bd-pre{ background:#eef1f5 !important; }
+</style><style id="mathSubBigV1">.sub{ font-size:22px !important; } .sub .fbox{ font-size:22px !important; padding:6px 22px !important; border-width:2px !important; }</style>
 </body>
+
 </html>

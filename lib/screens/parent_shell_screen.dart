@@ -295,7 +295,11 @@ class _ParentShellScreenState extends State<ParentShellScreen> {
     if (children.isEmpty) {
       if (warnIfEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Önce bir çocuk bağla (➕ → Çocuk Bağla).'.tr()),
+          // Eski metin var olmayan bir menüyü tarif ediyordu (➕ menüsünde
+          // "Çocuk Bağla" yok) — gerçek giriş noktası tarif edilir.
+          content: Text(
+              'Önce bir çocuk bağla — Çocuklarım kartındaki "Çocuğunuza bağlanın" düğmesine dokun.'
+                  .tr()),
           behavior: SnackBarBehavior.floating,
         ));
       }
@@ -412,7 +416,10 @@ Future<void> consumePendingParentLinkCode(BuildContext context) async {
       LinkRequestResult.alreadyLinked => 'Bu çocuk zaten bağlı.'.tr(),
       LinkRequestResult.invalidCode ||
       LinkRequestResult.codeExpired =>
-        'Bağlantının süresi dolmuş — çocuğundan yeni bir bağlantı iste.'.tr(),
+        // Kod TEK KULLANIMLIK: ikinci veli aynı linke dokununca da buraya
+        // düşer — mesaj her iki durumu da anlatır.
+        'Bağlantı kodu geçersiz: süresi dolmuş ya da daha önce kullanılmış olabilir (her kod TEK veli içindir). Çocuğundan yeni bir kod iste.'
+            .tr(),
       LinkRequestResult.selfLink =>
         'Kendi hesabına bağlanamazsın — bu linke velin dokunmalı.'.tr(),
       _ => 'Bağlanamadı. İnterneti kontrol edip linke tekrar dokun.'.tr(),
@@ -1206,11 +1213,18 @@ class _ParentHomeTabState extends State<_ParentHomeTab>
     });
   }
 
+  // Build içinde her seferinde YENİ snapshots() stream'i üretmek her
+  // rebuild'de aboneliği sıfırlıyor, bir frame'lik null-data ile
+  // "Çocuğunuza bağlanın" kartı titreyip _selIdx sıfırlanabiliyordu —
+  // stream BİR KEZ oluşturulup saklanır.
+  late final Stream<List<LinkedChild>> _childrenStream =
+      ParentLinkService.linkedChildrenStream();
+
   @override
   Widget build(BuildContext context) {
     final ink = AppPalette.textPrimary(context);
     return StreamBuilder<List<LinkedChild>>(
-      stream: ParentLinkService.linkedChildrenStream(),
+      stream: _childrenStream,
       builder: (context, snap) {
         final all = snap.data ?? const <LinkedChild>[];
         final active = all.where((c) => c.isActive).toList();

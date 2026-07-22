@@ -100,8 +100,14 @@ export const submitLeagueAttempt = onCall(
     const durationSec =
       typeof d.durationSec === "number" ? Math.round(d.durationSec) : NaN;
     const whenMs = typeof d.whenMs === "number" ? d.whenMs : NaN;
-    const countryCode = asTrimmedString(d.countryCode, 8).toUpperCase();
-    const cityCode = asTrimmedString(d.cityCode, 64);
+    // UK→GB: eğitim profili 'uk', LocationCatalog ISO 'GB' kullanıyor —
+    // normalize edilmezse aynı ülke iki liderlik havuzuna bölünür (istemci
+    // tarafı LeagueScores.effectiveCountryCode ile aynı kural).
+    const rawCountry = asTrimmedString(d.countryCode, 8).toUpperCase();
+    const countryCode = rawCountry === "UK" ? "GB" : rawCountry;
+    // Şehir slug'ı savunmalı normalize (trim+lowercase) — istemci payload'ı
+    // ve okuma tarafı (LeagueLeaderboardService._normCity) ile birebir.
+    const cityCode = asTrimmedString(d.cityCode, 64).toLowerCase();
     const level = asTrimmedString(d.level, 40);
     const grade = asTrimmedString(d.grade, 60);
     const displayName = asTrimmedString(d.displayName, MAX_NAME_LEN);
@@ -228,6 +234,12 @@ export const submitLeagueAttempt = onCall(
         serverWhen: FieldValue.serverTimestamp(),
       });
 
+      // NOT (bilinçli tasarım): totals dokümanına konum/sınıf alanları her
+      // submit'te SON değerle yazılır → kullanıcı şehir/sınıf değiştirip yeni
+      // test çözünce birikmiş toplamı ve sıralaması YENİ kapsama taşınır
+      // (profil kullanıcıyı izler). Attempt kayıtları ise snapshot'lıdır ve
+      // kazanıldıkları konumda kalır. İstemci myRank/fetchNeighbors, doküman
+      // scope'u seçili kapsamla uyuşmuyorsa sıra göstermez (tutarlılık).
       for (const bucket of buckets) {
         for (const mode of modes) {
           const ref = db

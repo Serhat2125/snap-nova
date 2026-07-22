@@ -131,6 +131,17 @@ const List<AiHop> _hopsPhotoFree = [
   // multimodal (text+vision) güncel model. Canlı testte görseli okuyup çözdü.
   AiHop(AiProvider.grok, 'grok-4.3'),
 ];
+// Konu pekiştirme / özet (Study Suite) — kullanıcı isteği (2026-07-21):
+// "Gemini kredisi yoksa ya da geç geliyorsa önce ChatGPT, sonra Grok, en sonda
+// DeepSeek devreye girsin; kullanıcıyı bekletmesin."
+// Claude bu zincirden çıkarıldı (pahalı ve en yavaş hop).
+const List<AiHop> _hopsStudySuite = [
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+  AiHop(AiProvider.openai, 'gpt-4o-mini'),
+  AiHop(AiProvider.grok, 'grok-3-mini'),
+  AiHop(AiProvider.deepseek, 'deepseek-chat'),
+];
+
 // Sınav/soru üretimi (test oluştur) — KISA zincir: Gemini → ChatGPT → Grok.
 // Kullanıcı talebi: "Gemini cevap vermediğinde ChatGPT, o da vermezse Grok".
 // DeepSeek/Claude kasıtlı olarak çıkarıldı (yavaşlık + maliyet).
@@ -152,8 +163,15 @@ const Map<AiTask, AiTaskConfig> kAiTaskConfigFree = {
       AiTaskConfig(_hopsChatFree, maxTokens: 1024, perProviderTimeoutMs: 6000),
   AiTask.cameraLive:
       AiTaskConfig(_hopsChatFree, maxTokens: 1536, perProviderTimeoutMs: 8000),
+  // Konu pekiştirme: istenen sıra (Gemini → ChatGPT → Grok → DeepSeek).
+  // DİKKAT: Bu görev 5 soru + 3 kart + 6 çift içeren BÜYÜK bir JSON üretir;
+  // hiçbir sağlayıcı bunu 7 sn'de bitiremez. 7000 ms'lik eski değer 4 hop'un
+  // TAMAMINI iptal ettirip zinciri her seferinde boşa düşürüyordu (Gemini
+  // kredisi bitince kullanıcı direkt 429 hatası görüyordu). Kredisi biten
+  // sağlayıcı zaten <1 sn'de hata dönüp sıradakine geçer; bu süre yalnızca
+  // gerçekten üretim yapan sağlayıcıya tanınan payı belirler.
   AiTask.summary:
-      AiTaskConfig(_hopsChatFree, maxTokens: 2048, perProviderTimeoutMs: 10000),
+      AiTaskConfig(_hopsStudySuite, maxTokens: 2048, perProviderTimeoutMs: 35000),
   AiTask.examGen:
       AiTaskConfig(_hopsExamGen, maxTokens: 4096, perProviderTimeoutMs: 18000),
   AiTask.factual:
@@ -209,8 +227,10 @@ const Map<AiTask, AiTaskConfig> kAiTaskConfigPremium = {
       AiTaskConfig(_hopsChatPremium, maxTokens: 1536, perProviderTimeoutMs: 5000),
   AiTask.cameraLive:
       AiTaskConfig(_hopsPhotoPremium, maxTokens: 2048, perProviderTimeoutMs: 6000),
+  // Konu pekiştirme — büyük JSON üretimi; 7 sn tüm zinciri iptal ettiriyordu
+  // (free config'deki nota bak).
   AiTask.summary:
-      AiTaskConfig(_hopsChatPremium, maxTokens: 3072, perProviderTimeoutMs: 10000),
+      AiTaskConfig(_hopsStudySuite, maxTokens: 3072, perProviderTimeoutMs: 35000),
   AiTask.factual:
       AiTaskConfig(_hopsChatPremium, maxTokens: 2048, perProviderTimeoutMs: 8000),
   AiTask.cheap:

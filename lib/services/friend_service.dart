@@ -48,6 +48,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
+import 'user_profile_service.dart';
+
 class FriendUser {
   final String uid;
   final String username;
@@ -144,6 +146,10 @@ class Friend {
     );
   }
 }
+
+/// Arkadaşlık isteği sonucu — UI doğru mesajı gösterebilsin diye
+/// "zaten arkadaş" ile gerçek "başarısız" ayrılır.
+enum FriendReqResult { sent, alreadyFriends, invalid, failed }
 
 class FriendService {
   static FirebaseFirestore get _fs => FirebaseFirestore.instance;
@@ -352,59 +358,138 @@ class FriendService {
     return (u['displayName'] ?? '').toString().trim();
   }
 
-  static Future<bool> sendRequest({required String toUid}) async {
+  /// Gerçek görünen ad — istek/davet kartlarında "İsim + @kullanıcıadı"
+  /// birlikte gösterilir; displayName boşsa username'e düşer. (Eskiden
+  /// fromDisplayName'e de username yazılıyordu → alıcı kimin istek attığını
+  /// yalnızca kullanıcı adından çıkarmak zorunda kalıyordu.)
+  static String _realName(Map<String, dynamic> u) {
+    final dn = (u['displayName'] ?? '').toString().trim();
+    if (dn.isNotEmpty) return dn;
+    return _publicName(u);
+  }
+
+  static Future<FriendReqResult> sendRequest({required String toUid}) async {
     final fromUid = _myUid;
-    if (fromUid == null || fromUid == toUid) return false;
-
-    // Zaten arkadaşsa atla
-    final existing =
-        await _fs.collection('friends').doc(fromUid).collection('list').doc(toUid).get();
-    if (existing.exists) return false;
-
-    // Kendi profilimi çek (snapshot olarak isteğe gömeceğim)
-    final mySnap = await _fs.collection('users').doc(fromUid).get();
-    final me = mySnap.data() ?? const <String, dynamic>{};
-    // Karşı tarafta DAİMA kullanıcı adı görünsün (kullanıcı ne belirlediyse o).
-    // Username boşsa displayName'e düşülür.
-    final myName = _publicName(me);
-
-    final batch = _fs.batch();
-    final reqRef = _fs
-        .collection('friend_requests')
-        .doc(toUid)
-        .collection('inbox')
-        .doc(fromUid);
-    batch.set(reqRef, {
-      'fromUid': fromUid,
-      'fromUsername': me['username'] ?? '',
-      'fromDisplayName': myName,
-      'fromAvatar': me['avatar'] ?? '',
-      'sentAt': FieldValue.serverTimestamp(),
-      'status': 'pending',
-    });
-
-    // Karşı tarafa in-app bildirim
-    final notifRef = _fs
-        .collection('notifications')
-        .doc(toUid)
-        .collection('items')
-        .doc();
-    batch.set(notifRef, {
-      'type': 'friend_request',
-      'fromUid': fromUid,
-      'fromUsername': me['username'] ?? '',
-      'fromDisplayName': myName,
-      'fromAvatar': me['avatar'] ?? '',
-      'when': FieldValue.serverTimestamp(),
-      'read': false,
-    });
-
+    if (fromUid == null || fromUid == toUid) return FriendReqResult.invalid;
     try {
+      // Zaten arkadaşsa: "gönderilemedi" DEĞİL, net "zaten arkadaşsınız".
+      final existing = await _fs
+          .collection('friends')
+          .doc(fromUid)
+          .collection('list')
+          .doc(toUid)
+          .get();
+      if (existing.exists) return FriendReqResult.alreadyFriends;
+
+      // Kendi profilimi çek (snapshot olarak isteğe gömeceğim)
+      final mySnap = await _fs.collection('users').doc(fromUid).get();
+      final me = mySnap.data() ?? const <String, dynamic>{};
+      // Alıcı hem İSMİ hem kullanıcı adını görsün. users doc'u boşsa yerel
+      // profile düşülür — eskiden bildirim "Biri(si)" diye gidiyordu.
+      var myName = _realName(me);
+      var myUname = (me['username'] ?? '').toString().trim();
+      if (myName.isEmpty || myUname.isEmpty) {
+        try {
+          final p = UserProfileService.instance;
+          await p.init(); // idempotent
+          if (myUname.isEmpty) myUname = p.username.trim();
+          if (myName.isEmpty) {
+            myName = p.displayName.trim().isNotEmpty
+                ? p.displayName.trim()
+                : myUname;
+          }
+        } catch (_) {}
+      }
+
+      final batch = _fs.batch();
+      final reqRef = _fs
+          .collection('friend_requests')
+          .doc(toUid)
+          .collection('inbox')
+          .doc(fromUid);
+      batch.set(reqRef, {
+        'fromUid': fromUid,
+        'fromUsername': myUname,
+        'fromDisplayName': myName,
+        'fromAvatar': me['avatar'] ?? '',
+        'sentAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+
+      // Karşı tarafa in-app bildirim
+      final notifRef = _fs
+          .collection('notifications')
+          .doc(toUid)
+          .collection('items')
+          .doc();
+      batch.set(notifRef, {
+        'type': 'friend_request',
+        'fromUid': fromUid,
+        'fromUsername': myUname,
+        'fromDisplayName': myName,
+        'fromAvatar': me['avatar'] ?? '',
+        'when': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+
       await batch.commit();
-      return true;
+      return FriendReqResult.sent;
     } catch (e) {
+      // Ağ / izin hatası — "zaten arkadaş" DEĞİL, gerçek başarısızlık.
       debugPrint('[FriendService] sendRequest fail: $e');
-      return false;
+      return FriendReqResult.failed;
+    }
+  }
+
+  /// DOĞRUDAN çift-yönlü arkadaşlık kurar — istek/kabul beklemeden iki tarafın
+  /// da listesine yazar (QR/link/kullanıcı adı ile ekleme = rıza; veli-bağlama
+  /// kararıyla aynı ilke). İki neden:
+  ///  1) İstek modeli `friend_requests` dokümanını GÖNDEREN yeniden yazamıyordu
+  ///     (rules: update yalnız alıcıya) → tekrar eklemede PERMISSION_DENIED →
+  ///     "eklenemedi" hatası. `friends/{uid}/list/{friendUid}` yazımına ise
+  ///     kurallar HER İKİ tarafa da izin verir (acceptRequest bunu kullanır).
+  ///  2) Kullanıcı beklentisi: eklediğim kişi ANINDA listemde görünsün.
+  /// Idempotent (merge) — tekrar eklemek hata vermez.
+  static Future<FriendReqResult> addFriendDirect(FriendUser other) async {
+    final me = _myUid;
+    if (me == null || me == other.uid || other.uid.isEmpty) {
+      return FriendReqResult.invalid;
+    }
+    try {
+      final mySnap = await _fs.collection('users').doc(me).get();
+      final mine = mySnap.data() ?? const <String, dynamic>{};
+      final batch = _fs.batch();
+      // Benim listeme → karşı taraf
+      batch.set(
+        _fs.collection('friends').doc(me).collection('list').doc(other.uid),
+        {
+          'uid': other.uid,
+          'username': other.username,
+          'displayName': other.displayName.trim().isNotEmpty
+              ? other.displayName
+              : other.username,
+          'avatar': other.avatar,
+          'since': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+      // Karşı tarafın listesine → ben (rules: friendUid sahibi yazabilir)
+      batch.set(
+        _fs.collection('friends').doc(other.uid).collection('list').doc(me),
+        {
+          'uid': me,
+          'username': (mine['username'] ?? '').toString(),
+          'displayName': _realName(mine),
+          'avatar': (mine['avatar'] ?? '').toString(),
+          'since': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+      await batch.commit();
+      return FriendReqResult.sent;
+    } catch (e) {
+      debugPrint('[FriendService] addFriendDirect fail: $e');
+      return FriendReqResult.failed;
     }
   }
 
@@ -426,7 +511,7 @@ class FriendService {
         {
           'uid': toUid,
           'username': b['username'] ?? '',
-          'displayName': _publicName(b),
+          'displayName': _realName(b),
           'avatar': b['avatar'] ?? '',
           'since': FieldValue.serverTimestamp(),
         },
@@ -437,7 +522,7 @@ class FriendService {
         {
           'uid': fromUid,
           'username': a['username'] ?? '',
-          'displayName': _publicName(a),
+          'displayName': _realName(a),
           'avatar': a['avatar'] ?? '',
           'since': FieldValue.serverTimestamp(),
         },
@@ -458,7 +543,7 @@ class FriendService {
           'type': 'friend_accepted',
           'fromUid': toUid,
           'fromUsername': b['username'] ?? '',
-          'fromDisplayName': _publicName(b),
+          'fromDisplayName': _realName(b),
           'fromAvatar': b['avatar'] ?? '',
           'when': FieldValue.serverTimestamp(),
           'read': false,
@@ -528,9 +613,14 @@ class FriendService {
         .collection('friends')
         .doc(uid)
         .collection('list')
-        .orderBy('since', descending: true)
+        // KRİTİK: orderBy('since') KULLANMIYORUZ. Firestore, sıralanan alanı
+        // (since) OLMAYAN dokümanları sorgu sonucundan SESSİZCE düşürür. 'since'
+        // alanı olmayan (eski/kısmi yazılmış) bir arkadaş edge'i varsa o arkadaş
+        // listede HİÇ görünmüyordu — ama sendRequest() edge'i gördüğü için
+        // "zaten arkadaşsınız" diyordu. Tüm edge'leri çekip istemcide sıralarız.
         .snapshots()
-        .map((snap) => snap.docs.map(Friend.fromDoc).toList())
+        .map((snap) => snap.docs.map(Friend.fromDoc).toList()
+          ..sort((a, b) => b.since.compareTo(a.since)))
         // NOT: handleError içinde `return` DEĞER YAYMAZ (Dart'ta atılır) —
         // hata anında stream sessiz kalır ve StreamBuilder spinner'da takılı
         // kalırdı. Transformer sink'e boş liste BASARAK düzeltildi.
@@ -552,9 +642,12 @@ class FriendService {
         .doc(uid)
         .collection('inbox')
         .where('status', isEqualTo: 'pending')
-        .orderBy('sentAt', descending: true)
+        // orderBy('sentAt') KULLANILMAZ — eşitlik + orderBy bileşik indeks
+        // ister (yoksa sorgu hata verip liste sessizce boş kalır) ve sentAt
+        // alanı olmayan doc'ları düşürür. İstemcide sıralanır.
         .snapshots()
-        .map((snap) => snap.docs.map(FriendRequest.fromDoc).toList())
+        .map((snap) => snap.docs.map(FriendRequest.fromDoc).toList()
+          ..sort((a, b) => b.sentAt.compareTo(a.sentAt)))
         // handleError'da return değer yaymaz — sink'e boş liste bas (üstteki
         // watchFriends ile aynı düzeltme).
         .transform(

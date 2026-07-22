@@ -430,6 +430,28 @@ class EduProfile {
     await prefs.setString('mini_test_country', detected);
   }
 
+  /// `mini_test_country` hiç yazılmamışsa sabit 'tr' varsaymak yerine eldeki
+  /// sinyallerden türet: IP geo pref → cihaz locale ülkesi → 'international'.
+  /// (GLOBAL-FIRST: dil fallback'i İngilizce iken müfredatın Türkiye'ye
+  /// düşmesi tutarsızdı — locale okunamayan cihazda EN arayüz + MEB müfredatı
+  /// çıkıyordu.)
+  static String _fallbackCountry(SharedPreferences prefs) {
+    String? raw = prefs.getString('ip_geo_country_v1') ??
+        prefs.getString('detected_country_v1');
+    if (raw == null || raw.isEmpty) {
+      try {
+        raw = ui.PlatformDispatcher.instance.locale.countryCode;
+      } catch (e, st) { ErrorLogger.instance.capture(e, st, context: 'education_profile'); }
+    }
+    if (raw != null && raw.isNotEmpty) {
+      final lc = raw.toLowerCase();
+      final mapped = lc == 'gb' ? 'uk' : lc;
+      if (_countriesWithDetailedCurriculum.contains(mapped)) return mapped;
+      if (kAllCountries.any((c) => c.key == mapped)) return mapped;
+    }
+    return 'international';
+  }
+
   static Future<EduProfile?> load() async {
     final prefs = await SharedPreferences.getInstance();
     final level = prefs.getString('mini_test_level');
@@ -439,7 +461,7 @@ class EduProfile {
       return null;
     }
     final p = EduProfile(
-      country: prefs.getString('mini_test_country') ?? 'tr',
+      country: prefs.getString('mini_test_country') ?? _fallbackCountry(prefs),
       level: _normalizeLevel(level),
       grade: grade,
       track: prefs.getString('mini_test_track'),

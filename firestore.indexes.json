@@ -1,6 +1,16 @@
 {
   "indexes": [
     {
+      "collectionGroup": "labirent_pool",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "curriculumSig", "order": "ASCENDING" },
+        { "fieldPath": "level", "order": "ASCENDING" },
+        { "fieldPath": "grade", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "app_errors",
       "queryScope": "COLLECTION",
       "fields": [

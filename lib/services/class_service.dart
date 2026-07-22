@@ -24,12 +24,16 @@ import 'package:flutter/foundation.dart';
 
 import 'account_service.dart';
 import 'analytics.dart';
+import 'runtime_translator.dart';
 
 enum JoinClassResult {
   success, invalidCode, classNotFound, alreadyJoined, selfJoin, notAuthed, error,
   /// Kodla katılım isteği öğretmene iletildi — öğretmen onaylayana kadar
   /// öğrenci sınıfta 'pending' durumundadır (ödevleri göremez).
   pendingApproval,
+  /// Öğrenci daha önce katılmış ve hâlâ öğretmen onayı bekliyor — "zaten
+  /// katılmıştın" yerine doğru mesaj gösterilsin diye ayrı durum.
+  alreadyPending,
 }
 
 class TeacherClass {
@@ -511,10 +515,12 @@ class ClassService {
         });
   }
 
-  /// users/{uid} public profil önbelleği (uid → data) — aynı oturumda her
-  /// öğrenci için profil bir kez okunur; sınıf listesi her snapshot'ta
-  /// Firestore'u yeniden taramaz.
+  /// users/{uid} public profil önbelleği (uid → data). 10 dk TTL — eskiden
+  /// oturum boyunca TEK okumaydı; öğrenci foto/ad değiştirince öğretmen
+  /// uygulama yeniden başlatılana kadar eski hâlini görüyordu.
   static final _profileCache = <String, Map<String, dynamic>>{};
+  static final _profileCacheAt = <String, DateTime>{};
+  static const _profileCacheTtl = Duration(minutes: 10);
 
   /// [studentsStream] + her öğrencinin GÜNCEL public profili (users/{uid}).
   /// Sınıf dokümanındaki kopya katılım ANININ fotoğrafıdır; öğrenci daha
@@ -532,12 +538,19 @@ class ClassService {
       final out = <ClassStudent>[];
       for (final s in list) {
         Map<String, dynamic>? p = _profileCache[s.uid];
-        if (p == null) {
+        final at = _profileCacheAt[s.uid];
+        final stale =
+            at == null || DateTime.now().difference(at) > _profileCacheTtl;
+        if (p == null || stale) {
           try {
             final doc = await _fs.collection('users').doc(s.uid).get();
-            p = doc.data();
-            if (p != null) _profileCache[s.uid] = p;
-          } catch (_) {/* offline → kopyayla devam */}
+            final fresh = doc.data();
+            if (fresh != null) {
+              p = fresh;
+              _profileCache[s.uid] = fresh;
+              _profileCacheAt[s.uid] = DateTime.now();
+            }
+          } catch (_) {/* offline → eldeki kopyayla devam */}
         }
         if (p == null) {
           out.add(s);
@@ -572,7 +585,11 @@ class ClassService {
         .doc(classId)
         .collection('students')
         .snapshots()
-        .map((snap) => snap.docs.length);
+        // Onay bekleyenler (pending) SAYILMAZ — kartta "3 öğrenci" yazıp
+        // detayda "onaylanmış öğrenci yok" görünmesi kafa karıştırıyordu.
+        .map((snap) => snap.docs
+            .where((d) => (d.data()['status'] ?? 'active') != 'pending')
+            .length);
   }
 
   /// Öğretmen, bir öğrencinin sınıftaki görünen adını belirler (gerçek ad
@@ -656,9 +673,10 @@ class ClassService {
             'type': 'teacher_note',
             'className': className,
             'message': msg,
+            // .tr() ile — alıcının inbox/push'unda sabit Türkçe kalmasın.
             'title': kind == 'praise'
-                ? 'Öğretmeninden takdir 🌟'
-                : 'Öğretmeninden not 📝',
+                ? 'Öğretmeninden takdir 🌟'.tr()
+                : 'Öğretmeninden not 📝'.tr(),
             'body': className.isEmpty ? '“$msg”' : '$className: “$msg”',
             'when': FieldValue.serverTimestamp(),
             'read': false,
@@ -905,6 +923,25 @@ class ClassService {
       await _deleteAllDocs(studRef.collection('notes'));
       // 3) Öğrenci dökümanı.
       await studRef.delete();
+      // 4) Öğrenciye bilgi bildirimi (best-effort) — eskiden sessizce
+      //    çıkarılıyordu; öğrenci ancak ekranı yenileyince fark ediyordu
+      //    (rejectStudent bildiriyordu, removeStudent bildirmiyordu).
+      try {
+        final cls = await classRef.get();
+        final className = (cls.data()?['name'] ?? '').toString();
+        await _fs
+            .collection('notifications')
+            .doc(studentUid)
+            .collection('items')
+            .add({
+          'type': 'class_removed',
+          'className': className,
+          'title': 'Sınıftan çıkarıldın'.tr(),
+          'body': className,
+          'when': FieldValue.serverTimestamp(),
+          'read': false,
+        });
+      } catch (_) {/* bildirim best-effort */}
       return true;
     } catch (e) {
       debugPrint('[ClassService] removeStudent fail: $e');
@@ -1034,7 +1071,12 @@ class ClassService {
           .collection('classes').doc(classId)
           .collection('students').doc(myUid)
           .get();
-      if (existing.exists) return JoinClassResult.alreadyJoined;
+      if (existing.exists) {
+        final st = (existing.data()?['status'] ?? 'active').toString();
+        return st == 'pending'
+            ? JoinClassResult.alreadyPending
+            : JoinClassResult.alreadyJoined;
+      }
 
       final myProfile = await _fs.collection('users').doc(myUid).get();
       final myData = myProfile.data() ?? const <String, dynamic>{};
@@ -1087,7 +1129,7 @@ class ClassService {
                 ? 'student_join_request'
                 : 'student_joined',
             'fromDisplayName': myData['displayName'] ??
-                myData['username'] ?? 'Bir öğrenci',
+                myData['username'] ?? 'Bir öğrenci'.tr(),
             'className': classData['name'] ?? '',
             'classId': classId,
             'studentUid': myUid,
@@ -1096,7 +1138,27 @@ class ClassService {
           },
         );
       }
-      await batch.commit();
+      try {
+        await batch.commit();
+      } on FirebaseException catch (e) {
+        // Rules, davet kanıtı (classes/{id}/invites/{uid}) olmayan 'active'
+        // yazımını reddeder — eski davet bildirimleri (invite doc'suz) için
+        // onaylı akışa düş: pending olarak tekrar dene.
+        if (!requiresApproval && e.code == 'permission-denied') {
+          return _completeJoin(classId, teacherUid, requiresApproval: true);
+        }
+        rethrow;
+      }
+      if (!requiresApproval) {
+        // Davet kanıtı tüketildi — best-effort temizle.
+        unawaited(_fs
+            .collection('classes')
+            .doc(classId)
+            .collection('invites')
+            .doc(myUid)
+            .delete()
+            .catchError((_) {}));
+      }
       return requiresApproval
           ? JoinClassResult.pendingApproval
           : JoinClassResult.success;
@@ -1158,7 +1220,18 @@ class ClassService {
 
       final me = await _fs.collection('users').doc(myUid).get();
       final teacherName = (me.data()?['displayName'] ??
-          me.data()?['username'] ?? 'Öğretmen').toString();
+          me.data()?['username'] ?? 'Öğretmen'.tr()).toString();
+
+      // Kalıcı davet kanıtı — rules bunu görerek davetli öğrencinin
+      // doğrudan 'active' katılmasına izin verir. (classId'yi bilen herkesin
+      // onay adımını atlamasını kapatan güvenlik kaydı; bildirim tek başına
+      // kanıt değildir çünkü öğrenci kendine sahte bildirim yazabilir.)
+      await _fs
+          .collection('classes')
+          .doc(classId)
+          .collection('invites')
+          .doc(studentUid)
+          .set({'by': myUid, 'at': FieldValue.serverTimestamp()});
 
       await _fs.collection('notifications').doc(studentUid)
           .collection('items').doc().set({
@@ -1354,16 +1427,31 @@ class ClassService {
     }
   }
 
-  /// Öğrenci sınıftan ayrıl.
+  /// Öğrenci sınıftan ayrıl. Yetim veri bırakmamak için öğrencinin ödev
+  /// teslimleri + grades + notes alt koleksiyonları da temizlenir — eskiden
+  /// kalıyor, ayrılan öğrenci not özetinde "hayalet" olarak görünüyor ve
+  /// tekrar katılınca eski notları geri geliyordu. (removeStudent ile aynı
+  /// temizlik; rules öğrencinin KENDİ alt verisini silmesine izin verir.)
   static Future<bool> leaveClass(String classId) async {
     final myUid = _myUid;
     if (myUid == null) return false;
     try {
+      final classRef = _fs.collection('classes').doc(classId);
+      // Alt veri temizliği best-effort — biri başarısız olsa da üyelik
+      // silinsin (kalan veri bir sonraki leaveClass/removeStudent'ta gider).
+      try {
+        final hwSnap = await classRef.collection('homeworks').get();
+        for (final hw in hwSnap.docs) {
+          await hw.reference.collection('submissions').doc(myUid).delete();
+        }
+        final studRef = classRef.collection('students').doc(myUid);
+        await _deleteAllDocs(studRef.collection('grades'));
+        await _deleteAllDocs(studRef.collection('notes'));
+      } catch (e) {
+        debugPrint('[ClassService] leave cleanup partial: $e');
+      }
       final batch = _fs.batch();
-      batch.delete(
-        _fs.collection('classes').doc(classId)
-            .collection('students').doc(myUid),
-      );
+      batch.delete(classRef.collection('students').doc(myUid));
       batch.delete(
         _fs.collection('users').doc(myUid)
             .collection('joined_classes').doc(classId),

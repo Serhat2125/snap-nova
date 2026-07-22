@@ -320,3 +320,105 @@ class LocationCatalog {
     return null;
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  CityEmojis — şehir listelerinde her şehrin SOLUNDA gösterilen simge.
+//  Öncelik: Türkiye 81 il için özel simge → ünlü dünya şehirleri → isimden
+//  türetilen SABİT (deterministik) genel simge. Aynı şehir her açılışta
+//  aynı simgeyi alır; jenerik tek 🏙️ görünümü kalktı.
+// ═══════════════════════════════════════════════════════════════════════════
+class CityEmojis {
+  CityEmojis._();
+
+  /// [countryCode] ISO alpha-2 (büyük/küçük fark etmez), [cityName] görünen ad.
+  static String of(String countryCode, String cityName) {
+    final key = _norm(cityName);
+    if (key.isEmpty) return '🏙️';
+    if (countryCode.toUpperCase() == 'TR') {
+      final tr = _turkiye[key];
+      if (tr != null) return tr;
+    }
+    final world = _world[key];
+    if (world != null) return world;
+    // Deterministik yedek — isim hash'i hep aynı simgeye düşer.
+    return _fallback[key.hashCode.abs() % _fallback.length];
+  }
+
+  /// Türkçe karakterleri sadeleştir + küçült — "İstanbul"/"Istanbul" aynı.
+  static String _norm(String s) {
+    const map = {
+      'ı': 'i', 'İ': 'i', 'ş': 's', 'Ş': 's', 'ğ': 'g', 'Ğ': 'g',
+      'ü': 'u', 'Ü': 'u', 'ö': 'o', 'Ö': 'o', 'ç': 'c', 'Ç': 'c',
+      'â': 'a', 'î': 'i', 'û': 'u',
+    };
+    final buf = StringBuffer();
+    for (final ch in s.split('')) {
+      buf.write(map[ch] ?? ch);
+    }
+    return buf
+        .toString()
+        .toLowerCase()
+        .trim()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .trim();
+  }
+
+  /// 81 il — her ilin bilinen simgesi/ürünü/nişanesi.
+  static const Map<String, String> _turkiye = {
+    'adana': '🌶️', 'adiyaman': '🗿', 'afyonkarahisar': '🏰', 'agri': '🗻',
+    'aksaray': '🏞️', 'amasya': '🍎', 'ankara': '🏛️', 'antalya': '🌴',
+    'ardahan': '🐝', 'artvin': '🌲', 'aydin': '🍇', 'balikesir': '🫒',
+    'bartin': '🌊', 'batman': '🛢️', 'bayburt': '🏰', 'bilecik': '⚔️',
+    'bingol': '🍯', 'bitlis': '🏔️', 'bolu': '👨‍🍳', 'burdur': '🏞️',
+    'bursa': '⛰️', 'canakkale': '🐴', 'cankiri': '🧂', 'corum': '🥜',
+    'denizli': '🐓', 'diyarbakir': '🏰', 'duzce': '🌰', 'edirne': '🕌',
+    'elazig': '🍇', 'erzincan': '🧀', 'erzurum': '🐎', 'eskisehir': '🌸',
+    'gaziantep': '🥙', 'giresun': '🍒', 'gumushane': '🍬', 'hakkari': '🏔️',
+    'hatay': '🧆', 'igdir': '🍑', 'isparta': '🌹', 'istanbul': '🕌',
+    'izmir': '⚓', 'kahramanmaras': '🍦', 'karabuk': '🏘️', 'karaman': '📜',
+    'kars': '❄️', 'kastamonu': '🧄', 'kayseri': '🏔️', 'kirikkale': '🔩',
+    'kirklareli': '🧀', 'kirsehir': '🎻', 'kilis': '🫒', 'kocaeli': '🏭',
+    'konya': '🌷', 'kutahya': '🏺', 'malatya': '🍑', 'manisa': '🍇',
+    'mardin': '🕌', 'mersin': '🍋', 'mugla': '🏖️', 'mus': '🌷',
+    'nevsehir': '🎈', 'nigde': '🥔', 'ordu': '🌰', 'osmaniye': '🥜',
+    'rize': '🍵', 'sakarya': '🌽', 'samsun': '🚢', 'siirt': '🥜',
+    'sinop': '⛵', 'sivas': '🐕', 'sanliurfa': '☀️', 'sirnak': '🏔️',
+    'tekirdag': '🍢', 'tokat': '🍏', 'trabzon': '🌊', 'tunceli': '🏞️',
+    'usak': '🧶', 'van': '🐈', 'yalova': '🌼', 'yozgat': '🌾',
+    'zonguldak': '⛏️',
+  };
+
+  /// Ünlü dünya şehirleri — hem yerel hem Türkçe yazımlar.
+  static const Map<String, String> _world = {
+    'new york': '🗽', 'london': '🎡', 'londra': '🎡', 'paris': '🗼',
+    'tokyo': '🗾', 'berlin': '🐻', 'rome': '🏟️', 'roma': '🏟️',
+    'moscow': '🏰', 'moskova': '🏰', 'madrid': '🐂', 'barcelona': '⚽',
+    'amsterdam': '🚲', 'venice': '🚤', 'venedik': '🚤', 'vienna': '🎼',
+    'viyana': '🎼', 'athens': '🏛️', 'atina': '🏛️', 'cairo': '🐫',
+    'kahire': '🐫', 'dubai': '🌴', 'sydney': '🎭', 'rio de janeiro': '🏖️',
+    'los angeles': '🎬', 'san francisco': '🌉', 'chicago': '🌆',
+    'toronto': '🗼', 'mexico city': '🌮', 'meksiko': '🌮',
+    'beijing': '🐉', 'pekin': '🐉', 'shanghai': '🌃', 'seoul': '🌸',
+    'seul': '🌸', 'mumbai': '🎥', 'delhi': '🕌', 'singapore': '🦁',
+    'singapur': '🦁', 'bangkok': '🛕', 'jakarta': '🌋', 'munich': '🍺',
+    'munih': '🍺', 'milan': '👗', 'milano': '👗', 'prague': '🏰',
+    'prag': '🏰', 'budapest': '🌉', 'budapeste': '🌉', 'lisbon': '🚋',
+    'lizbon': '🚋', 'dublin': '🍀', 'stockholm': '🚢', 'oslo': '⛷️',
+    'helsinki': '🌲', 'copenhagen': '🧜', 'kopenhag': '🧜',
+    'zurich': '🏔️', 'zurih': '🏔️', 'geneva': '⛲', 'cenevre': '⛲',
+    'brussels': '🍫', 'bruksel': '🍫', 'warsaw': '🦅', 'varsova': '🦅',
+    'kyiv': '🌻', 'kiev': '🌻', 'baku': '🔥', 'baku city': '🔥',
+    'tehran': '🕌', 'tahran': '🕌', 'riyadh': '🏜️', 'riyad': '🏜️',
+    'mecca': '🕋', 'mekke': '🕋', 'jerusalem': '🕍', 'kudus': '🕍',
+    'casablanca': '🕌', 'kazablanka': '🕌', 'lagos': '🌊',
+    'nairobi': '🦁', 'cape town': '⛰️', 'buenos aires': '💃',
+    'sao paulo': '🏙️', 'lima': '🦙', 'bogota': '☕', 'santiago': '🏔️',
+    'havana': '🚗',
+  };
+
+  /// İsimden türetilen sabit yedek simgeler — çeşitlilik için 16 seçenek.
+  static const List<String> _fallback = [
+    '🏙️', '🌆', '🌇', '🌁', '🌃', '🏞️', '🌄', '🌅',
+    '🌉', '🏘️', '🏛️', '⛰️', '🌊', '🌳', '🌾', '⛲',
+  ];
+}

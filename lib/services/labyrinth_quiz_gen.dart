@@ -38,6 +38,31 @@ class LabyrinthQuizGen {
     return _loadBundledStem('$level-$grade');
   }
 
+  /// SON ÇARE (AI + havuz başarısız): o kademede ELDEKİ herhangi bir gömülü
+  /// dosyayla oyunu yine de açar. Ülkeye göre sınıf numarası farklı olabilir
+  /// (ör. 13. sınıf) veya alan dosyası bulunmayabilir; bu durumda aynı
+  /// kademenin en yakın sınıfına düşer. Böylece labirent HER KOŞULDA açılır.
+  static Future<Map<String, dynamic>?> loadBundledFallback(
+      String level, int grade, {String? track}) async {
+    final exact = await loadBundled(level, grade, track: track);
+    if (exact != null) return exact;
+    const gradesOf = {
+      'ilkokul': [1, 2, 3, 4],
+      'ortaokul': [5, 6, 7, 8],
+      'lise': [9, 10, 11, 12],
+    };
+    final list = gradesOf[level];
+    if (list == null) return null;
+    // En yakın sınıftan başlayarak dene.
+    final sorted = [...list]
+      ..sort((a, b) => (a - grade).abs().compareTo((b - grade).abs()));
+    for (final g in sorted) {
+      final r = await _loadBundledStem('$level-$g');
+      if (r != null) return r;
+    }
+    return null;
+  }
+
   /// Alan etiketi → dosya son eki (Türkiye lise alanları).
   static String? _trackSuffix(String? track) {
     switch (track) {

@@ -494,7 +494,9 @@ Future<void> shareWeeklyPdfReport(BuildContext context,
     {required String childUid,
     required String childName,
     required bool demo}) async {
-  // Kısa yükleme göstergesi.
+  // Kısa yükleme göstergesi. loadingOpen bayrağı: catch bloğunun loading'i
+  // İKİNCİ kez pop edip alttaki ekranı kapatmasını önler.
+  var loadingOpen = true;
   showDialog<void>(
     context: context,
     barrierDismissible: false,
@@ -780,7 +782,10 @@ Future<void> shareWeeklyPdfReport(BuildContext context,
     ));
 
     final bytes = await doc.save();
-    if (context.mounted) Navigator.of(context).pop(); // loading kapat
+    if (context.mounted) {
+      Navigator.of(context).pop(); // loading kapat
+      loadingOpen = false;
+    }
     // PDF + kısa mesaj + indirme linki BİRLİKTE paylaşılır (share_plus) —
     // Printing.sharePdf yalnız dosya taşıyabiliyordu, metin ekleyemiyordu.
     final dir = await getTemporaryDirectory();
@@ -795,7 +800,12 @@ Future<void> shareWeeklyPdfReport(BuildContext context,
     );
   } catch (e) {
     if (context.mounted) {
-      Navigator.of(context).pop(); // loading kapat
+      // ÇİFT POP koruması: loading zaten kapatıldıysa (paylaşım aşamasında
+      // hata) tekrar pop ÇAĞRILMAZ — eskiden alttaki ekran/sheet kapanıyordu.
+      if (loadingOpen) {
+        Navigator.of(context).pop();
+        loadingOpen = false;
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         behavior: SnackBarBehavior.floating,
         content: Text('PDF oluşturulamadı — tekrar dener misin?'.tr()),

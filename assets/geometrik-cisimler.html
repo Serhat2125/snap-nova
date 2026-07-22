@@ -799,7 +799,7 @@ const THREE = window.THREE;
    ============================================================ */
 const app=document.getElementById('app');
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0xF2F4F7);
+scene.background=new THREE.Color(0xFAFAFA);
 window.scene=scene; window.THREE=THREE; /* renk paleti servisi için */
 
 const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,200);
@@ -814,6 +814,7 @@ app.appendChild(renderer.domElement);
 /* koyu zemin ızgarası */
 const grid=new THREE.GridHelper(40,40,0x39426b,0x252c44);
 grid.position.y=-3.4;
+grid.visible=false;
 scene.add(grid);
 
 /* yıldız serpintisi (arka plan derinliği) — az ama parlak */
@@ -2722,7 +2723,7 @@ function applyTheme(){
     root.style.setProperty('--panel-line','#39426b');
     root.style.setProperty('--ink','#f3f1ff');
     root.style.setProperty('--ink-dim','#aab3d8');
-    scene.background=new THREE.Color(0xF2F4F7);
+    scene.background=new THREE.Color(0xFAFAFA);
     themeBtn.textContent='🌙';
   } else {
     root.style.setProperty('--bg','#eef1f8');
@@ -3090,6 +3091,10 @@ applyTheme();
   .g-info-body .info-text{ font-size:13px; display:block; }
   .g-measure-head{ font-family:'Baloo 2',cursive; font-weight:800; font-size:11px; color:var(--accent-glow,#ffd166); margin:9px 0 4px; padding-top:7px; border-top:1px dashed var(--panel-line); }
   .g-info-body #openWrap{ margin-top:9px; }
+  /* 📂 Açılım artık panelin ÜSTÜNDE (başlık altı) — kayan gövdenin dışında */
+  .g-bottom-panel > #openWrap{ margin:0 0 2px; padding-bottom:7px; flex:0 0 auto;
+    border-bottom:1px solid var(--panel-line); }
+  .g-bottom-panel > #openWrap label{ white-space:nowrap; }
 
   .g-dock-row{ display:flex; flex-direction:row; gap:5px; align-items:center; justify-content:flex-start; flex-wrap:nowrap; overflow-x:auto; padding:1px 2px; }
   .g-dock-row::-webkit-scrollbar{ height:0; }
@@ -3144,8 +3149,11 @@ applyTheme();
     const it=$('infoText'); if(it) body.appendChild(it);
     const mh=document.createElement('div'); mh.className='g-measure-head'; mh.textContent='📏 Ölçüler & Formüller'; body.appendChild(mh);
     const mb=$('measureBody'); if(mb) body.appendChild(mb);
-    const ow=$('openWrap'); if(ow) body.appendChild(ow);
-    bp.appendChild(trow); bp.appendChild(body); dock.appendChild(bp);
+    // 📂 Açılım: bilgi panelinin EN ÜSTÜNDE (başlığın hemen altı), kayan
+    // metnin dışında → her cisimde ve her kaydırma konumunda görünür kalır.
+    const ow=$('openWrap');
+    bp.appendChild(trow); if(ow) bp.appendChild(ow); bp.appendChild(body);
+    dock.appendChild(bp);
 
     // ── Araç satırı (alt dock) — SPEC sırası: Sade/Detaylı · 📊 Tablo · 📖 Bilgi · Gönder · Renk · AI · Sesli · ☰ Menü
     const tr=document.createElement('div'); tr.className='g-dock-row'; tr.id='gToolsRow'; dock.appendChild(tr);
@@ -3186,7 +3194,7 @@ applyTheme();
     // Menü pop (proxy butonlar → orijinal gizli butonları tetikler, handler korunur)
     const mp=document.createElement('div'); mp.className='g-menu-pop'; mp.id='gMenuPop'; document.body.appendChild(mp);
     function posAboveDock(el){ if(!el) return; const r=dock.getBoundingClientRect(); el.style.top='auto'; el.style.bottom=(window.innerHeight - r.top + 6)+'px'; el.style.left='auto'; el.style.right='10px'; el.style.zIndex='45'; el.style.maxHeight=Math.max(120, Math.round(r.top - 16))+'px'; el.style.overflowY='auto'; }
-    function menuItem(emoji,label,srcId,after){ const b=document.createElement('button'); b.className='g-menu-item'; b.innerHTML='<span class="gmi-ico">'+emoji+'</span><span>'+label+'</span>'; b.onclick=()=>{ mp.classList.remove('show'); const s=$(srcId); if(s){ s.click(); if(typeof after==='function') setTimeout(after,0); } }; mp.appendChild(b); return b; }
+    function menuItem(emoji,label,srcId,after){ const b=document.createElement('button'); b.className='g-menu-item'; b.innerHTML='<span class="gmi-ico">'+emoji+'</span><span>'+label+'</span>'; b.onclick=()=>{ mp.classList.remove('show'); if(typeof _gBlurHide==='function')_gBlurHide(); const s=$(srcId); if(s){ s.click(); if(typeof after==='function') setTimeout(after,0); } }; mp.appendChild(b); return b; }
     // SPEC sırası — üstten alta: Eğitim Seviyesi → Konu Rehberi → Değişkenler
     menuItem('🎓','Eğitim Seviyesi','levelBadge',()=>{ const lp=$('levelPanel'); if(lp&&lp.classList.contains('show')) posAboveDock(lp); });
     // Konu Rehberi → cisim listesi (dock üstünde)
@@ -3337,8 +3345,7 @@ applyTheme();
   margin:0 14px 4px !important;
   padding:6px 14px !important;
   display:grid !important;
-  grid-template-columns:1fr 1fr 1fr !important;
-  justify-items:center !important;
+  grid-template-columns:1fr auto 1fr !important;
   align-items:center !important;
   width:auto !important;
   box-sizing:border-box !important;
@@ -3420,5 +3427,686 @@ canvas{ background:#F2F4F7 !important; }
   function boot(){ scan(); for(var i=0;i<items.length;i++)upd(items[i]); mo.observe(document.body,{childList:true,subtree:true,attributes:true,characterData:true}); }
   if(document.readyState==='loading')addEventListener('DOMContentLoaded',boot);else boot();
 })();</script>
+<style id="dockCenterFix">#bottomDock #toolsRow > *{margin:0 !important;} #bottomDock #toolsRow > :first-child{justify-self:start !important;} #bottomDock #toolsRow > :last-child{justify-self:end !important;}</style>
+<style id="helpHideV1">#btnHelp,#b-help,.scene-help,.tool-icon-btn.help{display:none !important;}</style>
+
+<style id="halfPanelV1">
+/* Bilgi paneli daima ekranin YARISI kadar; 3D sahne ile kesismez (halfPanelV1) */
+/* Once KOSULSUZ tavan: :has() desteklenmese bile panel yariyi asamaz ve
+   yazi alt sekmelerin altina giremez (eski WebView guvenligi). */
+#bottomDock{ max-height:50vh !important; box-sizing:border-box; overflow:visible !important; }
+/* Destekleyen tarayicida panel acikken tam yarim ekran */
+#bottomDock:has(.bottom-panel:not(.hidden):not(.vars-hidden):not(.info-mini)){ height:50vh !important; }
+#bottomDock .bottom-panel{ flex:1 1 auto !important; min-height:0 !important; display:flex; flex-direction:column; overflow:visible !important; }
+/* Yazi alani: alt eylem sekmelerinin (action-row) USTUNDE kalir, sigmazsa
+   yalniz .info-list icinde kayar — sekmelerin altina asla girmez. */
+#bottomDock .bottom-panel:not(.info-mini) .info-area{ flex:1 1 auto !important; min-height:0 !important; display:flex !important; }
+#bottomDock .bottom-panel:not(.info-mini) .info-text-area{ flex:1 1 auto !important; min-width:0; min-height:0 !important; display:flex !important; flex-direction:column !important; }
+#bottomDock .bottom-panel .info-title-row, #bottomDock .bottom-panel .info-page-ind{ flex:0 0 auto !important; }
+#bottomDock .bottom-panel:not(.info-mini) .info-scroll-wrap{ flex:1 1 auto !important; min-height:0 !important; overflow:hidden !important; display:flex; flex-direction:column; }
+#bottomDock .bottom-panel .info-list{ flex:1 1 auto !important; min-height:0 !important; max-height:none !important; overflow-y:auto !important; }
+#bottomDock .bottom-panel .action-row{ flex:0 0 auto !important; }
+/* ── KAYDIRMA DUZELTMESI ────────────────────────────────────────────────
+   .info-area taban CSS'te "align-items:flex-start" idi: satir yonlu flex'te
+   bu, yazi alaninin yuksekligini ICERIGE gore buyutuyor -> liste hic kisalmiyor,
+   scrollHeight==clientHeight oldugu icin NE kaydirma NE de kaydirma cubugu
+   calisiyordu; tasan yazi alt sekmelerin altinda kayboluyordu.
+   stretch ile yazi alani panele sigar, fazlasi .info-list icinde kayar. */
+#bottomDock .bottom-panel:not(.info-mini) .info-area{ align-items:stretch !important; }
+#bottomDock .bottom-panel .info-emoji-box{ align-self:flex-start !important; flex:0 0 auto !important; }
+/* dikey kaydirma gostergesi (sag kenar) her zaman dogru konumlansin */
+#bottomDock .bottom-panel .info-scroll-wrap{ position:relative !important; }
+#bottomDock .bottom-panel .info-scrollbar{ z-index:6 !important; }
+/* ✕ kapatma dugmesi: panelin ustune tasar, her zaman ON PLANDA ve okunur */
+#bottomDock .bottom-panel .info-close-btn{
+  z-index:60 !important;
+  background:#ffffff !important;
+  border:2px solid #2f8fd0 !important;
+  color:#10131f !important;
+  box-shadow:0 2px 10px rgba(0,0,0,.45) !important;
+}
+#bottomDock .bottom-panel .info-resize-handle{ z-index:55 !important; }
+/* ── KUCULTULMUS (mini) DURUM ──────────────────────────────────────────
+   ✕ ile kucultuldugunde panel yalnizca tek satirlik cip olarak kalir;
+   yarim ekran yuksekligi ve icerik gorunurlugu zorlanmaz. */
+#bottomDock .bottom-panel.info-mini{ flex:0 0 auto !important; min-height:0 !important; }
+#bottomDock .bottom-panel.info-mini > *:not(.info-mini-chip){ display:none !important; }
+/* panel disina tasan kontroller kirpilmasin (kapatma / boyutlandirma) */
+#bottomDock .bottom-panel .info-close-btn,
+#bottomDock .bottom-panel .info-resize-handle,
+#bottomDock .bottom-panel .info-mini-chip{ z-index:40 !important; }
+
+</style>
+<script id="halfFitV1">
+(function(){
+  if(window.__halfFitV1) return; window.__halfFitV1=1;
+  /* 3D icerik ekranin UST YARISINDA kalsin: sayfanin her-kare setViewOffset
+     cagrisi sarmalanir (ek dikey ofset), boyut icin camera.zoom ayarlanir. */
+  function cam(){ var c=window.camera;
+    if(c&&(c.isPerspectiveCamera||c.isOrthographicCamera)) return c;
+    try{ if(typeof camera!=='undefined'&&camera&&(camera.isPerspectiveCamera||camera.isOrthographicCamera)) return camera; }catch(e){}
+    return null; }
+  function scn(){ var s=window.scene; if(s&&s.isScene) return s;
+    try{ if(typeof scene!=='undefined'&&scene&&scene.isScene) return scene; }catch(e){}
+    return null; }
+  var box=null,tmp=null,corners=null;
+  var TOPB=0.92, BOTB=0.06, XREF=0.90; /* NDC bant: ust yari (0 = ekran ortasi) */
+  function fit(){
+    try{
+      var c=cam(), s=scn(); if(!c||!s||!window.THREE) return;
+      if(!c.__hfPatch){
+        c.__hfPatch=1; c.__hfExtra=0;
+        var orig=c.setViewOffset.bind(c);
+        c.__hfOrig=orig;
+        c.setViewOffset=function(fw,fh,x,y,w,h){ c.__hfSVO=1; return orig(fw,fh,x,y+(c.__hfExtra||0),w,h); };
+      }
+      if(!box){ box=new THREE.Box3(); tmp=new THREE.Box3(); corners=[]; for(var i=0;i<8;i++)corners.push(new THREE.Vector3()); }
+      box.makeEmpty(); var has=false;
+      s.updateMatrixWorld(true);
+      s.traverse(function(o){
+        if(!o.visible) return;
+        if(!(o.isMesh||o.isSprite||o.isLine||o.isPoints)) return;
+        var p=o.parent; while(p){ if(p.visible===false) return; p=p.parent; }
+        tmp.setFromObject(o);
+        if(!isFinite(tmp.min.x)||!isFinite(tmp.max.x)) return;
+        var sx=tmp.max.x-tmp.min.x, sy=tmp.max.y-tmp.min.y, sz=tmp.max.z-tmp.min.z;
+        if(sx>60||sy>60||sz>60) return;           /* dev dekor/zemin */
+        if(sy<0.15&&(sx>14||sz>14)) return;        /* duz-genis zemin */
+        box.union(tmp); has=true;
+      });
+      if(!has||box.isEmpty()) return;
+      var mn=box.min,mx=box.max,k=0;
+      for(var xi=0;xi<2;xi++)for(var yi=0;yi<2;yi++)for(var zi=0;zi<2;zi++)corners[k++].set(xi?mx.x:mn.x,yi?mx.y:mn.y,zi?mx.z:mn.z);
+      c.updateMatrixWorld(true);
+      var maxX=0, loY=Infinity, hiY=-Infinity, seen=false;
+      for(var j=0;j<8;j++){
+        var pr=corners[j].clone().project(c);
+        if(isFinite(pr.x)&&isFinite(pr.y)&&pr.z<1){ seen=true;
+          maxX=Math.max(maxX,Math.abs(pr.x));
+          loY=Math.min(loY,pr.y); hiY=Math.max(hiY,pr.y); }
+      }
+      if(!seen) return;
+      var H=window.innerHeight||1;
+      /* 1) konum: alt kenar bandin altina sarkiyorsa ek ofsetle yukari al */
+      var needUp=BOTB-loY, needDown=hiY-TOPB;
+      if(needUp>0.02){
+        c.__hfExtra=Math.min((c.__hfExtra||0)+needUp*0.9*(H/2), H*0.35);
+      } else if(needDown>0.02 && loY>BOTB+0.04){
+        var back=Math.min(needDown, loY-BOTB);
+        c.__hfExtra=Math.max((c.__hfExtra||0)-back*0.9*(H/2), -H*0.15);
+      }
+      /* sayfa setViewOffset kullanmiyorsa ofseti kendimiz uygula */
+      if(!c.__hfSVO && Math.abs(c.__hfExtra||0)>1){
+        c.__hfOrig(window.innerWidth,H,0,c.__hfExtra,window.innerWidth,H);
+      }
+      /* 2) boyut: banda sigmiyorsa zoom-out, cok kucukse sinirli zoom-in */
+      if(c.__hfBase==null) c.__hfBase=c.zoom||1;
+      var mY=(hiY-loY)/(TOPB-BOTB);
+      var m=Math.max(maxX/XREF, mY);
+      var t=c.zoom;
+      if(m>1.02) t=Math.max(0.35, c.zoom/m);
+      else if(m<0.88) t=Math.min(c.__hfBase*1.6, c.zoom*(0.95/Math.max(m,0.05)));
+      if(Math.abs(t-c.zoom)/(c.zoom||1)>0.03){ c.zoom=t; c.updateProjectionMatrix(); }
+    }catch(e){}
+  }
+  /* Bilgi panelini buyut/kucult tutamaci: artik --info-h yerine DOCK
+     yuksekligini ayarlar (liste flex ile paneli doldurdugu icin). Tavan 50vh,
+     taban 22vh — yazi hicbir zaman alt sekmelerin altina inmez. */
+  (function(){
+    function wire(){
+      var h=document.getElementById('infoResizeHandle'), d=document.getElementById('bottomDock');
+      if(!h||!d||h.__hfWired) return true;
+      h.__hfWired=1;
+      var drag=false,sy=0,sh=0;
+      function cap(){ return Math.round(window.innerHeight*0.50); }
+      function floorH(){ return Math.round(window.innerHeight*0.22); }
+      function down(e){ drag=true; sy=(e.touches?e.touches[0].clientY:e.clientY);
+        sh=d.getBoundingClientRect().height||cap(); }
+      function move(e){ if(!drag) return;
+        var y=(e.touches?e.touches[0].clientY:e.clientY);
+        var nh=Math.max(floorH(),Math.min(cap(),sh+(sy-y)));
+        d.style.setProperty('height',nh+'px','important');
+        d.style.setProperty('max-height',nh+'px','important'); }
+      function up(){ drag=false; }
+      h.addEventListener('touchstart',down,{passive:true});
+      window.addEventListener('touchmove',move,{passive:true});
+      window.addEventListener('touchend',up);
+      h.addEventListener('mousedown',down);
+      window.addEventListener('mousemove',move);
+      window.addEventListener('mouseup',up);
+      return true;
+    }
+    if(!wire()){ var n=0,iv=setInterval(function(){ if(wire()||++n>20) clearInterval(iv); },400); }
+  })();
+  /* ── Palet arka plani TUM sahnelerde kalici ─────────────────────────────
+     Sahne degisiminde sayfa kodu scene.background'i yeniden atiyor ve
+     kullanicinin sectigi rengi eziyordu. Secim varsa okuma kilitlenir;
+     sahne kodu yazmaya devam eder ama gorunen renk kullanicininki kalir. */
+  (function(){
+    var locked=null;
+    function lockScene(s){
+      if(!s||s.__bgLock) return;
+      s.__bgLock=1;
+      var val=s.background;
+      try{
+        Object.defineProperty(s,'background',{
+          configurable:true,
+          get:function(){ return locked!==null?locked:val; },
+          set:function(v){ val=v; }
+        });
+      }catch(e){ s.__bgLock=0; }
+    }
+    function setLocked(c){
+      try{ if(c&&window.THREE) locked=new window.THREE.Color(c); }catch(e){}
+    }
+    function readSaved(){
+      try{ if(typeof _palState==='object'&&_palState&&_palState.bg) return _palState.bg; }catch(e){}
+      return null;
+    }
+    function wire(){
+      var s=scn(); if(s) lockScene(s);
+      try{
+        if(typeof applyPaletteColor==='function'&&!applyPaletteColor.__bgPersist){
+          var orig=applyPaletteColor;
+          var w=function(t,c,skip){
+            var r=orig(t,c,skip);
+            if(t==='bg'){ lockScene(scn()); setLocked(c); }
+            return r;
+          };
+          w.__bgPersist=1; applyPaletteColor=w;
+        }
+      }catch(e){}
+      try{
+        if(typeof resetPalette==='function'&&!resetPalette.__bgPersist){
+          var origR=resetPalette;
+          var wr=function(){ locked=null; return origR.apply(this,arguments); };
+          wr.__bgPersist=1; resetPalette=wr;
+        }
+      }catch(e){}
+      /* sayfa acilisinda kayitli secim (localStorage) zaten _palState'e yuklenmis olur */
+      if(locked===null){ var sv=readSaved(); if(sv){ lockScene(scn()); setLocked(sv); } }
+    }
+    wire();
+    var n=0, iv=setInterval(function(){ wire(); if(++n>=12) clearInterval(iv); },500);
+  })();
+  setInterval(fit,700);
+  [400,900,1500,2200].forEach(function(ms){setTimeout(fit,ms);});
+  document.addEventListener('pointerup',function(){[250,600,1100].forEach(function(ms){setTimeout(fit,ms);});},true);
+})();
+</script>
+
+<style id="geoPanelCleanV1">
+/* ── BİLGİ PANELİ: TEK ÇERÇEVE ────────────────────────────────────────────
+   Panelin kendi 2px çerçevesi yeterli. İçerideki ölçü blokları (.m-section)
+   ayrıca 1px çerçeve + dolgu çiziyordu → "çerçeve içinde çerçeve".
+   Bunlar sade bölüm başlığı + ayırıcı çizgiye indirildi. */
+.g-bottom-panel .m-section{
+  border:none !important; background:transparent !important;
+  border-radius:0 !important; overflow:visible !important; margin:0 0 8px !important;
+}
+.g-bottom-panel .m-section:last-child{ margin-bottom:0 !important; }
+.g-bottom-panel .m-head{
+  background:none !important; color:var(--accent-glow,#ffd166) !important;
+  border-bottom:1px solid var(--panel-line,#2f3a5f) !important;
+  padding:0 0 4px !important; margin:0 0 5px !important; font-size:11px !important;
+}
+.g-bottom-panel .m-formula{
+  background:transparent !important; border-radius:0 !important;
+  padding:2px 0 !important; margin:2px 0 !important;
+}
+.g-bottom-panel .m-item{ margin:0 !important; }
+.g-bottom-panel .m-section > .m-desc,
+.g-bottom-panel .m-section > .m-note{ margin:2px 0 6px !important; }
+
+/* ── YAZI TAŞMASI YOK ─────────────────────────────────────────────────────
+   .mv "white-space:nowrap" idi: uzun formül/değerler çerçeveden taşıyordu.
+   Artık satır kırılır; sığmayan içerik panel içinde DİKEY kaydırılır. */
+.g-bottom-panel .m-line{ flex-wrap:wrap !important; }
+.g-bottom-panel .m-line .mv{ white-space:normal !important; }
+.g-bottom-panel, .g-bottom-panel *{
+  overflow-wrap:anywhere !important; word-break:break-word !important;
+}
+.g-bottom-panel .g-info-body{ overflow-x:hidden !important; }
+
+/* ── ARAÇLAR AÇILIR PENCERESİ: SOLUK BEYAZ ZEMİN, BEYAZ SEKMELER ─────── */
+.combo-pop{ background:#FAFAFA !important; box-shadow:0 12px 32px rgba(0,0,0,.28) !important; }
+.combo-pop-title{ color:#B45309 !important; border-bottom-color:#e3e7ee !important; }
+.combo-pop-item{ background:#FFFFFF !important; color:#10131f !important; }
+.combo-pop-item .cpi-ico{ background:#F3F5F9 !important; }
+</style>
+
+<script id="geoShareAllV1">
+(function(){
+  /* ── GÖNDER: EKRANIN TAMAMINI AL ────────────────────────────────────────
+     Eski akış yalnız #app öğesini html2canvas ile çiziyordu; araç çubuğu,
+     bilgi paneli ve açılır pencereler dock yeniden kurulurken <body> altına
+     taşındığı için kareye HİÇ girmiyordu. Native ekran görüntüsü (Flutter)
+     o an ekranda ne varsa hepsini alır; kanal yoksa eski akışa düşülür. */
+  function wire(){
+    var b=document.getElementById('shotBtn');
+    if(!b||b.__shotAll) return !!b;
+    b.__shotAll=1;
+    b.addEventListener('click',function(e){
+      try{
+        if(window.FlutterNativeShot&&window.FlutterNativeShot.postMessage){
+          e.stopImmediatePropagation(); e.preventDefault();
+          try{ var p=document.getElementById('gAracPop'); if(p) p.style.display='none'; }catch(_){}
+          try{ var m=document.getElementById('gMenuPop'); if(m) m.classList.remove('show'); }catch(_){}
+          setTimeout(function(){
+            try{ window.FlutterNativeShot.postMessage('1'); }catch(_){}
+          },90); /* açılır pencere kapansın, sonra kare alınsın */
+        }
+      }catch(_){}
+    },true);
+    return true;
+  }
+  if(!wire()){
+    var n=0,iv=setInterval(function(){ if(wire()||++n>25) clearInterval(iv); },300);
+  }
+})();
+</script>
+
+<style id="geoChemParityV1">
+/* ── BİLGİ PANELİ: BEYAZ ZEMİN (kimya dersleriyle aynı) ───────────────── */
+.g-bottom-panel{ background:#FFFFFF !important; border-color:#2f8fd0 !important; }
+.g-bottom-panel .g-info-title{ color:#10131f !important; }
+.g-bottom-panel .g-info-body,
+.g-bottom-panel .g-info-body .info-text,
+.g-bottom-panel .m-line .mk,
+.g-bottom-panel .m-desc{ color:#1a2233 !important; }
+.g-bottom-panel .m-head{ color:#B45309 !important; border-bottom-color:#e3e7ee !important; }
+.g-bottom-panel .m-formula,
+.g-bottom-panel .m-line .mv{ color:#0E7FA3 !important; }
+.g-bottom-panel .m-line .mv b{ color:#B45309 !important; }
+.g-bottom-panel .m-item{ border-bottom-color:#e9edf3 !important; }
+.g-bottom-panel .g-measure-head{ color:#B45309 !important; border-top-color:#e3e7ee !important; }
+.g-bottom-panel .g-nav-btn{ background:#F3F5F9 !important; border-color:#cfd8e3 !important; color:#10131f !important; }
+.g-bottom-panel > #openWrap{ border-bottom-color:#e3e7ee !important; }
+.g-bottom-panel > #openWrap label{ color:#1a2233 !important; }
+
+/* ── RENK PALETİ: kimya tasarımı (soluk beyaz zemin, beyaz sekmeler) ──── */
+.palette-pop{ background:#FAFAFA !important; border-color:#2f8fd0 !important;
+  box-shadow:0 18px 50px rgba(0,0,0,.28) !important; width:270px !important; }
+.palette-title{ color:#B45309 !important; }
+.palette-x, .palette-move{ background:#FFFFFF !important; border-color:#cfd8e3 !important; color:#10131f !important; }
+.palette-hint{ color:#5a6478 !important; }
+.palette-targets{ display:grid !important; grid-template-columns:repeat(3,1fr) !important; gap:5px !important; }
+.pal-chip{ background:#FFFFFF !important; border-color:#cfd8e3 !important; color:#10131f !important; }
+.pal-chip.active{ background:linear-gradient(135deg,#2f8fd0,#5fc8e0) !important; color:#06121c !important; border-color:#2f8fd0 !important; }
+.palette-grid .swatch{ border-color:rgba(0,0,0,.18) !important; }
+</style>
+
+<script id="geoChemParityJs">
+(function(){
+  if(window.__geoChemParity) return; window.__geoChemParity=1;
+  var $=function(id){ return document.getElementById(id); };
+
+  /* ── 1) FLU (blur) TAKILMASI ──────────────────────────────────────────
+     🎬 sekmesi açılınca tam ekran bulanık örtü gösteriliyordu; ancak
+     popup'ı kapatan document-click dinleyicisi örtüyü GİZLEMİYORDU →
+     ekran bulanık kalıyordu. Bekçi: hiçbir popup açık değilse örtüyü kapat. */
+  function blurGuard(){
+    var b=$('_gBlur'); if(!b) return;
+    var open=document.querySelector('#gActionPop.show, #gAracPop.show, #gMenuPop.show, .combo-pop.show');
+    if(!open && b.style.display!=='none') b.style.display='none';
+  }
+  document.addEventListener('click', function(){ setTimeout(blurGuard,0); }, true);
+  document.addEventListener('touchend', function(){ setTimeout(blurGuard,0); }, true);
+  document.addEventListener('pointerup', function(){ setTimeout(blurGuard,0); }, true);
+  setInterval(blurGuard, 200);
+  /* Eğitim Seviyesi / Konu Rehberi panelleri: açılırken de kapanırken de
+     bulanıklık kalmasın (seviye seçtikten sonra ekran flu kalıyordu). */
+  ['levelPanel','dictPanel'].forEach(function(id){
+    var t=0, w=setInterval(function(){
+      var el=$(id);
+      if(el){
+        clearInterval(w);
+        try{
+          new MutationObserver(function(){ blurGuard(); })
+            .observe(el,{attributes:true,attributeFilter:['class','style']});
+        }catch(e){}
+        el.addEventListener('click', function(){ setTimeout(blurGuard,0); }, true);
+      } else if(++t>25) clearInterval(w);
+    },300);
+  });
+
+  /* ── 2) KONU REHBERİ / EĞİTİM SEVİYESİ: HEMEN DOCK'UN ÜSTÜNDE ──────────
+     Panellerin kendi konumu eski (gizli) düzene göreydi. Açıldıkları anda
+     dock'un hemen üstüne yerleştirilir — kimyadaki davranışın aynısı. */
+  function placeAbove(el){
+    if(!el) return;
+    var dock=$('gBottomDock'); if(!dock) return;
+    var r=dock.getBoundingClientRect();
+    el.style.position='fixed';
+    el.style.top='auto';
+    el.style.bottom=(window.innerHeight - r.top + 6)+'px';
+    el.style.left='10px'; el.style.right='10px'; el.style.width='auto';
+    el.style.zIndex='55';
+    el.style.maxHeight=Math.max(140, Math.round(r.top - 20))+'px';
+    el.style.overflowY='auto';
+  }
+  function watch(id){
+    var el=$(id); if(!el||el.__gPos) return !!el;
+    el.__gPos=1;
+    try{
+      new MutationObserver(function(){
+        if(el.classList.contains('show')) placeAbove(el);
+      }).observe(el,{attributes:true,attributeFilter:['class','style']});
+    }catch(e){}
+    if(el.classList.contains('show')) placeAbove(el);
+    return true;
+  }
+  var tries=0, iv=setInterval(function(){
+    var a=watch('levelPanel'), b=watch('dictPanel');
+    if((a&&b)||++tries>25) clearInterval(iv);
+  },300);
+  window.addEventListener('resize',function(){
+    ['levelPanel','dictPanel'].forEach(function(id){
+      var e=$(id); if(e&&e.classList.contains('show')) placeAbove(e);
+    });
+  });
+
+  /* ── 3) RENK PALETİ: kimyadaki 6 hedef + CANLI öğelere uygulama ────────
+     Eskiden 'panel'/'yazı' hedefleri GİZLİ eski panele (#panel .info-box)
+     yazıyordu → hiçbir etkisi yoktu. Artık yeni panele uygulanır ve seçim
+     localStorage'da saklanır (kimyadaki mantığın aynısı). */
+  var PK='geometrik_cisimler_palette_v2', ST={};
+  try{ ST=JSON.parse(localStorage.getItem(PK)||'{}')||{}; }catch(e){ ST={}; }
+  function save(){ try{ localStorage.setItem(PK, JSON.stringify(ST)); }catch(e){} }
+  function ink(hex){
+    var h=String(hex).replace('#',''); if(h.length<6) return '#10131f';
+    var r=parseInt(h.substr(0,2),16),g=parseInt(h.substr(2,2),16),b=parseInt(h.substr(4,2),16);
+    return (0.299*r+0.587*g+0.114*b)>140?'#10131f':'#f4f6ff';
+  }
+  function styleEl(){
+    var e=$('gPalDyn'); if(!e){ e=document.createElement('style'); e.id='gPalDyn'; document.head.appendChild(e); }
+    return e;
+  }
+  function applyAll(){
+    var css='';
+    if(ST.panel){ css+='.g-bottom-panel{background:'+ST.panel+' !important;}'
+      +'body .g-bottom-panel .g-info-body,body .g-bottom-panel .m-line .mk,body .g-bottom-panel .m-desc{color:'+ink(ST.panel)+' !important;}'; }
+    if(ST.panelTitle){ css+='body .g-bottom-panel .g-info-title{color:'+ST.panelTitle+' !important;}'; }
+    if(ST.panelText){ css+='body .g-bottom-panel .g-info-body,body .g-bottom-panel .g-info-body *{color:'+ST.panelText+' !important;}'; }
+    if(ST.labels){ css+='.label3d,.label3d *{color:'+ST.labels+' !important;border-color:'+ST.labels+' !important;}'; }
+    if(ST.sceneTitle){ css+='#gTopTitle{color:'+ST.sceneTitle+' !important;}'; }
+    styleEl().textContent=css;
+    if(ST.bg){
+      try{ if(window.scene&&window.THREE) window.scene.background=new window.THREE.Color(ST.bg); }catch(e){}
+      try{ var cv=document.querySelector('canvas'); if(cv) cv.style.setProperty('background',ST.bg,'important'); }catch(e){}
+    }
+  }
+  window.__geoApplyPal=function(target,color){ ST[target]=color; save(); applyAll(); };
+  window.__geoResetPal=function(){
+    ST={}; save(); styleEl().textContent='';
+    try{ var cv=document.querySelector('canvas'); if(cv) cv.style.removeProperty('background'); }catch(e){}
+    try{ if(window.scene) window.scene.background=null; }catch(e){}
+  };
+
+  /* Hedef sekmelerini kimyadaki 6 hedefe tamamla */
+  function buildChips(){
+    var row=document.querySelector('#palettePop .palette-targets');
+    if(!row||row.__gChips) return !!row;
+    row.__gChips=1;
+    /* Coğrafya dersindeki palet düzeninin AYNISI: iki satır, üçer hedef,
+       aralarında "→" oku ve birebir aynı etiketler. */
+    var ROWS=[
+      [['bg','Arka plan'],['sceneTitle','Başlık'],['labels','Etiketler']],
+      [['panel','Bilgi paneli'],['panelTitle','Başlık yazısı'],['panelText','Yazılar']]
+    ];
+    var host=row.parentNode;
+    row.innerHTML='';
+    /* Fazladan hedef satırı varsa temizle (yeniden kurulumda çoğalmasın) */
+    host.querySelectorAll('.palette-targets').forEach(function(el,i){
+      if(el!==row) el.remove();
+    });
+    function mkChip(t,active){
+      var b=document.createElement('button');
+      b.className='pal-chip'+(active?' active':'');
+      b.setAttribute('data-target',t[0]);
+      b.textContent=t[1];
+      b.onclick=function(ev){
+        ev.stopPropagation();
+        host.querySelectorAll('.pal-chip').forEach(function(x){ x.classList.remove('active'); });
+        b.classList.add('active');
+        window.__geoPalTarget=t[0];
+      };
+      return b;
+    }
+    ROWS.forEach(function(defs,ri){
+      var line = ri===0 ? row : document.createElement('div');
+      if(ri>0){ line.className='palette-targets'; row.parentNode.insertBefore(line, row.nextSibling); }
+      defs.forEach(function(t,ci){
+        line.appendChild(mkChip(t, ri===0&&ci===0));
+        if(ci<defs.length-1){
+          var ar=document.createElement('span');
+          ar.className='pal-arrow'; ar.textContent='→';
+          line.appendChild(ar);
+        }
+      });
+    });
+    window.__geoPalTarget='bg';
+    /* Renk kutucukları: seçili hedefe uygula (sayfanın kendi handler'ı da
+       çalışır ama artık görünen etkiyi bu üretir). */
+    document.addEventListener('click', function(ev){
+      var sw=ev.target.closest && ev.target.closest('#paletteGrid .swatch');
+      if(sw){
+        var c=sw.style.backgroundColor||sw.style.background;
+        if(c) window.__geoApplyPal(window.__geoPalTarget||'bg', c);
+        return;
+      }
+      if(ev.target.closest && ev.target.closest('#paletteReset')) window.__geoResetPal();
+    }, true);
+    return true;
+  }
+  var t2=0, iv2=setInterval(function(){ if(buildChips()||++t2>25) clearInterval(iv2); },300);
+  applyAll();
+  setTimeout(applyAll, 800);
+  setTimeout(applyAll, 2000);
+})();
+</script>
+
+<style id="geoDockTtsV1">
+/* ── KIYASLAMA / BİLGİ TABLOSU: BEYAZ ZEMİN ──────────────────────────── */
+.share-card{ background:#FFFFFF !important; border-color:#2f8fd0 !important;
+  box-shadow:0 20px 60px rgba(0,0,0,.30) !important; }
+.share-card, .share-card *{ color:#1a2233 !important; text-shadow:none !important; }
+.share-card .share-head span{ color:#B45309 !important; }
+.share-card .share-close{ background:#F3F5F9 !important; border:1.5px solid #cfd8e3 !important; color:#10131f !important; }
+.share-card table{ background:#FFFFFF !important; border-color:#dbe2ec !important; }
+.share-card th{ background:#F3F5F9 !important; color:#10131f !important; border-color:#dbe2ec !important; }
+.share-card td{ background:#FFFFFF !important; border-color:#e9edf3 !important; }
+.share-card .g-big{ color:#0E7FA3 !important; }
+.share-card .g-simple{ color:#5a6478 !important; }
+
+/* ── CİSİM ATÖLYESİ: ALAN/HACİM SONUCU DEĞİŞKENLERİN ÜSTÜNDE ──────────
+   Sonuç kutusu panelin en altındaydı; kaydırıcıları değiştirirken sonucu
+   görmek için aşağı bakmak gerekiyordu. Sıra: başlık → sonuç → değişkenler. */
+.atelier-panel.show{ display:flex !important; flex-direction:column !important; }
+.atelier-panel .atelier-head{ order:0 !important; }
+.atelier-panel #atelierResult{ order:1 !important; margin:0 0 7px !important; }
+.atelier-panel #atelierBody{ order:2 !important; }
+
+/* ── ALT SEKMELER: YAZILI ETİKET (sade · Araçlar) ─────────────────────── */
+#gBottomDock #gToolsRow #gBtnMode,
+#gBottomDock #gToolsRow #gBtnArac{
+  width:auto !important; min-width:64px !important; height:40px !important;
+  padding:0 12px !important; display:inline-flex !important;
+  flex-direction:column !important; align-items:center !important;
+  justify-content:center !important; gap:1px !important; line-height:1.05 !important;
+}
+#gBottomDock #gToolsRow .gtb-ico{ font-size:15px; }
+#gBottomDock #gToolsRow .gtb-lbl{ font-size:9.5px; font-weight:800; letter-spacing:.2px; }
+</style>
+
+<script id="geoDockTtsJs">
+(function(){
+  if(window.__geoDockTts) return; window.__geoDockTts=1;
+  var $=function(id){ return document.getElementById(id); };
+
+  /* ── 1) SESLİ MOD KAPATMA ──────────────────────────────────────────────
+     Sesli mod açıldığında onu kapatacak görünür bir kontrol yoktu (araçlar
+     penceresi kapandığı için tekrar açıp basmak gerekiyordu). Kimyadaki
+     kırmızı "KES" düğmesinin aynısı: okuma sürerken ekranda durur, basınca
+     sesi durdurur. */
+  function wireTts(){
+    var tb=$('btnTts'); if(!tb || tb.__gChip) return !!tb;
+    tb.__gChip=1;
+    var chip=document.createElement('button');
+    chip.id='gTtsStopChip';
+    chip.innerHTML='<span style="font-size:15px">\u{1F50A}</span>'
+      +'<span style="font-size:10px;font-weight:800;letter-spacing:.3px">KES</span>';
+    chip.style.cssText='display:none;position:fixed;bottom:96px;right:10px;z-index:72;'
+      +'background:#ef4444;color:#fff;border:none;border-radius:20px;padding:6px 12px;'
+      +'gap:5px;align-items:center;cursor:pointer;font-family:Fredoka,sans-serif;'
+      +'box-shadow:0 2px 12px rgba(239,68,68,.6);';
+    chip.onclick=function(e){
+      e.stopPropagation();
+      var b=$('btnTts');
+      if(b && b.classList.contains('active')) b.click(); /* toggle → kapat */
+      chip.style.display='none';
+    };
+    document.body.appendChild(chip);
+    function sync(){
+      var on=tb.classList.contains('active');
+      chip.style.display = on ? 'inline-flex' : 'none';
+    }
+    try{
+      new MutationObserver(sync).observe(tb,{attributes:true,attributeFilter:['class']});
+    }catch(e){}
+    sync();
+    return true;
+  }
+
+  /* ── 2) ALT SEKME ETİKETLERİ: "sade" / "Araçlar" ───────────────────────
+     Emoji yerine yazılı etiket; sade/detaylı durumu etikette görünür. */
+  function label(btn, ico, text){
+    if(!btn) return;
+    btn.innerHTML='<span class="gtb-ico">'+ico+'</span><span class="gtb-lbl">'+text+'</span>';
+  }
+  function wireLabels(){
+    var mode=$('gBtnMode'), arac=$('gBtnArac');
+    if(!mode || !arac) return false;
+    label(arac, '\uD83E\uDDF0', 'Araçlar');
+    function syncMode(){
+      /* g-act sınıfı "detaylı" durumda ekleniyor (sayfanın kendi mantığı) */
+      var detayli = mode.classList.contains('g-act');
+      label(mode, detayli ? '\uD83D\uDCDA' : '\uD83D\uDCC4', detayli ? 'detaylı' : 'sade');
+    }
+    syncMode();
+    mode.addEventListener('click', function(){ setTimeout(syncMode, 30); });
+    try{
+      /* Sayfanın kendi kodu düğmeye textContent yazınca etiket siliniyordu;
+         hem sınıf hem içerik değişimini izle (childList) ve geri yaz. */
+      new MutationObserver(function(){
+        if(!mode.querySelector('.gtb-lbl')) syncMode();
+        else syncMode();
+      }).observe(mode,{attributes:true,attributeFilter:['class'],childList:true});
+    }catch(e){}
+    /* Araçlar düğmesinin metni sayfa kodu tarafından ezilirse geri yaz */
+    try{
+      new MutationObserver(function(){
+        if(arac.querySelector('.gtb-lbl')) return;
+        label(arac, '\uD83E\uDDF0', 'Araçlar');
+      }).observe(arac,{childList:true});
+    }catch(e){}
+    return true;
+  }
+
+  var n=0, iv=setInterval(function(){
+    var a=wireTts(), b=wireLabels();
+    if((a&&b) || ++n>30) clearInterval(iv);
+  },300);
+})();
+</script>
+
+<style id="geoReadableV1">
+/* ── BEYAZ PANELDE OKUNUR YAZI ────────────────────────────────────────────
+   Panel zemini beyaza alındı ama metin renkleri hâlâ KOYU TEMA değişkenleri
+   (--ink:#f3f1ff, --ink-dim:#aab3d8) ile geliyordu: açıklama ve formüller
+   beyaz üstünde beyaza yakın kalıp okunmuyordu. */
+.g-bottom-panel, .g-bottom-panel *{ color:#1a2233 !important; }
+.g-bottom-panel .g-info-title{ color:#10131f !important; font-weight:800; }
+.g-bottom-panel .info-text{ color:#1a2233 !important; }
+.g-bottom-panel .m-line .mk,
+.g-bottom-panel .m-desc,
+.g-bottom-panel .m-note{ color:#3a4459 !important; }
+.g-bottom-panel .m-head,
+.g-bottom-panel .g-measure-head{ color:#B45309 !important; }
+.g-bottom-panel .m-formula,
+.g-bottom-panel .m-line .mv{ color:#0E7FA3 !important; }
+.g-bottom-panel .m-line .mv b{ color:#B45309 !important; }
+.g-bottom-panel > #openWrap label{ color:#1a2233 !important; }
+.g-bottom-panel .g-nav-btn{
+  background:#F3F5F9 !important; border-color:#cfd8e3 !important; color:#10131f !important; }
+.g-bottom-panel .g-nav-btn.g-act{ border-color:#2f8fd0 !important; color:#0E7FA3 !important; }
+
+/* ── ALT 3 SEKME: İÇİ BEYAZ ───────────────────────────────────────────── */
+#gBottomDock #gToolsRow .g-tool-btn{
+  background:#FFFFFF !important; border-color:#cfd8e3 !important; color:#10131f !important; }
+#gBottomDock #gToolsRow .g-tool-btn .gtb-lbl,
+#gBottomDock #gToolsRow .g-tool-btn .gtb-ico{ color:#10131f !important; }
+#gBottomDock #gToolsRow .g-tool-btn.g-act{
+  background:#FFFFFF !important; border-color:#2f8fd0 !important; }
+#gBottomDock #gToolsRow .g-tool-btn.g-act .gtb-lbl,
+#gBottomDock #gToolsRow .g-tool-btn.g-act .gtb-ico{ color:#0E7FA3 !important; }
+#gBottomDock #gToolsRow .g-tool-btn.g-menu{
+  background:#FFFFFF !important; border-color:#B45309 !important; color:#B45309 !important; }
+#gBottomDock #gToolsRow .g-tool-btn.g-menu .gtb-lbl,
+#gBottomDock #gToolsRow .g-tool-btn.g-menu .gtb-ico{ color:#B45309 !important; }
+
+/* ── KONU REHBERİ / EĞİTİM SEVİYESİ: BEYAZ ZEMİN, BEYAZ SEKMELER ─────── */
+#levelPanel, #dictPanel{
+  background:#FFFFFF !important; border-color:#2f8fd0 !important;
+  box-shadow:0 18px 44px rgba(0,0,0,.28) !important; }
+#levelPanel *, #dictPanel *{ color:#1a2233 !important; }
+#levelPanel .level-title, #dictPanel .dict-title{ color:#B45309 !important; }
+#levelPanel .level-sub{ color:#5a6478 !important; }
+#levelPanel .level-item, #dictPanel .dict-item{
+  background:#FFFFFF !important; border:1.5px solid #cfd8e3 !important;
+  color:#1a2233 !important; }
+#levelPanel .level-item.active, #dictPanel .dict-item.active,
+#levelPanel .level-item.on, #dictPanel .dict-item.on{
+  background:#F3F9FF !important; border-color:#2f8fd0 !important; color:#0E7FA3 !important; }
+
+/* ── KIYASLAMA / BİLGİ TABLOSU: BAŞLIK VE TABLO OKUNUR ────────────────── */
+.share-card .share-head{
+  background:#FFFFFF !important; border-bottom:1px solid #e3e7ee !important; }
+.share-card .share-head, .share-card .share-head *{ color:#10131f !important; }
+.g-cmp-table, .g-cmp-table *{ color:#1a2233 !important; }
+.g-cmp-table{ background:#FFFFFF !important; border-color:#dbe2ec !important; }
+/* Kıyaslanan cisimlerin adlarının olduğu başlık satırı */
+.g-cmp-table thead th, .g-cmp-table th{
+  background:#F3F5F9 !important; color:#10131f !important;
+  border-color:#dbe2ec !important; font-weight:800 !important; }
+.g-cmp-table td{ background:#FFFFFF !important; border-color:#e9edf3 !important; }
+.g-cmp-pick, .g-cmp-pick *{ color:#1a2233 !important; }
+.g-cmp-pick{ background:#FFFFFF !important; border-color:#cfd8e3 !important; }
+.g-cmp-pick.active, .g-cmp-pick.on{
+  background:#F3F9FF !important; border-color:#2f8fd0 !important; color:#0E7FA3 !important; }
+</style>
+
+<style id="geoPaletteGeoParityV1">
+/* ── RENK PALETİ: COĞRAFYA DERSİYLE BİREBİR ──────────────────────────────
+   Hedef satırları tek sırada, aralarında "→" oku; kutucuk ızgarası iki
+   satırlı ve yatay kaydırmalı; sıfırla düğmesi ince çerçeveli sade buton. */
+.palette-targets{ display:flex !important; flex-wrap:nowrap !important;
+  align-items:center !important; gap:4px !important; margin-bottom:8px !important; }
+.pal-chip{ flex:1 1 0 !important; min-width:0 !important; padding:5px 3px !important;
+  font-size:10px !important; text-align:center !important; border-radius:9px !important;
+  font-weight:700 !important; cursor:pointer; transition:all .12s; }
+.pal-arrow{ color:#2f8fd0 !important; font-size:11px !important; flex-shrink:0 !important;
+  opacity:.65 !important; }
+.palette-grid{ display:grid !important; grid-auto-flow:column !important;
+  grid-template-rows:repeat(2,1fr) !important; gap:7px !important;
+  overflow-x:auto !important; padding-bottom:5px !important; }
+.palette-grid::-webkit-scrollbar{ height:6px; }
+.palette-grid::-webkit-scrollbar-thumb{ background:#2f8fd0; border-radius:4px; }
+.palette-grid .swatch{ width:34px !important; height:34px !important; aspect-ratio:auto !important; }
+/* Sıfırla: koyu blok yerine coğrafyadaki sade çerçeveli düğme */
+.palette-reset{ background:#FFFFFF !important; border:1.5px solid #cfd8e3 !important;
+  color:#1a2233 !important; font-weight:700 !important; }
+.palette-reset:hover{ border-color:#2f8fd0 !important; color:#0E7FA3 !important; }
+</style>
 </body>
 </html>

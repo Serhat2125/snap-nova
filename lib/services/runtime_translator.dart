@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'ai_provider_service.dart';
 import 'error_logger.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -436,6 +437,37 @@ class RuntimeTranslator extends ChangeNotifier {
     }
   }
 
+  /// İNDİRİLEBİLİR DİL PAKETİ girişi — sunucuda (dil-başına-bir-kez) üretilen
+  /// toplu çeviri paketini cache'e bas + kalıcılaştır. Böylece 3D ders içeriği
+  /// dahil TÜM görülen metinler offline/anında karşılanır; runtime Gemini akışı
+  /// yalnızca pakette olmayan uzun-kuyruk için devreye girer.
+  ///
+  /// [merge] map: kaynak(TR) → çeviri. Var olan runtime cache girişlerini
+  /// EZMEZ (kullanıcının cihazında zaten çevrilmiş taze girişler korunur);
+  /// yalnızca eksikleri doldurur.
+  Future<int> ingestPack(String lang, Map<String, String> pack) async {
+    if (lang == _sourceLang || pack.isEmpty) return 0;
+    if (!LocaleService.supportedLocales.contains(lang)) return 0;
+    await _ensureLangLoadedAsync(lang);
+    final byLang = _cache.putIfAbsent(lang, () => {});
+    var added = 0;
+    pack.forEach((k, v) {
+      if (k.trim().isEmpty || v.trim().isEmpty) return;
+      if (!byLang.containsKey(k)) {
+        byLang[k] = v;
+        added++;
+      }
+    });
+    if (added > 0) {
+      await _persistLang(lang);
+      _notifyDebounce?.cancel();
+      _notifyDebounce = null;
+      notifyListeners();
+      _log('ingestPack: $lang +$added (toplam ${byLang.length})');
+    }
+    return added;
+  }
+
   /// Cache'i dışarıdan temizleme (ayarlar sayfasından opsiyonel).
   Future<void> clearCache() async {
     _cache.clear();
@@ -448,20 +480,16 @@ class RuntimeTranslator extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ── Batch çeviri (Gemini) ─────────────────────────────────────────────────
+  // ── Batch çeviri: Gemini → ChatGPT (OpenAI) → Grok (xAI) failover ─────────
+  // Sunucudaki generateTextFailover ile aynı sıra (kullanıcı isteği):
+  // Gemini kredisi/kotası yoksa çeviri durmasın.
   Future<Map<String, String>> _translateBatch(
       List<String> sources, String targetLang) async {
-    // Hedef dilin İngilizce adını al (Gemini daha iyi anlasın)
+    // Hedef dilin İngilizce adını al (modeller daha iyi anlasın)
     final langName = _langName(targetLang);
     final jsonInput = jsonEncode(sources);
 
-    final body = {
-      'contents': [
-        {
-          'role': 'user',
-          'parts': [
-            {
-              'text': '''You are a professional translator for an education app (QuAlsar).
+    final prompt = '''You are a professional translator for an education app (QuAlsar).
 Translate each string in the JSON array below from Turkish to $langName.
 STRICT RULES:
 - Output ONLY a JSON array with the same length and order as the input.
@@ -474,8 +502,81 @@ STRICT RULES:
 Input:
 $jsonInput
 
-Output (JSON array only):'''
-            }
+Output (JSON array only):''';
+
+    final gemini = await _tryGemini(prompt, sources);
+    if (gemini != null) return gemini;
+
+    // Doğrudan Gemini başarısız → sunucudaki aiProxy zinciri:
+    // Gemini → ChatGPT → DeepSeek → Grok → Claude (anahtarlar Secret Manager'da,
+    // istemciye key gerekmez; oturum açık olmalı).
+    try {
+      _log('Gemini başarısız → aiProxy zinciri deneniyor');
+      final text = await AiProviderService.ask(
+        prompt: prompt,
+        maxTokens: 8192,
+        timeout: const Duration(seconds: 90),
+      );
+      final out = _pairOutput(text, sources);
+      if (out != null) return out;
+    } catch (e) {
+      _log('aiProxy zinciri hatası: $e');
+    }
+
+    // Son çare: istemci tarafı doğrudan anahtarlar (doluysa).
+    if (Secrets.openai.isNotEmpty) {
+      _log('Gemini başarısız → ChatGPT deneniyor');
+      final r = await _tryChatCompletions(
+        endpoint: 'https://api.openai.com/v1/chat/completions',
+        apiKey: Secrets.openai,
+        model: 'gpt-4o-mini',
+        prompt: prompt,
+        sources: sources,
+      );
+      if (r != null) return r;
+    }
+    if (Secrets.grok.isNotEmpty) {
+      _log('ChatGPT başarısız/yok → Grok deneniyor');
+      final r = await _tryChatCompletions(
+        endpoint: 'https://api.x.ai/v1/chat/completions',
+        apiKey: Secrets.grok,
+        model: 'grok-3-mini',
+        prompt: prompt,
+        sources: sources,
+      );
+      if (r != null) return r;
+    }
+    return {};
+  }
+
+  /// Model çıktısını (JSON dizi) kaynaklarla eşleyip haritaya çevirir;
+  /// uzunluk uyuşmazsa null (→ retry/failover).
+  Map<String, String>? _pairOutput(String text, List<String> sources) {
+    final parsed = _extractJsonArray(text);
+    if (parsed == null || parsed.length != sources.length) {
+      _log('mismatch: input=${sources.length} output=${parsed?.length}');
+      return null;
+    }
+    final out = <String, String>{};
+    for (int i = 0; i < sources.length; i++) {
+      final t = parsed[i].trim();
+      if (t.isNotEmpty) out[sources[i]] = t;
+    }
+    return out;
+  }
+
+  /// Gemini denemeleri (key rotasyonu + backoff). Başarısızsa null.
+  Future<Map<String, String>?> _tryGemini(
+      String prompt, List<String> sources) async {
+    final keys = _geminiKeys();
+    if (keys.isEmpty) return null; // key yok → boşuna backoff bekleme
+
+    final body = {
+      'contents': [
+        {
+          'role': 'user',
+          'parts': [
+            {'text': prompt}
           ]
         }
       ],
@@ -486,7 +587,6 @@ Output (JSON array only):'''
       }
     };
 
-    final keys = _geminiKeys();
     // 503/UNAVAILABLE için backoff retry (paid tier'da da oluyor).
     const retryDelaysMs = [2000, 5000, 10000];
     for (int attempt = 0; attempt <= retryDelaysMs.length; attempt++) {
@@ -519,17 +619,8 @@ Output (JSON array only):'''
                         as String?)
                     ?.trim();
             if (text == null) break; // boş cevap → retry
-            final parsed = _extractJsonArray(text);
-            if (parsed == null || parsed.length != sources.length) {
-              _log('mismatch: input=${sources.length} '
-                  'output=${parsed?.length} (retry)');
-              break; // retry
-            }
-            final out = <String, String>{};
-            for (int i = 0; i < sources.length; i++) {
-              final t = parsed[i].trim();
-              if (t.isNotEmpty) out[sources[i]] = t;
-            }
+            final out = _pairOutput(text, sources);
+            if (out == null) break; // retry
             return out;
           }
           if (resp.statusCode == 401 ||
@@ -543,14 +634,55 @@ Output (JSON array only):'''
             break; // retry loop'a geri dön
           }
           _log('HTTP ${resp.statusCode} — vazgeç');
-          return {};
+          return null; // → failover zinciri
         } catch (e) {
           _log('çağrı hatası: $e');
           continue;
         }
       }
     }
-    return {};
+    return null;
+  }
+
+  /// OpenAI-uyumlu chat/completions çağrısı (OpenAI ve xAI/Grok aynı şema).
+  Future<Map<String, String>?> _tryChatCompletions({
+    required String endpoint,
+    required String apiKey,
+    required String model,
+    required String prompt,
+    required List<String> sources,
+  }) async {
+    try {
+      final resp = await http
+          .post(
+            Uri.parse(endpoint),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $apiKey',
+            },
+            body: jsonEncode({
+              'model': model,
+              'temperature': 0,
+              'messages': [
+                {'role': 'user', 'content': prompt},
+              ],
+            }),
+          )
+          .timeout(_timeout);
+      if (resp.statusCode != 200) {
+        _log('$model HTTP ${resp.statusCode}');
+        return null;
+      }
+      final j =
+          jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
+      final text =
+          (j['choices']?[0]?['message']?['content'] as String?)?.trim();
+      if (text == null || text.isEmpty) return null;
+      return _pairOutput(text, sources);
+    } catch (e) {
+      _log('$model çağrı hatası: $e');
+      return null;
+    }
   }
 
   List<String>? _extractJsonArray(String raw) {

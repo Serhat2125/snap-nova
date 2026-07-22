@@ -99,22 +99,33 @@ function buildContent(data: NotifData): { title: string; body: string } {
     return { title: data.title, body: data.body };
   }
   const who = data.fromDisplayName || data.fromUsername || "Birisi";
+  // İsim + @kullanıcıadı birlikte — alıcı kimin yazdığını NET görsün.
+  // displayName username ile aynıysa (eski kayıtlar) tekrar yazma.
+  const whoFull =
+    data.fromUsername && who !== data.fromUsername
+      ? `${who} (${data.fromUsername})`
+      : who;
   switch (data.type) {
     case "friend_request":
       return {
         title: "Yeni arkadaşlık isteği",
-        body: `${who} sana arkadaşlık isteği gönderdi`,
+        body: `${whoFull} sana arkadaşlık isteği gönderdi`,
       };
     case "friend_accepted":
       return {
         title: "İsteğin kabul edildi",
-        body: `${who} arkadaşlık isteğini kabul etti`,
+        body: `${whoFull} arkadaşlık isteğini kabul etti`,
       };
-    case "duelo_invite":
+    case "duelo_invite": {
+      // Davet ders+konu taşır — alıcı neyde yarışacağını push'tan görsün.
+      const st = [data.subjectKey, data.topic].filter(Boolean).join(" • ");
       return {
-        title: "Düello daveti",
-        body: `${who} seninle yarışmak istiyor`,
+        title: "Düello daveti ⚔️",
+        body: st
+          ? `${whoFull} seninle "${st}" konusunda yarışmak istiyor — kabul et, aynı sorular ikinize aynı anda gelsin`
+          : `${whoFull} seninle yarışmak istiyor`,
       };
+    }
     case "rank_passed":
       return {
         title: "Sıralamada geçildin",
@@ -340,6 +351,10 @@ export const pushOnNotificationCreated = onDocumentCreated(
         priority: "high",
         notification: {
           channelId: "qualsar_default",
+          // Tek renk QuAlsar silüeti (res/drawable/ic_notification) + marka
+          // yeşili boyama — renkli launcher ikonu gri kare görünüyordu.
+          icon: "ic_notification",
+          color: "#00DC3C",
         },
       },
       apns: {

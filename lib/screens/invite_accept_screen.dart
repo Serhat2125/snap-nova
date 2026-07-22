@@ -92,13 +92,18 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
       return;
     }
     setState(() => _sending = true);
-    final ok = await FriendService.sendRequest(toUid: u.uid);
+    // Doğrudan ekle — istek/kabul beklemeden anında iki tarafta da arkadaş.
+    final res = await FriendService.addFriendDirect(u);
     if (!mounted) return;
     setState(() {
       _sending = false;
-      _result = ok
-          ? '@${u.username} adlı kullanıcıya istek gönderildi'
-          : 'İstek gönderilemedi (zaten arkadaş olabilirsiniz)';
+      _result = switch (res) {
+        FriendReqResult.sent || FriendReqResult.alreadyFriends =>
+          '${u.username} eklendi — artık arkadaşsınız ✓',
+        FriendReqResult.invalid => 'Kendini ekleyemezsin',
+        FriendReqResult.failed =>
+          'Eklenemedi — bağlantını kontrol edip tekrar dene',
+      };
     });
   }
 
@@ -145,7 +150,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '@${widget.username} adlı kullanıcı sistemde değil, ya da link bozuk.',
+            '${widget.username} adlı kullanıcı sistemde değil, ya da link bozuk.',
             textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               fontSize: 13,
@@ -233,7 +238,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  u.displayName.isEmpty ? '@${u.username}' : u.displayName,
+                  u.displayName.isEmpty ? u.username : u.displayName,
                   style: GoogleFonts.fraunces(
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
@@ -242,7 +247,7 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
                   ),
                 ),
                 Text(
-                  '@${u.username}',
+                  u.username,
                   style: GoogleFonts.inter(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -356,10 +361,10 @@ class _InviteAcceptScreenState extends State<InviteAcceptScreen> {
                       const SizedBox(width: 8),
                       Text(
                         _sending
-                            ? 'Gönderiliyor…'.tr()
+                            ? 'Ekleniyor…'.tr()
                             : (_contestInvite != null
                                 ? 'Yarışma İsteğini Kabul Et'.tr()
-                                : 'Arkadaş İsteği Gönder'.tr()),
+                                : 'Arkadaş Ekle'.tr()),
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: FontWeight.w900,

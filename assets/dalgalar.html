@@ -1857,8 +1857,8 @@ const COLORS = {
 // ============== INIT ==============
 function init() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xE3E7ED);
-  scene.fog = new THREE.Fog(0x121726, 35, 95);
+  scene.background = new THREE.Color(0xFAFAFA);
+  scene.fog = new THREE.Fog(0xdfe7f2, 35, 95);
 
   const W = window.innerWidth, H = window.innerHeight;
   camera = new THREE.PerspectiveCamera(63, W / H, 0.1, 200);
@@ -2570,21 +2570,27 @@ const INFO_DATA = {
       '🌊 Suya taş atınca oluşan halkalar bir dalgadır',
       '⚡ Dalga, enerjiyi bir yerden başka yere taşır',
       '💧 Su yukarı-aşağı oynar ama yerinden gitmez',
-      '🔊 Ses de bir dalgadır, kulağımıza ulaşır'
+      '🔊 Ses de bir dalgadır, kulağımıza ulaşır',
+      '🎸 Gitar teli titreşir, sesi odaya dalga olarak yayılır',
+      '🚦 Dalgayı başlatan titreşen cisme kaynak denir'
     ]},
     ortaokul: { emoji: '🌊', title: 'Dalga Nedir', points: [
       '🌊 Titreşimin bir ortamda yayılmasına dalga denir',
       '⚡ Dalga <b>enerji taşır</b>, madde taşımaz',
       '💧 Ortamdaki parçacıklar yerinde titreşir',
       '🔊 Örnek: su dalgası, ses, deprem, ışık',
-      '🌀 Kaynak titreşir → dalga yayılır'
+      '🌀 Kaynak titreşir → dalga yayılır',
+      '💡 Işık dalgası ortam istemez, uzaydan bize ulaşır',
+      '💪 Genliği büyük dalga daha çok enerji taşır'
     ]},
     lise: { emoji: '🌊', title: 'Dalga Hareketi', points: [
       '🌊 Dalga: enerjinin ortamda madde taşınmadan iletilmesi',
       '⚡ Enerji yayılır, ortam parçacıkları denge etrafında titreşir',
       '🔧 Mekanik dalga: ortam gerekir (ses, su, yay)',
       '💡 Elektromanyetik dalga: boşlukta yayılır (ışık)',
-      '🌀 Kaynağın titreşimi dalgayı oluşturur'
+      '🌀 Kaynağın titreşimi dalgayı oluşturur',
+      '📊 Taşınan enerji genliğin karesiyle orantılıdır (E ∝ A²)',
+      '🔄 Parçacık bir periyotta tam bir titreşim tamamlar'
     ]},
     tyt_ayt: { emoji: '🌊', title: 'Dalga Hareketi (TYT/AYT)', points: [
       '🌊 Dalga = enerji ve momentum iletimi (madde iletimi yok)',
@@ -2600,13 +2606,17 @@ const INFO_DATA = {
       '⛰️ Tepe: dalganın en yüksek yeri',
       '🕳️ Çukur: dalganın en alçak yeri',
       '📏 Genlik: ne kadar yükseldiği (yükseklik)',
-      '🌊 Dalga boyu: iki tepe arası uzaklık'
+      '🌊 Dalga boyu: iki tepe arası uzaklık',
+      '⏱️ Bir dalganın geçmesi için gereken süre periyottur',
+      '💪 Genlik büyürse dalga daha güçlü olur'
     ]},
     ortaokul: { emoji: '📏', title: 'Temel Büyüklükler', points: [
       '⛰️ <b>Tepe</b>: en yüksek nokta, <b>Çukur</b>: en alçak nokta',
       '📏 <b>Genlik (A)</b>: denge ile tepe arası dikey mesafe',
       '🌊 <b>Dalga boyu (λ)</b>: ardışık iki tepe (veya çukur) arası',
       '💪 Genlik büyükse dalga daha çok enerji taşır',
+      '🔄 <b>Frekans (f)</b>: 1 saniyede geçen dalga sayısı (Hz)',
+      '⚡ <b>v = λ·f</b>: hız, dalga boyu ile frekansın çarpımı',
       '🎚️ Genliği ve dalga boyunu değiştir, izle'
     ]},
     lise: { emoji: '📏', title: 'Temel Büyüklükler', points: [
@@ -2614,7 +2624,9 @@ const INFO_DATA = {
       '📏 Genlik A: denge–tepe dikey uzaklık (enerji ∝ A²)',
       '🌊 Dalga boyu λ: ardışık aynı fazlı iki nokta arası',
       '🔄 Frekans f: birim zamanda geçen dalga sayısı (Hz)',
-      '⏱️ Periyot T = 1/f: bir tam dalga süresi'
+      '⏱️ Periyot T = 1/f: bir tam dalga süresi',
+      '⚡ Hız v = λ·f = λ/T; λ ölçülüp f bilinirse v bulunur',
+      '📊 Genlik yalnız enerjiyi belirler, hızı etkilemez'
     ]},
     tyt_ayt: { emoji: '📏', title: 'Temel Büyüklükler (TYT/AYT)', points: [
       '📏 Genlik A: maksimum yer değiştirme; enerji E ∝ A²',
@@ -2630,13 +2642,17 @@ const INFO_DATA = {
       '↕️ Enine dalga: yukarı-aşağı sallanır (su, ip)',
       '↔️ Boyuna dalga: ileri-geri sıkışır (ses, yay)',
       '🌊 Denizdeki dalgalar enine dalgadır',
-      '🔊 Ses boyuna dalgadır, havayı sıkıştırır'
+      '🔊 Ses boyuna dalgadır, havayı sıkıştırır',
+      '🪢 Yayı yana sallarsan enine, iterek itersen boyuna olur',
+      '🎚️ İki dalga türünü ekranda karşılaştır'
     ]},
     ortaokul: { emoji: '↕️', title: 'Enine ve Boyuna Dalga', points: [
       '↕️ <b>Enine</b>: titreşim, yayılmaya <b>dik</b> (su, ışık, ip)',
       '↔️ <b>Boyuna</b>: titreşim, yayılmaya <b>paralel</b> (ses, yay)',
       '🌊 Enine: tepe ve çukurlar oluşur',
       '🔊 Boyuna: sıkışma ve genleşme bölgeleri oluşur',
+      '🌍 Depremde P dalgası boyuna, S dalgası eninedir',
+      '⚡ Her iki türde de <b>v = λ·f</b> bağıntısı geçerlidir',
       '🎚️ İki türü karşılaştır'
     ]},
     lise: { emoji: '↕️', title: 'Enine ve Boyuna Dalga', points: [
@@ -2644,7 +2660,9 @@ const INFO_DATA = {
       '↔️ Boyuna: parçacık titreşimi ∥ yayılma yönü',
       '🌊 Enine örnek: su yüzeyi, ip, EM dalgalar (ışık)',
       '🔊 Boyuna örnek: ses, yayda itme dalgası',
-      '📊 Boyuna: sıkışma (yoğun) + seyrelme (seyrek) bölgeleri'
+      '📊 Boyuna: sıkışma (yoğun) + seyrelme (seyrek) bölgeleri',
+      '💡 Yalnız enine dalgalar polarlanabilir (ışık polarize olur)',
+      '🌍 S dalgası enine olduğu için sıvı çekirdekten geçemez'
     ]},
     tyt_ayt: { emoji: '↕️', title: 'Enine/Boyuna (TYT/AYT)', points: [
       '↕️ Enine: titreşim ⊥ yayılma (su, ip, tüm EM dalgalar)',
@@ -2660,6 +2678,8 @@ const INFO_DATA = {
       '⚡ Dalga bir saniyede ne kadar yol gider',
       '🌊 Uzun dalgalar daha hızlı gibi görünür',
       '🔢 Hız = dalga boyu × saniyedeki dalga sayısı',
+      '🏖️ Sığ suda dalgalar yavaşlar, derin suda hızlanır',
+      '🔊 Ses havada 1 saniyede yaklaşık 340 metre yol alır',
       '🎚️ Değerleri değiştir, hızı gör'
     ]},
     ortaokul: { emoji: '⚡', title: 'Dalga Hızı', points: [
@@ -2667,6 +2687,8 @@ const INFO_DATA = {
       '🌊 λ: dalga boyu (m), f: frekans (Hz)',
       '🔢 Örnek: λ=2m, f=3Hz → v=6 m/s',
       '📏 Frekans artarsa (λ sabit) hız artar',
+      '🌡️ Ses havada ≈340 m/s, suda ve demirde çok daha hızlıdır',
+      '🏖️ Ortam değişince hız değişir, frekans aynı kalır',
       '🎚️ λ ve f kaydırıcılarını dene'
     ]},
     lise: { emoji: '⚡', title: 'Dalga Hızı v=λ·f', points: [
@@ -2674,7 +2696,9 @@ const INFO_DATA = {
       '🌊 Tüm dalga türlerinde geçerlidir',
       '📊 Hız yalnız ortama bağlıdır',
       '🔄 Frekans kaynağa bağlı, ortamda değişmez',
-      '🔢 λ = v/f; ortam değişince v ve λ değişir, f sabit'
+      '🔢 λ = v/f; ortam değişince v ve λ değişir, f sabit',
+      '🔊 Sesin havadaki hızı sıcaklıkla artar (≈340 m/s, 20 °C)',
+      '🧵 Yayda gerginlik artarsa hız artar: v = √(F/µ)'
     ]},
     tyt_ayt: { emoji: '⚡', title: 'Dalga Hızı (TYT/AYT)', points: [
       '⚡ v = λ·f = λ/T (her dalga için)',
@@ -2690,6 +2714,8 @@ const INFO_DATA = {
       '🔄 Frekans: bir saniyede kaç dalga geçer',
       '⏱️ Periyot: bir dalganın geçme süresi',
       '🏃 Hızlı titreşim = çok dalga = yüksek frekans',
+      '⏱️ 1 saniyede 2 dalga geçerse periyot 0,5 saniyedir',
+      '🎵 Hızlı titreşim ince ses, yavaş titreşim kalın ses verir',
       '🎚️ Frekansı değiştir, dalgaları say'
     ]},
     ortaokul: { emoji: '🔄', title: 'Periyot ve Frekans', points: [
@@ -2697,6 +2723,8 @@ const INFO_DATA = {
       '⏱️ <b>Periyot (T)</b>: 1 dalga için geçen süre (s)',
       '🔢 <b>T = 1/f</b> (ters orantılı)',
       '🏃 Frekans büyükse periyot küçüktür',
+      '🔢 Örnek: f = 4 Hz ise T = 1/4 = 0,25 saniyedir',
+      '🌊 Bir periyot boyunca dalga tam bir <b>λ</b> yol alır',
       '🎚️ Frekansı ayarla, periyodu izle'
     ]},
     lise: { emoji: '🔄', title: 'Periyot ve Frekans', points: [
@@ -2704,7 +2732,9 @@ const INFO_DATA = {
       '⏱️ T: bir tam titreşim süresi (s)',
       '🔢 T = 1/f, f = 1/T',
       '🌊 Bir periyotta dalga bir λ yol alır',
-      '📊 f kaynağa bağlıdır, ortamdan bağımsızdır'
+      '📊 f kaynağa bağlıdır, ortamdan bağımsızdır',
+      '🔢 f = N/t: t sürede geçen N dalga sayısından bulunur',
+      '⏱️ Örnek: 10 s\'de 25 dalga → f = 2,5 Hz, T = 0,4 s'
     ]},
     tyt_ayt: { emoji: '🔄', title: 'Periyot/Frekans (TYT/AYT)', points: [
       '🔄 f = 1/T = N/t (N: sayı, t: süre)',
@@ -2720,6 +2750,8 @@ const INFO_DATA = {
       '💧 Suya taş atınca daire şeklinde dalgalar olur',
       '🌊 Düz bir çubukla doğrusal dalgalar olur',
       '🏖️ Sığ suda dalgalar yavaşlar',
+      '⛰️ Dalga leğeninde tepeler aydınlık, çukurlar karanlıktır',
+      '🪨 Dalgalar kenardaki engele çarpınca geri döner',
       '🎚️ Dalga türünü değiştir'
     ]},
     ortaokul: { emoji: '💧', title: 'Su Dalgaları', points: [
@@ -2727,6 +2759,8 @@ const INFO_DATA = {
       '〰️ <b>Doğrusal</b>: çubuk kaynaktan düz çizgiler',
       '🏖️ Derin suda hızlı, sığ suda yavaş',
       '🌊 Sığ suda dalga boyu küçülür',
+      '🔬 Su dalgaları <b>dalga leğeni</b> ile incelenir',
+      '📏 Ardışık iki dalga cephesi arası uzaklık dalga boyudur',
       '🎚️ Kaynak türünü ve derinliği dene'
     ]},
     lise: { emoji: '💧', title: 'Su Dalgaları', points: [
@@ -2734,7 +2768,9 @@ const INFO_DATA = {
       '🏖️ Derin ortam: v büyük, λ büyük',
       '🌊 Sığ ortam: v küçük, λ küçük (f sabit)',
       '📊 Su dalgaları yansıma/kırılma/girişim gösterir',
-      '🔬 Dalga olaylarını incelemek için model ortam'
+      '🔬 Dalga olaylarını incelemek için model ortam',
+      '🔬 Dalga leğeninde derinlik cam levha ile ayarlanır',
+      '📐 Dalga cephesi, yayılma doğrultusuna (ışına) diktir'
     ]},
     tyt_ayt: { emoji: '💧', title: 'Su Dalgaları (TYT/AYT)', points: [
       '💧 Dairesel/doğrusal; derinlik dalga hızını belirler',
@@ -2750,6 +2786,8 @@ const INFO_DATA = {
       '↩️ Dalga bir duvara çarpınca geri döner',
       '🪞 Aynadaki görüntü ışığın yansımasıdır',
       '🏔️ Yankı sesin yansımasıdır',
+      '📐 Dalga duvara nasıl gelirse aynı açıyla geri döner',
+      '🦇 Yarasalar yansıyan sesle karanlıkta yol bulur',
       '🎚️ Dalgayı gönder, geri dönüşünü izle'
     ]},
     ortaokul: { emoji: '↩️', title: 'Yansıma', points: [
@@ -2757,6 +2795,8 @@ const INFO_DATA = {
       '📐 Geliş açısı = yansıma açısı',
       '🪞 Işık, ses, su dalgaları yansır',
       '🌊 Yansımada hız, dalga boyu, frekans değişmez',
+      '📏 <b>Normal</b>: yüzeye dik çizgi; açılar ona göre ölçülür',
+      '🦇 Sonar ve yarasa yankısı yansımadan yararlanır',
       '🎚️ Engele çarpan dalgayı gözlemle'
     ]},
     lise: { emoji: '↩️', title: 'Yansıma', points: [
@@ -2764,7 +2804,9 @@ const INFO_DATA = {
       '📐 Geliş açısı = yansıma açısı (normale göre)',
       '🌊 Yansımada v, λ, f değişmez (ortam aynı)',
       '🪞 Sabit uçtan yansıma: faz terslenir (atma ters döner)',
-      '🔄 Serbest uçtan yansıma: faz korunur'
+      '🔄 Serbest uçtan yansıma: faz korunur',
+      '📏 Normal: yansıtıcı yüzeye çizilen dik doğrudur',
+      '🔬 Çukur engel dalgayı odakta toplar, tümsek engel dağıtır'
     ]},
     tyt_ayt: { emoji: '↩️', title: 'Yansıma (TYT/AYT)', points: [
       '↩️ Yansıma: dalga aynı ortamda geri döner; v,λ,f sabit',
@@ -2780,6 +2822,8 @@ const INFO_DATA = {
       '🌗 Dalga sığ suya geçince yavaşlar',
       '🥤 Bardaktaki kaşık kırık görünür (ışık kırılması)',
       '🌊 Yavaşlayınca dalga boyu küçülür',
+      '🏊 Havuzun dibi olduğundan daha sığ görünür',
+      '🌈 Gökkuşağı, ışığın su damlasında kırılmasıyla oluşur',
       '🎚️ Derin↔sığ geçişini izle'
     ]},
     ortaokul: { emoji: '🌗', title: 'Kırılma', points: [
@@ -2787,6 +2831,8 @@ const INFO_DATA = {
       '🌊 <b>Frekans sabit kalır</b>, hız ve λ değişir',
       '🏖️ Sığ suya geçince: yavaşlar, λ küçülür',
       '📐 Yön (doğrultu) değişebilir',
+      '📐 Dik gelen dalga (0°) kırılmaz, doğrultusu değişmez',
+      '🌈 Gökkuşağı ve serap kırılmanın günlük örnekleridir',
       '🎚️ Derin ve sığ ortamı karşılaştır'
     ]},
     lise: { emoji: '🌗', title: 'Kırılma', points: [
@@ -2794,7 +2840,9 @@ const INFO_DATA = {
       '🔑 Frekans SABİT (kaynak belirler), v ve λ değişir',
       '🏖️ Yoğun ortama (sığ) geçiş: v↓, λ↓, normale yaklaşır',
       '🌊 Az yoğun ortama (derin): v↑, λ↑, normalden uzaklaşır',
-      '🔢 v₁/v₂ = λ₁/λ₂ (f ortak)'
+      '🔢 v₁/v₂ = λ₁/λ₂ (f ortak)',
+      '📐 Normale dik geliş (θ = 0°) doğrultuyu değiştirmez',
+      '🔬 Ortam sınırında bir miktar kısmi yansıma da olur'
     ]},
     tyt_ayt: { emoji: '🌗', title: 'Kırılma (TYT/AYT)', points: [
       '🌗 Kırılma: ortam değişince v değişir, doğrultu döner',
@@ -2810,6 +2858,8 @@ const INFO_DATA = {
       '✨ İki dalga buluşunca birleşir',
       '⬆️ İki tepe buluşursa daha büyük dalga olur (karın)',
       '⬇️ Tepe ve çukur buluşursa birbirini yok eder (düğüm)',
+      '🌈 Sabun köpüğündeki renkler girişimle oluşur',
+      '🌊 Buluşan dalgalar sonra bozulmadan yoluna devam eder',
       '🎚️ İki dalgayı buluştur, çizgileri izle'
     ]},
     ortaokul: { emoji: '✨', title: 'Girişim', points: [
@@ -2842,6 +2892,8 @@ const INFO_DATA = {
       '🌀 Dalga, dar bir aralıktan geçince yayılır',
       '🚪 Kapı aralığından sesi duyarız (köşeden döner)',
       '🌊 Engelin arkasına dolanır',
+      '📏 Aralık ne kadar dar olursa yayılma o kadar çok olur',
+      '📻 Radyo dalgaları tepelerin arkasına dolanabilir',
       '🎚️ Aralığı değiştir, yayılmayı izle'
     ]},
     ortaokul: { emoji: '🌀', title: 'Kırınım (Difraksiyon)', points: [
@@ -2849,6 +2901,8 @@ const INFO_DATA = {
       '🚪 Dar yarıktan geçince dairesel yayılır',
       '📏 Yarık küçükse kırınım <b>belirgin</b>',
       '🔊 Sesi köşeden duymamızın nedeni budur',
+      '🌊 Kırınımda hız, dalga boyu ve frekans değişmez',
+      '📻 Dalga boyu büyük radyo sinyalleri engelleri daha iyi aşar',
       '🎚️ Yarık genişliğini dene'
     ]},
     lise: { emoji: '🌀', title: 'Kırınım', points: [
@@ -2856,7 +2910,9 @@ const INFO_DATA = {
       '📏 Yarık ≈ λ olunca kırınım en belirgin',
       '🌊 Yarık genişse: az kırınım (düz devam)',
       '🔬 Tüm dalga türlerinde görülür',
-      '💡 Işıkta saçak deseni oluşturur'
+      '💡 Işıkta saçak deseni oluşturur',
+      '🌊 Kırınımda v, λ ve f sabittir; yalnız yayılma alanı büyür',
+      '📻 λ büyükse (radyo) engel arkasına dolanma belirgindir'
     ]},
     tyt_ayt: { emoji: '🌀', title: 'Kırınım (TYT/AYT)', points: [
       '🌀 Kırınım: dalganın engel/yarıktan bükülerek yayılması',
@@ -2872,6 +2928,8 @@ const INFO_DATA = {
       '🪢 Gergin ipi sallayınca dalga oluşur',
       '👋 Bir kez sallarsan tek bir "atma" gider',
       '💪 İp gergin olunca dalga hızlı gider',
+      '🧱 Atma duvara çarpınca ters dönerek geri gelir',
+      '📏 Atmanın yüksekliğine genlik denir',
       '🎚️ Gerginliği değiştir, hızı izle'
     ]},
     ortaokul: { emoji: '🪢', title: 'Yay / Atma Dalgaları', points: [
@@ -2879,6 +2937,8 @@ const INFO_DATA = {
       '📏 Atmanın genişliği (x) ve genliği (y) vardır',
       '💪 Yay daha gergin → dalga daha hızlı',
       '⚖️ İnce yay (hafif) → daha hızlı',
+      '🧱 <b>Sabit uçtan</b> yansıyan atma ters dönerek geri gelir',
+      '🔄 <b>Serbest uçtan</b> yansıyan atma aynı yönde geri döner',
       '🎚️ Gerginlik ve kütleyi dene'
     ]},
     lise: { emoji: '🪢', title: 'Yay Dalgaları', points: [
@@ -2886,7 +2946,9 @@ const INFO_DATA = {
       '⚡ Hız: v = √(F/µ)',
       '💪 F: yayın gerginliği (N), µ: birim boy kütlesi (kg/m)',
       '📏 Genlik y, genişlik x atmayı tanımlar',
-      '🔄 Atma hızı yalnız yaya bağlı (genlikten bağımsız)'
+      '🔄 Atma hızı yalnız yaya bağlı (genlikten bağımsız)',
+      '🎸 Gergin telde duran dalga oluşur (telli müzik aletleri)',
+      '📊 İnce telden kalın tele geçişte hız azalır, λ küçülür'
     ]},
     tyt_ayt: { emoji: '🪢', title: 'Yay Dalgaları (TYT/AYT)', points: [
       '🪢 Atma: gergin telde ilerleyen tek bozulma',
@@ -2902,6 +2964,8 @@ const INFO_DATA = {
       '🔊 Ses, havayı titreştirerek yayılır',
       '👂 Kulağımız bu titreşimi duyar',
       '🚫 Boşlukta (uzayda) ses duyulmaz',
+      '🏔️ Dağda bağırınca sesin geri dönmesine yankı denir',
+      '🎵 Hızlı titreşim ince ses, yavaş titreşim kalın ses verir',
       '🎚️ Sesi incele'
     ]},
     ortaokul: { emoji: '🔊', title: 'Ses Dalgaları', points: [
@@ -2909,6 +2973,8 @@ const INFO_DATA = {
       '🌫️ Yayılmak için ortam gerekir (boşlukta yayılmaz)',
       '🌡️ Sıcaklık artarsa sesin hızı artar',
       '👂 İnsan 20 Hz – 20.000 Hz arası duyar',
+      '🏃 Ses katıda en hızlı, gazda en yavaş yayılır',
+      '🔉 Ses şiddeti genliğe bağlıdır; birimi desibeldir (dB)',
       '🎚️ Frekansı dene (incelik/kalınlık)'
     ]},
     lise: { emoji: '🔊', title: 'Ses Dalgaları', points: [
@@ -2916,7 +2982,9 @@ const INFO_DATA = {
       '🏃 Hız: katı > sıvı > gaz (ortama bağlı)',
       '🌡️ Havada sıcaklık ↑ → hız ↑ (≈340 m/s, 20°C)',
       '🎵 Frekans → ses inceliği; genlik → ses şiddeti',
-      '👂 İşitilebilir: 20 Hz – 20 kHz; altı infrases, üstü ultrases'
+      '👂 İşitilebilir: 20 Hz – 20 kHz; altı infrases, üstü ultrases',
+      '🔉 Ses şiddet düzeyi desibel (dB) ile ölçülür',
+      '🦇 Ultrases: sonar, balık bulucu ve tıbbi görüntülemede'
     ]},
     tyt_ayt: { emoji: '🔊', title: 'Ses Dalgaları (TYT/AYT)', points: [
       '🔊 Boyuna dalga; v = λ·f; boşlukta yayılmaz',
@@ -2932,6 +3000,8 @@ const INFO_DATA = {
       '🌍 Yer altında oluşan enerji dalgalar halinde yayılır',
       '〰️ Bazıları sallar, bazıları iter',
       '🏠 Bu dalgalar yeri sarsar',
+      '⚡ P dalgası önce, S dalgası daha sonra ulaşır',
+      '📻 Bu dalgalar sismograf denen aletle kaydedilir',
       '🎚️ Dalga türlerini izle'
     ]},
     ortaokul: { emoji: '🌍', title: 'Deprem Dalgaları', points: [
@@ -2939,6 +3009,8 @@ const INFO_DATA = {
       '⚡ <b>P dalgası</b>: boyuna, en hızlı, önce gelir',
       '🌊 <b>S dalgası</b>: enine, daha yavaş, sonra gelir',
       '💥 Yüzey dalgaları en çok hasarı verir',
+      '📻 <b>Sismograf</b> dalgaları kaydeder, büyüklük hesaplanır',
+      '📏 P ile S arası süre farkı merkez uzaklığını verir',
       '🎚️ P ve S dalgalarını karşılaştır'
     ]},
     lise: { emoji: '🌍', title: 'Deprem Dalgaları', points: [
@@ -2946,7 +3018,9 @@ const INFO_DATA = {
       '⚡ P (primer): boyuna, hızlı (katı+sıvıda yayılır)',
       '🌊 S (sekonder): enine, yavaş (sadece katıda)',
       '📏 P-S varış farkından merkez uzaklığı bulunur',
-      '💥 Yüzey dalgaları (Love, Rayleigh) en yıkıcı'
+      '💥 Yüzey dalgaları (Love, Rayleigh) en yıkıcı',
+      '📻 Merkezi bulmak için en az üç sismograf istasyonu gerekir',
+      '🌊 S dalgası sıvıda yayılamaz → gölge bölgeler oluşur'
     ]},
     tyt_ayt: { emoji: '🌍', title: 'Deprem Dalgaları (TYT/AYT)', points: [
       '🌍 Cisim dalgaları (P, S) + yüzey dalgaları',
@@ -2962,6 +3036,8 @@ const INFO_DATA = {
       '🚑 Yaklaşan ambulansın sesi tizleşir',
       '📉 Uzaklaşınca sesi kalınlaşır',
       '🌊 Hareket, dalgaları sıkıştırır/açar',
+      '🏎️ Yarış arabası geçip giderken sesi birden kalınlaşır',
+      '👂 Sesin kendisi değişmez, bizim duyduğumuz değişir',
       '🎚️ Kaynağı hareket ettir'
     ]},
     ortaokul: { emoji: '🚑', title: 'Doppler Olayı', points: [
@@ -2969,6 +3045,8 @@ const INFO_DATA = {
       '📈 Yaklaşırken: dalgalar sıkışır → frekans artar (tiz)',
       '📉 Uzaklaşırken: dalgalar açılır → frekans azalır (kalın)',
       '🚓 Siren sesinin değişmesi buna örnektir',
+      '👂 Kaynağın gerçek frekansı değişmez, duyulan değişir',
+      '🩺 Doppler ultrason ile kandaki akış hızı ölçülür',
       '🎚️ Kaynak hızını dene'
     ]},
     lise: { emoji: '🚑', title: 'Doppler Olayı', points: [
@@ -2976,7 +3054,9 @@ const INFO_DATA = {
       '📈 Yaklaşma: f_gözlenen > f_kaynak (λ küçülür)',
       '📉 Uzaklaşma: f_gözlenen < f_kaynak (λ büyür)',
       '🌊 Önde dalga sıkışır, arkada seyrelir',
-      '🔭 Işıkta: kırmızıya/maviye kayma (uzay gözlemi)'
+      '🔭 Işıkta: kırmızıya/maviye kayma (uzay gözlemi)',
+      '⚠️ Kaynağın öz frekansı sabittir; gözlenen frekans değişir',
+      '🩺 Doppler USG, radarla hız ölçümü, yıldız hızı ölçümü'
     ]},
     tyt_ayt: { emoji: '🚑', title: 'Doppler Olayı (TYT/AYT)', points: [
       '🚑 f\' = f·(v ± v_g)/(v ∓ v_k) (ses için)',
@@ -2992,6 +3072,8 @@ const INFO_DATA = {
       '📡 Işık, radyo, röntgen birer EM dalgadır',
       '🚀 Boşlukta (uzayda) yayılabilirler',
       '☀️ Güneş ışığı uzaydan bize EM dalgayla gelir',
+      '📶 Telefon ve wifi sinyalleri de birer EM dalgadır',
+      '⚡ Hepsi saniyede yaklaşık 300.000 km yol alır',
       '🎚️ Spektrumu incele'
     ]},
     ortaokul: { emoji: '📡', title: 'Elektromanyetik Dalgalar', points: [
@@ -2999,6 +3081,8 @@ const INFO_DATA = {
       '💡 Işık, radyo, mikrodalga, röntgen, gama hepsi EM',
       '🚀 Hepsi boşlukta ışık hızıyla gider (c)',
       '🌈 Spektrum: radyo→...→gama (frekans artar)',
+      '⚡ Işık hızı c = 3×10⁸ m/s (saniyede 300.000 km)',
+      '🩻 Röntgen, mikrodalga fırın, kumanda hep EM dalga kullanır',
       '🎚️ Spektrum bölgelerini gez'
     ]},
     lise: { emoji: '📡', title: 'Elektromanyetik Spektrum', points: [
@@ -3006,7 +3090,9 @@ const INFO_DATA = {
       '🌈 Radyo → Mikrodalga → Kızılötesi → Görünür → Morötesi → X → Gama',
       '📈 Bu sırada: frekans ↑, dalga boyu ↓, enerji ↑',
       '💡 Görünür ışık: 400–700 nm (mor→kırmızı)',
-      '⚡ Enerji E = h·f (frekansla doğru orantılı)'
+      '⚡ Enerji E = h·f (frekansla doğru orantılı)',
+      '🔬 EM dalgada elektrik ve manyetik alan birbirine diktir',
+      '📊 Ortama girince v ve λ azalır, frekans değişmez'
     ]},
     tyt_ayt: { emoji: '📡', title: 'EM Dalgalar (TYT/AYT)', points: [
       '📡 Enine EM dalga; boşlukta c=3×10⁸ m/s, ortam gerekmez',
@@ -3319,11 +3405,11 @@ function makeGridSystem(opts = {}) {
   const grp = new THREE.Group(); grp.userData.dynamic = true;
   const gFloor = new THREE.GridHelper(size, divisions, 0x9fb0d8, 0x39425e);
   gFloor.position.y = floorY; gFloor.material.transparent = true; gFloor.material.opacity = 0.35;
-  grp.add(gFloor);
+  gFloor.visible = false; grp.add(gFloor);
   const gWall = new THREE.GridHelper(size, divisions, 0x9fb0d8, 0x39425e);
   gWall.rotation.x = Math.PI / 2; gWall.position.z = -size/2; gWall.position.y = size/2 + floorY;
   gWall.material.transparent = true; gWall.material.opacity = 0.28;
-  grp.add(gWall);
+  gWall.visible = false; grp.add(gWall);
   const floorMat = new THREE.MeshStandardMaterial({ color: 0x12182a, roughness: 0.92, metalness: 0.05, transparent: true, opacity: 0.5 });
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(size, size), floorMat);
   floor.rotation.x = -Math.PI/2; floor.position.y = floorY - 0.01; floor.receiveShadow = true;
@@ -5096,16 +5182,16 @@ function applySceneTheme() {
   let bgColor, fogColor, fogNear, fogFar;
   if (isSpace) {
     // Tutulma sahneleri: aydınlık modda biraz açık gece, karanlıkta derin uzay
-    bgColor = 0xE3E7ED;
+    bgColor = 0xFAFAFA;
     fogColor = bgColor; fogNear = 40; fogFar = 110;
     scene.background = new THREE.Color(bgColor);
     scene.fog = null;
     return;
   }
   if (isLight) {
-    bgColor = 0xE3E7ED; fogColor = 0xdfe7f2; fogNear = 38; fogFar = 100;
+    bgColor = 0xFAFAFA; fogColor = 0xdfe7f2; fogNear = 38; fogFar = 100;
   } else {
-    bgColor = 0xE3E7ED; fogColor = 0x121726; fogNear = 35; fogFar = 95;
+    bgColor = 0xFAFAFA; fogColor = 0xdfe7f2; fogNear = 35; fogFar = 95;
   }
   scene.background = new THREE.Color(bgColor);
   scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
@@ -5223,7 +5309,7 @@ function updateInfoPanel(subKey) {
       if (_extraPts.length) points = points.concat(['## Daha Fazla Ayrıntı'], _extraPts);
     }
   }
-  const showCount = (_sadeView()) ? 3 : points.length;
+  const showCount = (_sadeView()) ? 6 : points.length;
   // Satır başındaki ikon/emojileri temizleyen yardımcı (madde başında ikon olmasın)
   const stripIcon = (txt) => txt.replace(/^\s*(?:[\p{Extended_Pictographic}️‍⃣]\s*)+/u, '').trim();
   points.slice(0, showCount).forEach(p => {
@@ -6583,8 +6669,7 @@ function positionPaletteUnder(){
   margin:0 14px 2px !important;
   padding:6px 14px !important;
   display:grid !important;
-  grid-template-columns:1fr 1fr 1fr !important;
-  justify-items:center !important;
+  grid-template-columns:1fr auto 1fr !important;
   align-items:center !important;
   width:auto !important;
   box-sizing:border-box !important;
@@ -6638,36 +6723,36 @@ function positionPaletteUnder(){
    +'.bq-go b{font:800 18px "Bricolage Grotesque",system-ui}.bq-go small{display:block;font:600 10px system-ui;opacity:.72;margin-top:1px}.bq-go:hover{filter:brightness(1.3)}'
    +'.bq-desc{font:500 10.5px system-ui;color:#8aa0c4;text-align:center;margin-bottom:6px;line-height:1.35;min-height:26px}'
    +'#bqPickClose{margin-top:14px;width:100%;border:1px solid #2b405d;background:transparent;color:#aebbd6;border-radius:12px;padding:10px;font:700 13px system-ui;cursor:pointer}'
-   +'#bqOverlay{position:fixed;inset:0;background:#34373d;z-index:1000;display:none;flex-direction:column}#bqOverlay.on{display:flex}'
-   +'.bq-oh{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid #2b2e34;background:#26282d}'
-   +'.bq-oh #bqTitle{font:800 14.5px "Bricolage Grotesque",system-ui;color:#eaf2ff;flex:1;line-height:1.2}'
-   +'.bq-oh #bqTitle small{display:block;font:600 11px system-ui;color:#7e95bf;margin-top:2px}'
-   +'#bqTimer{font:700 12.5px "DM Mono",monospace;color:#ffb24e}'
-   +'.bq-cevap{font:700 11.5px "DM Mono",monospace;color:#ffb24e;border:1px solid #ffb24e66;border-radius:20px;padding:4px 11px;white-space:nowrap}'
-   +'#bqClose{border:none;background:#16294a;color:#cdd9f0;width:34px;height:34px;border-radius:9px;font-size:16px;cursor:pointer}'
+   +'#bqOverlay{position:fixed;inset:0;background:#f2f4f7;z-index:1000;display:none;flex-direction:column}#bqOverlay.on{display:flex}'
+   +'.bq-oh{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid #d5dbe6;background:#eef1f5}'
+   +'.bq-oh #bqTitle{font:800 14.5px "Bricolage Grotesque",system-ui;color:#111318;flex:1;line-height:1.2}'
+   +'.bq-oh #bqTitle small{display:block;font:600 11px system-ui;color:#3f4c66;margin-top:2px}'
+   +'#bqTimer{font:700 12.5px "DM Mono",monospace;color:#c2410c}'
+   +'.bq-cevap{font:700 11.5px "DM Mono",monospace;color:#c2410c;border:1px solid #c2410c55;border-radius:20px;padding:4px 11px;white-space:nowrap}'
+   +'#bqClose{border:none;background:#e2e8f0;color:#111318;width:34px;height:34px;border-radius:9px;font-size:16px;cursor:pointer}'
    +'#bqScroll{flex:1;overflow:auto;padding:16px 14px 48px;-webkit-overflow-scrolling:touch}'
-   +'.bq-q{background:linear-gradient(162deg,#52565f,#42454c);border:1px solid #6a6f79;border-radius:16px;padding:15px 16px;margin:0 auto 14px;max-width:680px;box-shadow:0 6px 20px rgba(0,0,0,.28)}'
-   +'.bq-qn{font:800 11px "DM Mono",monospace;color:#9fd0ff;letter-spacing:.5px}'
-   +'.bq-qt{font:600 15px system-ui;color:#f1f6ff;margin:7px 0 10px;line-height:1.5}'
+   +'.bq-q{background:#ffffff;border:1px solid #d5dbe6;border-radius:16px;padding:15px 16px;margin:0 auto 14px;max-width:680px;box-shadow:0 6px 20px rgba(0,0,0,.10)}'
+   +'.bq-qn{font:800 11px "DM Mono",monospace;color:#2563eb;letter-spacing:.5px}'
+   +'.bq-qt{font:600 15px system-ui;color:#111318;margin:7px 0 10px;line-height:1.5}'
    +'.bq-fig{background:#f5f7fa;border:1px solid #d4dcea;border-radius:10px;padding:10px;margin:2px auto 12px;max-width:420px;text-align:center}'
    +'.bq-fig svg{max-width:100%;height:auto;display:block;margin:0 auto}'
    +'.bq-stp .bq-fig{max-width:340px;margin:6px 0}'
    +'.bq-opts{display:flex;flex-wrap:wrap;gap:8px}'
-   +'.bq-opt{display:flex;gap:8px;align-items:center;text-align:left;border:1.5px solid #6b7079;background:rgba(255,255,255,.07);color:#f0f2f6;border-radius:11px;padding:9px 12px;font:600 13.5px system-ui;cursor:pointer}'
-   +'.bq-opt .ql{width:22px;height:22px;flex:none;border-radius:6px;background:#5a5e67;color:#eef1f5;font:800 11px "DM Mono",monospace;display:flex;align-items:center;justify-content:center}'
-   +'.bq-opt.ok{border-color:#27a567;background:rgba(39,165,103,.22);color:#7ef0b4}.bq-opt.ok .ql{background:#27a567;color:#06210d}'
-   +'.bq-opt.no{border-color:#d2546a;background:rgba(210,84,106,.2);color:#ff9fae}.bq-opt.no .ql{background:#d2546a}'
-   +'.bq-fb{font:700 12.5px system-ui;margin-top:10px}.bq-fb.ok{color:#7ef0b4}.bq-fb.no{color:#ff9fae}'
-   +'.bq-soltgl{display:block;margin-left:auto;margin-top:11px;border:1px solid #ffcf6b66;background:transparent;color:#ffcf6b;border-radius:9px;padding:6px 12px;font:700 12px system-ui;cursor:pointer}'
-   +'.bq-sol{display:none;margin-top:11px;border-top:1px dashed #ffffff2e;padding-top:11px}.bq-sol.on{display:block}'
+   +'.bq-opt{display:flex;gap:8px;align-items:center;text-align:left;border:1.5px solid #c9d2e0;background:#ffffff;color:#111318;border-radius:11px;padding:9px 12px;font:600 13.5px system-ui;cursor:pointer}'
+   +'.bq-opt .ql{width:22px;height:22px;flex:none;border-radius:6px;background:#e2e8f0;color:#111318;font:800 11px "DM Mono",monospace;display:flex;align-items:center;justify-content:center}'
+   +'.bq-opt.ok{border-color:#27a567;background:rgba(39,165,103,.12);color:#0e7a45}.bq-opt.ok .ql{background:#27a567;color:#ffffff}'
+   +'.bq-opt.no{border-color:#d2546a;background:rgba(210,84,106,.10);color:#b02a37}.bq-opt.no .ql{background:#d2546a;color:#ffffff}'
+   +'.bq-fb{font:700 12.5px system-ui;margin-top:10px}.bq-fb.ok{color:#0e7a45}.bq-fb.no{color:#b02a37}'
+   +'.bq-soltgl{display:block;margin-left:auto;margin-top:11px;border:1px solid #b4530966;background:transparent;color:#b45309;border-radius:9px;padding:6px 12px;font:700 12px system-ui;cursor:pointer}'
+   +'.bq-sol{display:none;margin-top:11px;border-top:1px dashed #00000026;padding-top:11px}.bq-sol.on{display:block}'
    +'.bq-stp{border-left:3px solid #34d399;padding:4px 0 4px 11px;margin:8px 0}'
-   +'.bq-stp .sn{font:800 10px "DM Mono",monospace;color:#34d399;letter-spacing:.5px}'
-   +'.bq-stp .so{font:500 14px system-ui;color:#eaf2ff;margin-top:2px}'
-   +'.bq-stp .sa{font:700 13px system-ui;color:#ffd27a;margin-top:2px}'
-   +'.bq-dtg{display:block;margin-left:auto;width:fit-content;margin-top:5px;border:1px solid #ffffff33;background:rgba(255,255,255,.05);color:#ffd27a;font:600 11px system-ui;cursor:pointer;padding:4px 9px;border-radius:7px}'
-   +'.bq-dd{display:none;font:500 12.5px system-ui;color:#cfe0ff;background:rgba(255,255,255,.06);border-radius:8px;padding:8px 10px;margin-top:5px;line-height:1.45}.bq-dd.on{display:block}'
-   +'.bq-ans{margin-top:11px;background:rgba(39,165,103,.18);border:1px solid #27a567;border-radius:10px;padding:9px 12px;font:700 13.5px system-ui;color:#7ef0b4}'
-   +'.bq-empty{max-width:520px;margin:50px auto;text-align:center;color:#8aa0c4;font:500 14px system-ui;line-height:1.7}';
+   +'.bq-stp .sn{font:800 10px "DM Mono",monospace;color:#0e7a45;letter-spacing:.5px}'
+   +'.bq-stp .so{font:500 14px system-ui;color:#111318;margin-top:2px}'
+   +'.bq-stp .sa{font:700 13px system-ui;color:#b45309;margin-top:2px}'
+   +'.bq-dtg{display:block;margin-left:auto;width:fit-content;margin-top:5px;border:1px solid #00000026;background:rgba(0,0,0,.04);color:#b45309;font:600 11px system-ui;cursor:pointer;padding:4px 9px;border-radius:7px}'
+   +'.bq-dd{display:none;font:500 12.5px system-ui;color:#243044;background:rgba(0,0,0,.05);border-radius:8px;padding:8px 10px;margin-top:5px;line-height:1.45}.bq-dd.on{display:block}'
+   +'.bq-ans{margin-top:11px;background:rgba(39,165,103,.12);border:1px solid #27a567;border-radius:10px;padding:9px 12px;font:700 13.5px system-ui;color:#0e7a45}'
+   +'.bq-empty{max-width:520px;margin:50px auto;text-align:center;color:#5a6a88;font:500 14px system-ui;line-height:1.7}';
   var st=document.createElement('style'); st.textContent=css; document.head.appendChild(st);
   var wrap=document.createElement('div');
   wrap.innerHTML=''
@@ -6832,7 +6917,7 @@ function positionPaletteUnder(){
   border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
 #bottomDock #toolsRow{ position:relative; z-index:30; }
 /* Araçlar TAM ortada: 3 eşit kolon — orta kolonun merkezi = çerçeve merkezi */
-#bottomDock #toolsRow{ display:grid !important; grid-template-columns:1fr 1fr 1fr !important; justify-items:center !important; align-items:center !important; }
+#bottomDock #toolsRow{ display:grid !important; grid-template-columns:1fr auto 1fr !important; align-items:center !important; }
 #bottomDock .action-pop, #bottomDock .font-pop{ margin-bottom:8px; }
 /* ✕ ile küçülen "... konusunu aç" çipi bar çerçevesiyle çakışmasın */
 #bottomPanel.info-mini{ bottom:74px !important; margin-bottom:0 !important; padding-bottom:0 !important; }
@@ -6856,6 +6941,241 @@ function positionPaletteUnder(){
     var st=document.getElementById('q3dBootFix');
     if(st && st.parentNode) st.parentNode.removeChild(st);
   }, 650);
+})();
+</script>
+<style id="dockCenterFix">#bottomDock #toolsRow > *{margin:0 !important;} #bottomDock #toolsRow > :first-child{justify-self:start !important;} #bottomDock #toolsRow > :last-child{justify-self:end !important;}</style>
+<style id="helpHideV1">#btnHelp,#b-help,.scene-help,.tool-icon-btn.help{display:none !important;}</style>
+
+<style id="halfPanelV1">
+/* Bilgi paneli daima ekranin YARISI kadar; 3D sahne ile kesismez (halfPanelV1) */
+/* Once KOSULSUZ tavan: :has() desteklenmese bile panel yariyi asamaz ve
+   yazi alt sekmelerin altina giremez (eski WebView guvenligi). */
+#bottomDock{ max-height:50vh !important; box-sizing:border-box; overflow:visible !important; }
+/* Destekleyen tarayicida panel acikken tam yarim ekran */
+#bottomDock:has(.bottom-panel:not(.hidden):not(.vars-hidden):not(.info-mini)){ height:50vh !important; }
+#bottomDock .bottom-panel{ flex:1 1 auto !important; min-height:0 !important; display:flex; flex-direction:column; overflow:visible !important; }
+/* Yazi alani: alt eylem sekmelerinin (action-row) USTUNDE kalir, sigmazsa
+   yalniz .info-list icinde kayar — sekmelerin altina asla girmez. */
+#bottomDock .bottom-panel:not(.info-mini) .info-area{ flex:1 1 auto !important; min-height:0 !important; display:flex !important; }
+#bottomDock .bottom-panel:not(.info-mini) .info-text-area{ flex:1 1 auto !important; min-width:0; min-height:0 !important; display:flex !important; flex-direction:column !important; }
+#bottomDock .bottom-panel .info-title-row, #bottomDock .bottom-panel .info-page-ind{ flex:0 0 auto !important; }
+#bottomDock .bottom-panel:not(.info-mini) .info-scroll-wrap{ flex:1 1 auto !important; min-height:0 !important; overflow:hidden !important; display:flex; flex-direction:column; }
+#bottomDock .bottom-panel .info-list{ flex:1 1 auto !important; min-height:0 !important; max-height:none !important; overflow-y:auto !important; }
+#bottomDock .bottom-panel .action-row{ flex:0 0 auto !important; }
+/* ── KAYDIRMA DUZELTMESI ────────────────────────────────────────────────
+   .info-area taban CSS'te "align-items:flex-start" idi: satir yonlu flex'te
+   bu, yazi alaninin yuksekligini ICERIGE gore buyutuyor -> liste hic kisalmiyor,
+   scrollHeight==clientHeight oldugu icin NE kaydirma NE de kaydirma cubugu
+   calisiyordu; tasan yazi alt sekmelerin altinda kayboluyordu.
+   stretch ile yazi alani panele sigar, fazlasi .info-list icinde kayar. */
+#bottomDock .bottom-panel:not(.info-mini) .info-area{ align-items:stretch !important; }
+#bottomDock .bottom-panel .info-emoji-box{ align-self:flex-start !important; flex:0 0 auto !important; }
+/* dikey kaydirma gostergesi (sag kenar) her zaman dogru konumlansin */
+#bottomDock .bottom-panel .info-scroll-wrap{ position:relative !important; }
+#bottomDock .bottom-panel .info-scrollbar{ z-index:6 !important; }
+/* ✕ kapatma dugmesi: panelin ustune tasar, her zaman ON PLANDA ve okunur */
+#bottomDock .bottom-panel .info-close-btn{
+  z-index:60 !important;
+  background:#ffffff !important;
+  border:2px solid #2f8fd0 !important;
+  color:#10131f !important;
+  box-shadow:0 2px 10px rgba(0,0,0,.45) !important;
+}
+#bottomDock .bottom-panel .info-resize-handle{ z-index:55 !important; }
+/* ── KUCULTULMUS (mini) DURUM ──────────────────────────────────────────
+   ✕ ile kucultuldugunde panel yalnizca tek satirlik cip olarak kalir;
+   yarim ekran yuksekligi ve icerik gorunurlugu zorlanmaz. */
+#bottomDock .bottom-panel.info-mini{ flex:0 0 auto !important; min-height:0 !important; }
+#bottomDock .bottom-panel.info-mini > *:not(.info-mini-chip){ display:none !important; }
+/* panel disina tasan kontroller kirpilmasin (kapatma / boyutlandirma) */
+#bottomDock .bottom-panel .info-close-btn,
+#bottomDock .bottom-panel .info-resize-handle,
+#bottomDock .bottom-panel .info-mini-chip{ z-index:40 !important; }
+
+</style>
+<script id="halfFitV1">
+(function(){
+  if(window.__halfFitV1) return; window.__halfFitV1=1;
+  /* 3D icerik ekranin UST YARISINDA kalsin: sayfanin her-kare setViewOffset
+     cagrisi sarmalanir (ek dikey ofset), boyut icin camera.zoom ayarlanir. */
+  function cam(){ var c=window.camera;
+    if(c&&(c.isPerspectiveCamera||c.isOrthographicCamera)) return c;
+    try{ if(typeof camera!=='undefined'&&camera&&(camera.isPerspectiveCamera||camera.isOrthographicCamera)) return camera; }catch(e){}
+    return null; }
+  function scn(){ var s=window.scene; if(s&&s.isScene) return s;
+    try{ if(typeof scene!=='undefined'&&scene&&scene.isScene) return scene; }catch(e){}
+    return null; }
+  var box=null,tmp=null,corners=null;
+  var TOPB=0.92, BOTB=0.06, XREF=0.90; /* NDC bant: ust yari (0 = ekran ortasi) */
+  function fit(){
+    try{
+      var c=cam(), s=scn(); if(!c||!s||!window.THREE) return;
+      if(!c.__hfPatch){
+        c.__hfPatch=1; c.__hfExtra=0;
+        var orig=c.setViewOffset.bind(c);
+        c.__hfOrig=orig;
+        c.setViewOffset=function(fw,fh,x,y,w,h){ c.__hfSVO=1; return orig(fw,fh,x,y+(c.__hfExtra||0),w,h); };
+      }
+      if(!box){ box=new THREE.Box3(); tmp=new THREE.Box3(); corners=[]; for(var i=0;i<8;i++)corners.push(new THREE.Vector3()); }
+      box.makeEmpty(); var has=false;
+      s.updateMatrixWorld(true);
+      s.traverse(function(o){
+        if(!o.visible) return;
+        if(!(o.isMesh||o.isSprite||o.isLine||o.isPoints)) return;
+        var p=o.parent; while(p){ if(p.visible===false) return; p=p.parent; }
+        tmp.setFromObject(o);
+        if(!isFinite(tmp.min.x)||!isFinite(tmp.max.x)) return;
+        var sx=tmp.max.x-tmp.min.x, sy=tmp.max.y-tmp.min.y, sz=tmp.max.z-tmp.min.z;
+        if(sx>60||sy>60||sz>60) return;           /* dev dekor/zemin */
+        if(sy<0.15&&(sx>14||sz>14)) return;        /* duz-genis zemin */
+        box.union(tmp); has=true;
+      });
+      if(!has||box.isEmpty()) return;
+      var mn=box.min,mx=box.max,k=0;
+      for(var xi=0;xi<2;xi++)for(var yi=0;yi<2;yi++)for(var zi=0;zi<2;zi++)corners[k++].set(xi?mx.x:mn.x,yi?mx.y:mn.y,zi?mx.z:mn.z);
+      c.updateMatrixWorld(true);
+      var maxX=0, loY=Infinity, hiY=-Infinity, seen=false;
+      for(var j=0;j<8;j++){
+        var pr=corners[j].clone().project(c);
+        if(isFinite(pr.x)&&isFinite(pr.y)&&pr.z<1){ seen=true;
+          maxX=Math.max(maxX,Math.abs(pr.x));
+          loY=Math.min(loY,pr.y); hiY=Math.max(hiY,pr.y); }
+      }
+      if(!seen) return;
+      var H=window.innerHeight||1;
+      /* 1) konum: alt kenar bandin altina sarkiyorsa ek ofsetle yukari al */
+      var needUp=BOTB-loY, needDown=hiY-TOPB;
+      if(needUp>0.02){
+        c.__hfExtra=Math.min((c.__hfExtra||0)+needUp*0.9*(H/2), H*0.35);
+      } else if(needDown>0.02 && loY>BOTB+0.04){
+        var back=Math.min(needDown, loY-BOTB);
+        c.__hfExtra=Math.max((c.__hfExtra||0)-back*0.9*(H/2), -H*0.15);
+      }
+      /* sayfa setViewOffset kullanmiyorsa ofseti kendimiz uygula */
+      if(!c.__hfSVO && Math.abs(c.__hfExtra||0)>1){
+        c.__hfOrig(window.innerWidth,H,0,c.__hfExtra,window.innerWidth,H);
+      }
+      /* 2) boyut: banda sigmiyorsa zoom-out, cok kucukse sinirli zoom-in */
+      if(c.__hfBase==null) c.__hfBase=c.zoom||1;
+      var mY=(hiY-loY)/(TOPB-BOTB);
+      var m=Math.max(maxX/XREF, mY);
+      var t=c.zoom;
+      if(m>1.02) t=Math.max(0.35, c.zoom/m);
+      else if(m<0.88) t=Math.min(c.__hfBase*1.6, c.zoom*(0.95/Math.max(m,0.05)));
+      if(Math.abs(t-c.zoom)/(c.zoom||1)>0.03){ c.zoom=t; c.updateProjectionMatrix(); }
+    }catch(e){}
+  }
+  /* Bilgi panelini buyut/kucult tutamaci: artik --info-h yerine DOCK
+     yuksekligini ayarlar (liste flex ile paneli doldurdugu icin). Tavan 50vh,
+     taban 22vh — yazi hicbir zaman alt sekmelerin altina inmez. */
+  (function(){
+    function wire(){
+      var h=document.getElementById('infoResizeHandle'), d=document.getElementById('bottomDock');
+      if(!h||!d||h.__hfWired) return true;
+      h.__hfWired=1;
+      var drag=false,sy=0,sh=0;
+      function cap(){ return Math.round(window.innerHeight*0.50); }
+      function floorH(){ return Math.round(window.innerHeight*0.22); }
+      function down(e){ drag=true; sy=(e.touches?e.touches[0].clientY:e.clientY);
+        sh=d.getBoundingClientRect().height||cap(); }
+      function move(e){ if(!drag) return;
+        var y=(e.touches?e.touches[0].clientY:e.clientY);
+        var nh=Math.max(floorH(),Math.min(cap(),sh+(sy-y)));
+        d.style.setProperty('height',nh+'px','important');
+        d.style.setProperty('max-height',nh+'px','important'); }
+      function up(){ drag=false; }
+      h.addEventListener('touchstart',down,{passive:true});
+      window.addEventListener('touchmove',move,{passive:true});
+      window.addEventListener('touchend',up);
+      h.addEventListener('mousedown',down);
+      window.addEventListener('mousemove',move);
+      window.addEventListener('mouseup',up);
+      return true;
+    }
+    if(!wire()){ var n=0,iv=setInterval(function(){ if(wire()||++n>20) clearInterval(iv); },400); }
+  })();
+  /* ── Palet arka plani TUM sahnelerde kalici ─────────────────────────────
+     Sahne degisiminde sayfa kodu scene.background'i yeniden atiyor ve
+     kullanicinin sectigi rengi eziyordu. Secim varsa okuma kilitlenir;
+     sahne kodu yazmaya devam eder ama gorunen renk kullanicininki kalir. */
+  (function(){
+    var locked=null;
+    function lockScene(s){
+      if(!s||s.__bgLock) return;
+      s.__bgLock=1;
+      var val=s.background;
+      try{
+        Object.defineProperty(s,'background',{
+          configurable:true,
+          get:function(){ return locked!==null?locked:val; },
+          set:function(v){ val=v; }
+        });
+      }catch(e){ s.__bgLock=0; }
+    }
+    function setLocked(c){
+      try{ if(c&&window.THREE) locked=new window.THREE.Color(c); }catch(e){}
+    }
+    function readSaved(){
+      try{ if(typeof _palState==='object'&&_palState&&_palState.bg) return _palState.bg; }catch(e){}
+      return null;
+    }
+    function wire(){
+      var s=scn(); if(s) lockScene(s);
+      try{
+        if(typeof applyPaletteColor==='function'&&!applyPaletteColor.__bgPersist){
+          var orig=applyPaletteColor;
+          var w=function(t,c,skip){
+            var r=orig(t,c,skip);
+            if(t==='bg'){ lockScene(scn()); setLocked(c); }
+            return r;
+          };
+          w.__bgPersist=1; applyPaletteColor=w;
+        }
+      }catch(e){}
+      try{
+        if(typeof resetPalette==='function'&&!resetPalette.__bgPersist){
+          var origR=resetPalette;
+          var wr=function(){ locked=null; return origR.apply(this,arguments); };
+          wr.__bgPersist=1; resetPalette=wr;
+        }
+      }catch(e){}
+      /* sayfa acilisinda kayitli secim (localStorage) zaten _palState'e yuklenmis olur */
+      if(locked===null){ var sv=readSaved(); if(sv){ lockScene(scn()); setLocked(sv); } }
+    }
+    wire();
+    var n=0, iv=setInterval(function(){ wire(); if(++n>=12) clearInterval(iv); },500);
+  })();
+  setInterval(fit,700);
+  [400,900,1500,2200].forEach(function(ms){setTimeout(fit,ms);});
+  document.addEventListener('pointerup',function(){[250,600,1100].forEach(function(ms){setTimeout(fit,ms);});},true);
+})();
+</script>
+
+<script id="tableShareNativeV1">
+/* ── TABLO / KIYASLAMA "GÖNDER" DÜZELTMESİ ────────────────────────────────
+   Eski davranış: shareCardEl() yalnız kart öğesini html2canvas ile çizmeye
+   çalışıyordu. html2canvas yoksa fonksiyon SESSİZCE geri dönüyordu (düğme
+   ölü görünüyordu); yüklü olduğunda da kaydırmalı tablo içeriği ve arkadaki
+   3B sahne doğru çıkmıyor, kimi cihazda "Görüntü alınamadı" veriyordu.
+   Yeni davranış: cihazın kendi ekran görüntüsü alınır → ekranda ne varsa
+   (açık tablo, panel, sahne) tek karede paylaşılır. Native kanal yoksa
+   eski akış aynen çalışmaya devam eder (hiçbir şey kaybolmaz). */
+(function(){
+  if(window.__tblShareNative) return; window.__tblShareNative=1;
+  /* Dinleyici DOKÜMAN düzeyinde ve capture fazında: düğmenin kendi onclick
+     handler'ından ÖNCE çalışır (düğme üzerine eklenseydi sayfanın daha önce
+     atanmış onclick'i önce çalışır, eski hatalı akış devreye girerdi). */
+  document.addEventListener('click', function(ev){
+    var t=ev.target;
+    var b=(t && t.closest) ? t.closest('#tableSend,#compareSend') : null;
+    if(!b) return;
+    if(!(window.FlutterNativeShot && window.FlutterNativeShot.postMessage)) return; /* eski akışa bırak */
+    ev.stopImmediatePropagation(); ev.preventDefault();
+    try{ if(window._showGestureToast) window._showGestureToast('📸 Gönderiliyor...'); }catch(e){}
+    setTimeout(function(){
+      try{ window.FlutterNativeShot.postMessage('1'); }catch(e){}
+    }, 60);
+  }, true);
 })();
 </script>
 </body>

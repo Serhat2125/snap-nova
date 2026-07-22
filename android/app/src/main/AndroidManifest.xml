@@ -32,11 +32,19 @@
         android:label="QuAlsar"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- FCM push bildirimlerinde durum çubuğu ikonu: tek renk (beyaz)
+             QuAlsar halka silüeti. Renkli launcher ikonu kullanılamaz —
+             Android onu düz gri kare olarak çiziyordu. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/qualsar_notification" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:taskAffinity=""
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"

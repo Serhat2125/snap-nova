@@ -1851,8 +1851,8 @@ const COLORS = {
 // ============== INIT ==============
 function init() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xE3E7ED);
-  scene.fog = new THREE.Fog(0x121726, 35, 95);
+  scene.background = new THREE.Color(0xFAFAFA);
+  scene.fog = new THREE.Fog(0xdfe7f2, 35, 95);
 
   const W = window.innerWidth, H = window.innerHeight;
   camera = new THREE.PerspectiveCamera(50, W / H, 0.1, 200);
@@ -2138,7 +2138,7 @@ function animate() {
     _sh.cur += (_sh.target - _sh.cur) * 0.1;
     if (Math.abs(_sh.target - _sh.cur) < 0.4) _sh.cur = _sh.target;
     if (_sh.cur > 0.4) {
-      camera.setViewOffset(window.innerWidth, window.innerHeight, 0, Math.round(window.innerHeight*0.15) - _sh.cur, window.innerWidth, window.innerHeight);
+      camera.setViewOffset(window.innerWidth, window.innerHeight, 0, Math.round(window.innerHeight*0.40) - _sh.cur, window.innerWidth, window.innerHeight);
     } else if (camera.view && camera.view.enabled) {
       camera.clearViewOffset();
     }
@@ -2559,174 +2559,308 @@ const INFO_DATA = {
     ilkokul: { emoji:'🖐️', title:'Dokun ve Hisset', points:[
       '🧽 Sünger <b>yumuşaktır</b>: parmakla bastırınca içeri çöker',
       '🪨 Kaya <b>serttir</b>: bastırınca şekli değişmez',
-      '🧸 Plastik <b>esnektir</b>: bükülür, sonra eski haline döner' ]},
+      '🧸 Plastik <b>esnektir</b>: bükülür, sonra eski haline döner',
+      '🧶 Yün <b>yumuşak</b>, cam ise <b>sert ve pürüzsüzdür</b>',
+      '🍞 Ekmeğin içi yumuşak, kabuğu daha serttir',
+      '🤚 Maddeleri elimizle yoklayarak <b>tanırız</b>',
+      '⚠️ Sıcak veya keskin maddelere elle dokunulmaz' ]},
     ortaokul: { emoji:'🖐️', title:'Maddelerin Mekanik Özellikleri', points:[
       '🔧 <b>Sertlik</b>: maddenin şekil değiştirmeye karşı direnci',
       '🧸 <b>Esneklik</b>: kuvvet kalkınca eski haline dönme (yay, lastik)',
       '🪨 Tanecikler arası bağ <b>güçlüyse</b> madde sert ve dayanıklı olur',
-      '🧱 Kuvvet altında kalıcı şekil değiştiren maddeye <b>plastik</b> denir' ]},
+      '🧱 Kuvvet altında kalıcı şekil değiştiren maddeye <b>plastik</b> denir',
+      '🔨 <b>Dövülebilirlik</b>: metaller çekiçle levha hâline getirilebilir',
+      '🧵 <b>Tel çekilebilirlik</b>: bakır ince tel olur, cam olmaz',
+      '💥 Kolay kırılan maddelere <b>kırılgan</b> denir (cam, tebeşir)' ]},
     lise: { emoji:'🖐️', title:'Şekil Değiştirme: Esnek ve Plastik', points:[
       '📈 <b>Elastik (esnek) şekil değiştirme</b>: kuvvet kalkınca tam geri döner',
       '📉 <b>Plastik şekil değiştirme</b>: kuvvet kalkınca kalıcı kalır',
       '🔗 Sertlik, tanecikler arası <b>bağ enerjisi</b> arttıkça artar',
-      '⚙️ Esnek sınıra kadar şekil değişimi uygulanan kuvvetle orantılıdır (Hooke yaklaşımı)' ]}
+      '⚙️ Esnek sınıra kadar şekil değişimi uygulanan kuvvetle orantılıdır (Hooke yaklaşımı)',
+      '💪 Birim alana düşen kuvvete <b>gerilme</b> denir, birimi N/m²',
+      '📐 Boydaki oransal uzama <b>birim şekil değiştirmedir</b> (ε)',
+      '💠 Kırılgan maddeler plastik bölge olmadan kopar (cam, seramik)' ]}
   },
   g1s2: {
     ilkokul: { emoji:'🧱', title:'Pürüzlü mü, Kaygan mı?', points:[
       '🧱 <b>Pürüzlü</b> yüzey tutar, üzerinde kaymak zordur',
       '🧊 <b>Kaygan</b> yüzey pürüzsüzdür, üzerinde kayarız',
-      '👟 Ayakkabı tabanı pürüzlüdür ki kaymayalım' ]},
+      '👟 Ayakkabı tabanı pürüzlüdür ki kaymayalım',
+      '🛝 Kaydırak kaygandır, bu yüzden hızla kayarız',
+      '💧 Islak zemin kayganlaşır, dikkatli yürümeliyiz',
+      '🖐️ Zımpara kâğıdı çok pürüzlüdür, yüzeyi aşındırır' ]},
     ortaokul: { emoji:'🧱', title:'Sürtünme Kuvveti', points:[
       '🤚 Hareketi zorlaştıran kuvvete <b>sürtünme</b> denir',
       '🧱 Yüzey pürüzlüyse sürtünme <b>büyük</b>, kayganda <b>küçük</b> olur',
-      '⚙️ Sürtünme bazen yararlı (yürümek, fren), bazen zararlıdır (aşınma)' ]},
+      '⚙️ Sürtünme bazen yararlı (yürümek, fren), bazen zararlıdır (aşınma)',
+      '⚖️ Cismin <b>ağırlığı</b> arttıkça sürtünme kuvveti de büyür',
+      '🛢️ Yağlama, yüzeyler arası sürtünmeyi <b>azaltır</b>',
+      '🔥 Sürtünme yüzeyleri ısıtır; avuçları ovuşturunca ısınırız',
+      '🪂 Hava ve su da hareket eden cisme sürtünme uygular' ]},
     lise: { emoji:'🧱', title:'Sürtünme Kuvveti (Fₛ=μ·N)', points:[
       '🧮 Sürtünme kuvveti: <b>Fₛ = μ · N</b> (μ: sürtünme katsayısı, N: normal kuvvet)',
       '🧱 μ yüzey pürüzlülüğüne bağlıdır; pürüzlü yüzey → büyük μ',
       '↔️ <b>Statik</b> sürtünme (durgun) > <b>kinetik</b> sürtünme (hareketli)',
-      '🔥 Sürtünme mekanik enerjiyi ısıya çevirir' ]}
+      '🔥 Sürtünme mekanik enerjiyi ısıya çevirir',
+      '📐 μ <b>birimsizdir</b>, çoğu yüzeyde 0 ile 1 arasındadır',
+      '🧱 Sürtünme kuvveti yüzeyin <b>alanına bağlı değildir</b>',
+      '⚠️ Sık hata: sürtünme harekete değil, <b>bağıl harekete</b> zıttır' ]}
   },
   g1s3: {
     ilkokul: { emoji:'💨', title:'Hava da Maddedir', points:[
       '💨 Hava <b>görünmez</b> ama bir <b>maddedir</b>',
       '🎈 Pompa ile odaya hava dolar, perdeler sallanır',
-      '🌬️ Rüzgar da hareket eden havadır' ]},
+      '🌬️ Rüzgar da hareket eden havadır',
+      '🎈 Balonu şişirince hava içine dolar ve balon büyür',
+      '🥤 Suya pipetle üflersek hava <b>kabarcık</b> olarak çıkar',
+      '🪁 Uçurtmayı gökyüzünde tutan da havadır' ]},
     ortaokul: { emoji:'💨', title:'Gazların Madde Olması', points:[
       '⚖️ Gazların da <b>kütlesi ve hacmi</b> vardır → maddedir',
       '🌫️ Hava bir <b>gaz karışımıdır</b> (azot, oksijen...)',
-      '🤚 Gaz tanecikleri çarparak yüzeylere <b>basınç</b> uygular' ]},
+      '🤚 Gaz tanecikleri çarparak yüzeylere <b>basınç</b> uygular',
+      '🎈 Şişirilmiş bir top, boş toptan daha ağır gelir',
+      '🌍 Havanın uyguladığı basınca <b>açık hava basıncı</b> denir',
+      '🔽 Yükseğe çıkıldıkça hava seyrelir, basınç <b>azalır</b>',
+      '💨 Gaz tanecikleri arasında çok büyük <b>boşluk</b> vardır' ]},
     lise: { emoji:'💨', title:'Gaz Basıncı ve Kinetik Teori', points:[
       '⚖️ Şişirilmiş topun kütlesi, boş topdan büyüktür → gazın kütlesi var',
       '💥 Basınç, gaz taneciklerinin yüzeye <b>çarpmasından</b> doğar',
-      '🌡️ Sıcaklık artınca tanecik hızı ve basınç artar (kinetik teori)' ]}
+      '🌡️ Sıcaklık artınca tanecik hızı ve basınç artar (kinetik teori)',
+      '🧮 İdeal gaz denklemi: <b>P · V = n · R · T</b>',
+      '📏 Deniz düzeyinde açık hava basıncı ≈ 76 cmHg ≈ 101,3 kPa',
+      '🌡️ Ortalama kinetik enerji yalnız <b>mutlak sıcaklığa</b> bağlıdır',
+      '⚠️ Sık hata: hacim büyüyünce gaz basıncı <b>azalır</b>, artmaz' ]}
   },
   g1s4: {
     ilkokul: { emoji:'👃', title:'Koku ve Güvenlik', points:[
       '👃 Bazı maddelerin güzel kokusu vardır (parfüm, çilek)',
       '☠️ Bilinmeyen/tehlikeli maddeler <b>koklanmaz, dokunulmaz</b>',
-      '🔒 Tehlikeli maddeyi güvenli yere kaldır' ]},
+      '🔒 Tehlikeli maddeyi güvenli yere kaldır',
+      '🤲 Kokuyu elimizle burnumuza doğru yelpazeleyerek alırız',
+      '🍋 Limon ve nane kokusu keskindir, kolayca tanınır',
+      '👀 Bir maddeyi önce <b>gözle</b> inceleriz, sonra karar veririz' ]},
     ortaokul: { emoji:'👃', title:'Koku, Uçuculuk, Difüzyon', points:[
       '🌬️ Koku, <b>uçucu taneciklerin</b> havada yayılmasıyla duyulur',
       '💨 Taneciklerin kendiliğinden yayılmasına <b>difüzyon</b> denir',
-      '⚠️ Kolay buharlaşan (uçucu) maddeler hızlı koku yayar; güvenlik şart' ]},
+      '⚠️ Kolay buharlaşan (uçucu) maddeler hızlı koku yayar; güvenlik şart',
+      '🍵 Sıcak çayın kokusu, soğuk çaya göre daha hızlı yayılır',
+      '🚫 Laboratuvarda hiçbir madde <b>tadılmaz</b>',
+      '💨 Difüzyon gazlarda en hızlı, katılarda en yavaştır',
+      '🌡️ Sıcaklık arttıkça buharlaşma ve koku yayılımı artar' ]},
     lise: { emoji:'👃', title:'Difüzyon ve Buhar Basıncı', points:[
       '💨 <b>Difüzyon</b>: tanecikler çok yoğun bölgeden az yoğuna yayılır',
       '🌡️ Difüzyon hızı sıcaklıkla artar, tanecik kütlesi arttıkça azalır',
-      '💧 Uçuculuk maddenin <b>buhar basıncı</b> ile ilgilidir (yüksek buhar basıncı → uçucu)' ]}
+      '💧 Uçuculuk maddenin <b>buhar basıncı</b> ile ilgilidir (yüksek buhar basıncı → uçucu)',
+      '🧮 Graham yasası: hafif gaz, ağır gazdan daha hızlı yayılır',
+      '🌡️ Buhar basıncı dış basınca eşitlenince sıvı <b>kaynar</b>',
+      '🔗 Tanecikler arası çekim zayıfsa buhar basıncı <b>yüksektir</b>',
+      '⚠️ <b>Efüzyon</b> (delikten çıkış) difüzyonla karıştırılmamalı' ]}
   },
   // ===== Maddenin Halleri =====
   g2s1: {
     ilkokul: { emoji:'🔥', title:'Buzdan Buhara', points:[
       '🧊 Buz <b>katıdır</b>: tanecikler sıkı, sadece titrer',
       '💧 Isınınca buz erir, <b>su</b> olur: tanecikler kayar, akar',
-      '💨 Daha çok ısınınca su <b>buhara</b> döner: tanecikler uçuşur' ]},
+      '💨 Daha çok ısınınca su <b>buhara</b> döner: tanecikler uçuşur',
+      '❄️ Buzlukta su soğuyunca <b>donar</b> ve buz olur',
+      '🪟 Sıcak buhar soğuk cama değince yeniden su damlası olur',
+      '☀️ Islak çamaşır güneşte kurur: su buhara döner',
+      '🔁 Madde hâl değiştirir ama yine aynı madde kalır' ]},
     ortaokul: { emoji:'🔥', title:'Hal Değişimi ve Isı', points:[
       '🔥 Erime ve buharlaşma <b>ısı alır</b>; tanecikler arası uzaklık artar',
       '❄️ Yoğuşma ve donma <b>ısı verir</b>; tanecikler birbirine yaklaşır',
-      '⏸️ Hal değişimi sırasında <b>sıcaklık sabit kalır</b> (ısı hal değiştirir)' ]},
+      '⏸️ Hal değişimi sırasında <b>sıcaklık sabit kalır</b> (ısı hal değiştirir)',
+      '🌡️ Saf maddelerin erime ve kaynama noktası <b>sabittir</b>',
+      '💧 Su 0 °C sıcaklıkta erir, 100 °C sıcaklıkta kaynar',
+      '💨 <b>Süblimleşme</b>: katının doğrudan gaza geçmesi (naftalin)',
+      '⚖️ Hâl değişiminde <b>kütle korunur</b>, tanecik sayısı değişmez' ]},
     lise: { emoji:'🔥', title:'Gizli Isı (Q=m·L)', points:[
       '🧮 Hal değiştirmek için gereken ısı: <b>Q = m · L</b> (L: erime/buharlaşma ısısı)',
       '🔗 Alınan ısı tanecikler arası <b>bağları koparmaya</b> harcanır → sıcaklık sabit',
-      '📊 Isınma grafiğinde hal değişimleri <b>yatay platolar</b> olarak görülür' ]}
+      '📊 Isınma grafiğinde hal değişimleri <b>yatay platolar</b> olarak görülür',
+      '🧮 Sıcaklığı değiştiren ısı ise <b>Q = m · c · ΔT</b> ile bulunur',
+      '💧 Suyun erime ısısı ≈ 334 J/g, buharlaşma ısısı ≈ 2260 J/g',
+      '📉 Basınç düşerse kaynama noktası da düşer (yüksek rakım)',
+      '⚠️ Sık hata: platoda ısı alınır ama <b>sıcaklık artmaz</b>' ]}
   },
   g2s2: {
     ilkokul: { emoji:'💧', title:'Sıvılar Şekil Değiştirir', points:[
       '💧 Sıvılar <b>kabın şeklini</b> alır',
       '🥤 Aynı su, ince bardakta yüksek; geniş kapta alçak görünür',
-      '⚖️ Şekil değişse de <b>su miktarı (hacmi) aynı</b> kalır' ]},
+      '⚖️ Şekil değişse de <b>su miktarı (hacmi) aynı</b> kalır',
+      '🍶 Şişeden bardağa dökülen su bardağın şeklini alır',
+      '💧 Sıvılar <b>akar</b>, bu yüzden borularla taşınabilir',
+      '🍯 Bal sudan çok daha yavaş akar',
+      '📏 Sıvı miktarını ölçmek için ölçek kabı kullanırız' ]},
     ortaokul: { emoji:'💧', title:'Sıvıların Akışkanlığı', points:[
       '🌊 Sıvı tanecikleri birbirine yakın ama <b>kayabilir</b> → akışkan',
       '🧴 Sıvının belirli <b>hacmi</b> vardır, belirli <b>şekli</b> yoktur',
-      '↔️ Bu yüzden bulunduğu kabın şeklini alır ama hacmi değişmez' ]},
+      '↔️ Bu yüzden bulunduğu kabın şeklini alır ama hacmi değişmez',
+      '🍯 Akmaya karşı direnç arttıkça sıvı daha yavaş akar',
+      '📏 Sıvı hacmi <b>litre (L)</b> ve <b>mililitre (mL)</b> ile ölçülür',
+      '🌡️ Sıvılar ısıtılınca <b>genleşir</b>, hacimleri büyür',
+      '👁️ Ölçüm sırasında göz, sıvı yüzeyiyle aynı hizada olmalıdır' ]},
     lise: { emoji:'💧', title:'Sıvı: Akışkan ve Sıkışmaz', points:[
       '🔗 Sıvılarda tanecikler arası çekim <b>orta</b> düzeydedir (akar ama dağılmaz)',
       '🚫 Sıvılar pratikte <b>sıkıştırılamaz</b> (hacim sabit)',
-      '🍯 Akmaya karşı direnç = <b>viskozite</b> (bal yüksek, su düşük)' ]}
+      '🍯 Akmaya karşı direnç = <b>viskozite</b> (bal yüksek, su düşük)',
+      '🫧 <b>Yüzey gerilimi</b>: sıvı yüzeyinin zar gibi davranması',
+      '🌡️ Sıcaklık artınca viskozite ve yüzey gerilimi <b>azalır</b>',
+      '🧪 İnce boruda sıvının yükselmesine <b>kılcallık</b> denir',
+      '🔗 Kohezyon aynı taneciklerin, adezyon farklı yüzeyin çekimidir' ]}
   },
   g2s3: {
     ilkokul: { emoji:'🎈', title:'Gazlar Her Yeri Doldurur', points:[
       '💨 Gazlar kabın <b>tamamını</b> doldurur',
       '🎈 Balona üflenen hava balonun her yerine yayılır',
-      '🤚 Gazın belli bir şekli ve hacmi yoktur' ]},
+      '🤚 Gazın belli bir şekli ve hacmi yoktur',
+      '🌬️ Odaya sıkılan parfümün kokusu her köşeye ulaşır',
+      '🚲 Bisiklet lastiğine pompa ile hava sıkıştırılır',
+      '👀 Çoğu gaz <b>görünmezdir</b> ama yine de maddedir' ]},
     ortaokul: { emoji:'🎈', title:'Gazların Yayılması ve Sıkışması', points:[
       '💨 Gaz tanecikleri çok serbesttir, <b>her yöne yayılır</b>',
       '🔽 Tanecikler arası boşluk büyük olduğu için gaz <b>sıkıştırılabilir</b>',
-      '🎈 Gazın belirli şekli ve hacmi yoktur; kabı tümüyle kaplar' ]},
+      '🎈 Gazın belirli şekli ve hacmi yoktur; kabı tümüyle kaplar',
+      '⬇️ Gazların özkütlesi katı ve sıvılardan çok <b>küçüktür</b>',
+      '🫙 Gaz, konduğu kabın hacmi kadar hacim kaplar',
+      '🌡️ Isıtılan gazın tanecik hızı artar, gaz genleşir',
+      '🤿 Tüplerde gazlar sıkıştırılarak küçük hacme sığdırılır' ]},
     lise: { emoji:'🎈', title:'Gaz Basıncı ve Sıkıştırma', points:[
       '🔽 Gaz sıkıştırılınca <b>hacim azalır, basınç artar</b> (Boyle: P·V sabit)',
       '💥 Basınç tanecik çarpma sıklığı ve hızı ile artar',
-      '🌡️ Sıcaklık arttıkça tanecik hızı artar → basınç/hacim artar' ]}
+      '🌡️ Sıcaklık arttıkça tanecik hızı artar → basınç/hacim artar',
+      '🧮 Charles yasası: sabit basınçta <b>V / T sabittir</b>',
+      '🧮 Gay-Lussac yasası: sabit hacimde <b>P / T sabittir</b>',
+      '🌡️ Gaz yasalarında sıcaklık daima <b>Kelvin</b> alınır',
+      '⚠️ Sık hata: 0 °C = 273 K dönüşümü unutulur' ]}
   },
   g2s4: {
     ilkokul: { emoji:'🧊', title:'Katılar Şeklini Korur', points:[
       '🧊 Katılar <b>kendi şeklini korur</b>, kabın şeklini almaz',
       '📦 Katı taneciklerin arası çok sıkıdır, yer değiştirmezler',
-      '✋ Katıların belli bir şekli ve hacmi vardır' ]},
+      '✋ Katıların belli bir şekli ve hacmi vardır',
+      '🔨 Katılar elle taşınabilir, üst üste konabilir',
+      '🧱 Tuğla ve tahta gibi katılardan evler yapılır',
+      '📏 Katı bir cismin boyu cetvelle ölçülebilir' ]},
     ortaokul: { emoji:'🧊', title:'Katılarda Tanecik Düzeni', points:[
       '🔲 Katı tanecikleri <b>düzenli ve çok yakın</b> dizilir',
       '🔗 Tanecikler yerlerinde sadece <b>titreşir</b>, yer değiştiremez',
-      '✋ Bu yüzden katının belirli şekli ve belirli hacmi vardır' ]},
+      '✋ Bu yüzden katının belirli şekli ve belirli hacmi vardır',
+      '🌡️ Isıtılan katıda titreşim artar, katı <b>genleşir</b>',
+      '⬆️ Katıların özkütlesi genellikle sıvı ve gazdan büyüktür',
+      '💠 Düzenli yapıya <b>kristal</b>, düzensize <b>amorf</b> denir (cam)',
+      '🚫 Katılar akmaz ve pratikte sıkıştırılamaz' ]},
     lise: { emoji:'🧊', title:'Katı: Güçlü Bağ ve Örgü', points:[
       '🔗 Katılarda tanecikler arası çekim <b>en güçlüdür</b>',
       '💠 Tanecikler belirli bir <b>kristal örgüde</b> dizilir, denge konumunda titreşir',
-      '✋ Belirli şekil + belirli hacim; sıkıştırılamaz' ]}
+      '✋ Belirli şekil + belirli hacim; sıkıştırılamaz',
+      '🌡️ Kristal katıların <b>keskin</b> bir erime noktası vardır',
+      '🪟 Amorf katılar (cam) belirli bir aralıkta yumuşar',
+      '🔗 Bağa göre iyonik, kovalent, metalik ve moleküler katılar',
+      '⚡ Metalik katılarda serbest elektronlar <b>iletkenliği</b> sağlar' ]}
   },
   // ===== Kütle, Hacim, Özkütle =====
   g3s1: {
     ilkokul: { emoji:'🏖️', title:'Boyut Aldatmacası', points:[
       '👀 Bir cisim <b>büyük</b> diye <b>ağır</b> olmak zorunda değildir',
       '🧽 Kocaman sünger hafif, küçük demir ağır olabilir',
-      '⚖️ Ağırlığı gözle değil, <b>terazi</b> ile anlarız' ]},
+      '⚖️ Ağırlığı gözle değil, <b>terazi</b> ile anlarız',
+      '🪶 Bir kilogram pamuk ile bir kilogram demir <b>eşit ağırlıktadır</b>',
+      '📦 Pamuk daha çok yer kaplar, demir daha az yer kaplar',
+      '⚖️ Kütleyi <b>kilogram</b> ve <b>gram</b> ile ölçeriz',
+      '👀 Göz bizi yanıltabilir; doğrusu ölçüm yapmaktır' ]},
     ortaokul: { emoji:'🏖️', title:'Kütle ile Hacim Farkı', points:[
       '📦 <b>Hacim</b>: cismin kapladığı yer (büyüklük)',
       '⚖️ <b>Kütle</b>: cismin içindeki madde miktarı',
-      '🔗 Büyük hacim her zaman büyük kütle demek değildir; ikisini <b>özkütle</b> bağlar' ]},
+      '🔗 Büyük hacim her zaman büyük kütle demek değildir; ikisini <b>özkütle</b> bağlar',
+      '🧮 <b>Özkütle = kütle ÷ hacim</b>, birimi g/cm³',
+      '💧 Suyun özkütlesi 1 g/cm³ olarak kabul edilir',
+      '🛟 Özkütlesi sudan küçük maddeler suda <b>yüzer</b>',
+      '⚖️ Kütle her yerde aynıdır, <b>ağırlık</b> yer çekimiyle değişir' ]},
     lise: { emoji:'🏖️', title:'Kütle, Hacim, Özkütle İlişkisi', points:[
       '🧮 <b>d = m / V</b> → aynı hacimde kütle artarsa özkütle artar',
       '⚖️ Kütle (m) madde miktarıdır, yer çekiminden bağımsızdır',
-      '📦 Hacim (V) cismin uzayda kapladığı yerdir; m ve V farklı niceliklerdir' ]}
+      '📦 Hacim (V) cismin uzayda kapladığı yerdir; m ve V farklı niceliklerdir',
+      '📏 SI birimlerinde kütle kg, hacim m³, özkütle kg/m³ ile verilir',
+      '🔁 Birim dönüşümü: <b>1 g/cm³ = 1000 kg/m³</b>',
+      '🌡️ Sıcaklık artınca hacim genleşir, özkütle <b>azalır</b>',
+      '⚠️ Sık hata: özkütle <b>ayırt edicidir</b>, kütle ve hacim değildir' ]}
   },
   g3s2: {
     ilkokul: { emoji:'⚖️', title:'Terazi Dengesi', points:[
       '⚖️ İki kefedeki kütleler <b>eşitse</b> terazi dengeye gelir',
       '⬇️ Bir kefe daha ağırsa o taraf aşağı iner',
-      '➕ Eşitlemek için hafif kefeye ağırlık ekleriz' ]},
+      '➕ Eşitlemek için hafif kefeye ağırlık ekleriz',
+      '🍎 Bir elmayı tartarken diğer kefeye ağırlık koyarız',
+      '📉 Ağır kefeden bir şey alınca terazi dengeye yaklaşır',
+      '👐 Terazinin iki kolu <b>eşit uzunlukta</b> olmalıdır' ]},
     ortaokul: { emoji:'⚖️', title:'Eşit Kollu Terazi', points:[
       '⚖️ Eşit kollu terazi <b>kütleleri karşılaştırır</b>',
       '🔄 Denge, iki kefenin <b>çevirme etkisinin (tork)</b> eşit olmasıdır',
-      '➕ Bilinen kütlelerle bilinmeyen kütle bulunur' ]},
+      '➕ Bilinen kütlelerle bilinmeyen kütle bulunur',
+      '⚖️ Terazi <b>kütle</b>, dinamometre <b>ağırlık</b> ölçer',
+      '🌙 Ayda kütle değişmez, eşit kollu terazi aynı sonucu verir',
+      '📏 Birimler: 1 kg = 1000 g, 1 g = 1000 mg',
+      '🎯 Ölçüm öncesi terazi mutlaka <b>sıfırlanmalıdır</b>' ]},
     lise: { emoji:'⚖️', title:'Moment (Tork) Dengesi', points:[
       '🧮 Denge koşulu: <b>F₁·d₁ = F₂·d₂</b> (kuvvet × kol uzunluğu)',
       '⚖️ Eşit kollu terazide d₁=d₂ olduğundan denge ↔ kütleler eşit',
-      '🔄 Çevirme etkisine <b>moment (tork)</b> denir' ]}
+      '🔄 Çevirme etkisine <b>moment (tork)</b> denir',
+      '📐 Momentin birimi <b>N·m</b> olarak verilir',
+      '🔗 Dengede net kuvvet sıfır ve net moment de <b>sıfırdır</b>',
+      '🌙 Terazinin sonucu yer çekimi ivmesinden <b>bağımsızdır</b>',
+      '⚠️ Sık hata: kuvvetin kolu, eksene olan <b>dik</b> uzaklıktır' ]}
   },
   g3s3: {
     ilkokul: { emoji:'🪨', title:'Su Taşırma ile Hacim', points:[
       '💧 Bir cismin kapladığı yere <b>hacim</b> denir',
       '🪨 Taşı suya atınca su seviyesi <b>yükselir</b>',
-      '🌊 Yükselen (taşan) su = <b>taşın hacmi</b>' ]},
+      '🌊 Yükselen (taşan) su = <b>taşın hacmi</b>',
+      '🥤 Ölçekli kapta suyun ilk ve son seviyesini okuruz',
+      '➖ İki okuma arasındaki fark cismin hacmini verir',
+      '📦 Kutu şeklindeki cisimlerin hacmi ölçülerek de bulunur' ]},
     ortaokul: { emoji:'🪨', title:'Düzgün Olmayan Cismin Hacmi', points:[
       '📏 Düzgün cismin hacmi formülle, düzgün olmayanınki <b>su taşırma</b> ile bulunur',
       '💧 Taşan suyun hacmi = cismin hacmi (cm³ veya mL)',
-      '🔁 <b>1 mL = 1 cm³</b>' ]},
+      '🔁 <b>1 mL = 1 cm³</b>',
+      '📦 Dikdörtgen prizmanın hacmi = <b>en × boy × yükseklik</b>',
+      '👁️ Okuma yaparken göz su seviyesiyle aynı hizada olmalıdır',
+      '🛟 Yüzen cisim, ince bir çubukla tamamen daldırılmalıdır',
+      '🧂 Suda çözünen maddelerin hacmi bu yolla ölçülemez' ]},
     lise: { emoji:'🪨', title:'Yer Değiştirme İlkesi', points:[
       '💧 Batan cismin <b>yer değiştirdiği sıvı hacmi</b> = cismin hacmi',
       '🛟 Bu, Arşimet ilkesinin temelidir (kaldırma kuvveti hesabı)',
-      '🔁 1 mL = 1 cm³; ölçü silindiriyle hassas okunur' ]}
+      '🔁 1 mL = 1 cm³; ölçü silindiriyle hassas okunur',
+      '🧮 Kaldırma kuvveti: <b>F = d(sıvı) · V(batan) · g</b>',
+      '⚖️ Kaldırma kuvveti, taşan sıvının <b>ağırlığına</b> eşittir',
+      '🌊 Yüzen cisimde batan hacim, toplam hacimden küçüktür',
+      '⚠️ Sık hata: V(batan) ile cismin tüm hacmi karıştırılır' ]}
   },
   g3s4: {
     ilkokul: { emoji:'🥤', title:'Sıvının Kütlesi (Dara)', points:[
       '⚖️ Boş kabın kütlesine <b>dara</b> denir',
       '🥤 Kaba su koyunca terazi <b>brüt</b> (toplam) kütleyi gösterir',
-      '➖ Suyun kütlesi (net) = Brüt − Dara' ]},
+      '➖ Suyun kütlesi (net) = Brüt − Dara',
+      '⚖️ Önce boş kabı, sonra su ile birlikte tartarız',
+      '🔢 İki ölçüm arasındaki <b>fark</b> suyun kütlesidir',
+      '📦 Paketli ürünlerin üzerinde net kütle yazar',
+      '💧 Su sanıldığından ağırdır: 1 litresi yaklaşık 1 kilogramdır' ]},
     ortaokul: { emoji:'🥤', title:'Net, Brüt, Dara', points:[
       '⚖️ <b>Dara</b>: boş kap · <b>Brüt</b>: kap+içindeki · <b>Net</b>: sadece içindeki',
       '➖ Net = Brüt − Dara',
-      '💧 Sıvıların da kütlesi vardır; bu yöntemle ölçülür' ]},
+      '💧 Sıvıların da kütlesi vardır; bu yöntemle ölçülür',
+      '🧮 Aynı bağıntı şöyle de yazılır: <b>Brüt = Net + Dara</b>',
+      '💧 1 mL suyun kütlesi yaklaşık 1 gramdır',
+      '⚖️ Dijital terazide <b>tare</b> tuşu darayı sıfırlar',
+      '📦 Ambalajlı gıdaların etiketinde <b>net kütle</b> belirtilir' ]},
     lise: { emoji:'🥤', title:'Dara ve Özkütle Ölçümü', points:[
       '🧮 Sıvının özkütlesi için: net kütle (Brüt−Dara) ve hacim ölçülür → d=m/V',
       '⚖️ Hassas tartımda dara <b>otomatik</b> sıfırlanabilir (tare)',
-      '♻️ Kütle korunur: toplam = kap + içerik' ]}
+      '♻️ Kütle korunur: toplam = kap + içerik',
+      '🧪 Sıvı özkütlesi <b>piknometre</b> ile çok hassas ölçülür',
+      '🌡️ Ölçüm sıcaklığı belirtilmeli; hacim sıcaklıkla değişir',
+      '📏 Sonucun anlamlı rakamı, en az hassas ölçüme göre belirlenir',
+      '⚠️ Sık hata: dara çıkarılmazsa özkütle <b>büyük</b> bulunur' ]}
   }
 };
 
@@ -2813,7 +2947,7 @@ function makeGround(y) {
     new THREE.MeshStandardMaterial({ color: isLight?0xd8e0ee:0x182032, roughness: 0.9, metalness: 0.05, transparent:true, opacity:0.6 }));
   floor.rotation.x = -Math.PI/2; floor.position.y = y; floor.receiveShadow = true; grp.add(floor);
   const grid = new THREE.GridHelper(24, 24, isLight?0x9aa6c0:0x3a4560, isLight?0xb8c2d8:0x2a3550);
-  grid.position.y = y + 0.01; grid.material.transparent = true; grid.material.opacity = isLight?0.5:0.3; grp.add(grid);
+  grid.position.y = y + 0.01; grid.material.transparent = true; grid.material.opacity = isLight?0.5:0.3; grid.visible = false; grp.add(grid);
   return grp;
 }
 function makeMMLabel(text, pos, color) {
@@ -3517,16 +3651,16 @@ function applySceneTheme() {
   let bgColor, fogColor, fogNear, fogFar;
   if (isSpace) {
     // Tutulma sahneleri: aydınlık modda biraz açık gece, karanlıkta derin uzay
-    bgColor = 0xE3E7ED;
+    bgColor = 0xFAFAFA;
     fogColor = bgColor; fogNear = 40; fogFar = 110;
     scene.background = new THREE.Color(bgColor);
     scene.fog = null;
     return;
   }
   if (isLight) {
-    bgColor = 0xE3E7ED; fogColor = 0xdfe7f2; fogNear = 38; fogFar = 100;
+    bgColor = 0xFAFAFA; fogColor = 0xdfe7f2; fogNear = 38; fogFar = 100;
   } else {
-    bgColor = 0xE3E7ED; fogColor = 0x121726; fogNear = 35; fogFar = 95;
+    bgColor = 0xFAFAFA; fogColor = 0xdfe7f2; fogNear = 35; fogFar = 95;
   }
   scene.background = new THREE.Color(bgColor);
   scene.fog = new THREE.Fog(fogColor, fogNear, fogFar);
@@ -3640,7 +3774,7 @@ function updateInfoPanel(subKey) {
       if (_extraPts.length) points = points.concat(['## Daha Fazla Ayrıntı'], _extraPts);
     }
   }
-  const showCount = (currentMode === 'sade') ? 3 : points.length;
+  const showCount = (currentMode === 'sade') ? 6 : points.length;
   // Satır başındaki ikon/emojileri temizleyen yardımcı (madde başında ikon olmasın)
   const stripIcon = (txt) => txt.replace(/^\s*(?:[\p{Extended_Pictographic}️‍⃣]\s*)+/u, '').trim();
   points.slice(0, showCount).forEach(p => {
@@ -5001,8 +5135,7 @@ function positionPaletteUnder(){
   margin:0 14px 2px !important;
   padding:6px 14px !important;
   display:grid !important;
-  grid-template-columns:1fr 1fr 1fr !important;
-  justify-items:center !important;
+  grid-template-columns:1fr auto 1fr !important;
   align-items:center !important;
   width:auto !important;
   box-sizing:border-box !important;
@@ -5119,7 +5252,7 @@ function positionPaletteUnder(){
   border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
 #bottomDock #toolsRow{ position:relative; z-index:30; }
 /* Araçlar TAM ortada: 3 eşit kolon — orta kolonun merkezi = çerçeve merkezi */
-#bottomDock #toolsRow{ display:grid !important; grid-template-columns:1fr 1fr 1fr !important; justify-items:center !important; align-items:center !important; }
+#bottomDock #toolsRow{ display:grid !important; grid-template-columns:1fr auto 1fr !important; align-items:center !important; }
 #bottomDock .action-pop, #bottomDock .font-pop{ margin-bottom:8px; }
 /* ✕ ile küçülen "... konusunu aç" çipi bar çerçevesiyle çakışmasın */
 #bottomPanel.info-mini{ bottom:74px !important; margin-bottom:0 !important; padding-bottom:0 !important; }
@@ -5143,6 +5276,241 @@ function positionPaletteUnder(){
     var st=document.getElementById('q3dBootFix');
     if(st && st.parentNode) st.parentNode.removeChild(st);
   }, 650);
+})();
+</script>
+<style id="dockCenterFix">#bottomDock #toolsRow > *{margin:0 !important;} #bottomDock #toolsRow > :first-child{justify-self:start !important;} #bottomDock #toolsRow > :last-child{justify-self:end !important;}</style>
+<style id="helpHideV1">#btnHelp,#b-help,.scene-help,.tool-icon-btn.help{display:none !important;}</style>
+
+<style id="halfPanelV1">
+/* Bilgi paneli daima ekranin YARISI kadar; 3D sahne ile kesismez (halfPanelV1) */
+/* Once KOSULSUZ tavan: :has() desteklenmese bile panel yariyi asamaz ve
+   yazi alt sekmelerin altina giremez (eski WebView guvenligi). */
+#bottomDock{ max-height:50vh !important; box-sizing:border-box; overflow:visible !important; }
+/* Destekleyen tarayicida panel acikken tam yarim ekran */
+#bottomDock:has(.bottom-panel:not(.hidden):not(.vars-hidden):not(.info-mini)){ height:50vh !important; }
+#bottomDock .bottom-panel{ flex:1 1 auto !important; min-height:0 !important; display:flex; flex-direction:column; overflow:visible !important; }
+/* Yazi alani: alt eylem sekmelerinin (action-row) USTUNDE kalir, sigmazsa
+   yalniz .info-list icinde kayar — sekmelerin altina asla girmez. */
+#bottomDock .bottom-panel:not(.info-mini) .info-area{ flex:1 1 auto !important; min-height:0 !important; display:flex !important; }
+#bottomDock .bottom-panel:not(.info-mini) .info-text-area{ flex:1 1 auto !important; min-width:0; min-height:0 !important; display:flex !important; flex-direction:column !important; }
+#bottomDock .bottom-panel .info-title-row, #bottomDock .bottom-panel .info-page-ind{ flex:0 0 auto !important; }
+#bottomDock .bottom-panel:not(.info-mini) .info-scroll-wrap{ flex:1 1 auto !important; min-height:0 !important; overflow:hidden !important; display:flex; flex-direction:column; }
+#bottomDock .bottom-panel .info-list{ flex:1 1 auto !important; min-height:0 !important; max-height:none !important; overflow-y:auto !important; }
+#bottomDock .bottom-panel .action-row{ flex:0 0 auto !important; }
+/* ── KAYDIRMA DUZELTMESI ────────────────────────────────────────────────
+   .info-area taban CSS'te "align-items:flex-start" idi: satir yonlu flex'te
+   bu, yazi alaninin yuksekligini ICERIGE gore buyutuyor -> liste hic kisalmiyor,
+   scrollHeight==clientHeight oldugu icin NE kaydirma NE de kaydirma cubugu
+   calisiyordu; tasan yazi alt sekmelerin altinda kayboluyordu.
+   stretch ile yazi alani panele sigar, fazlasi .info-list icinde kayar. */
+#bottomDock .bottom-panel:not(.info-mini) .info-area{ align-items:stretch !important; }
+#bottomDock .bottom-panel .info-emoji-box{ align-self:flex-start !important; flex:0 0 auto !important; }
+/* dikey kaydirma gostergesi (sag kenar) her zaman dogru konumlansin */
+#bottomDock .bottom-panel .info-scroll-wrap{ position:relative !important; }
+#bottomDock .bottom-panel .info-scrollbar{ z-index:6 !important; }
+/* ✕ kapatma dugmesi: panelin ustune tasar, her zaman ON PLANDA ve okunur */
+#bottomDock .bottom-panel .info-close-btn{
+  z-index:60 !important;
+  background:#ffffff !important;
+  border:2px solid #2f8fd0 !important;
+  color:#10131f !important;
+  box-shadow:0 2px 10px rgba(0,0,0,.45) !important;
+}
+#bottomDock .bottom-panel .info-resize-handle{ z-index:55 !important; }
+/* ── KUCULTULMUS (mini) DURUM ──────────────────────────────────────────
+   ✕ ile kucultuldugunde panel yalnizca tek satirlik cip olarak kalir;
+   yarim ekran yuksekligi ve icerik gorunurlugu zorlanmaz. */
+#bottomDock .bottom-panel.info-mini{ flex:0 0 auto !important; min-height:0 !important; }
+#bottomDock .bottom-panel.info-mini > *:not(.info-mini-chip){ display:none !important; }
+/* panel disina tasan kontroller kirpilmasin (kapatma / boyutlandirma) */
+#bottomDock .bottom-panel .info-close-btn,
+#bottomDock .bottom-panel .info-resize-handle,
+#bottomDock .bottom-panel .info-mini-chip{ z-index:40 !important; }
+
+</style>
+<script id="halfFitV1">
+(function(){
+  if(window.__halfFitV1) return; window.__halfFitV1=1;
+  /* 3D icerik ekranin UST YARISINDA kalsin: sayfanin her-kare setViewOffset
+     cagrisi sarmalanir (ek dikey ofset), boyut icin camera.zoom ayarlanir. */
+  function cam(){ var c=window.camera;
+    if(c&&(c.isPerspectiveCamera||c.isOrthographicCamera)) return c;
+    try{ if(typeof camera!=='undefined'&&camera&&(camera.isPerspectiveCamera||camera.isOrthographicCamera)) return camera; }catch(e){}
+    return null; }
+  function scn(){ var s=window.scene; if(s&&s.isScene) return s;
+    try{ if(typeof scene!=='undefined'&&scene&&scene.isScene) return scene; }catch(e){}
+    return null; }
+  var box=null,tmp=null,corners=null;
+  var TOPB=0.92, BOTB=0.06, XREF=0.90; /* NDC bant: ust yari (0 = ekran ortasi) */
+  function fit(){
+    try{
+      var c=cam(), s=scn(); if(!c||!s||!window.THREE) return;
+      if(!c.__hfPatch){
+        c.__hfPatch=1; c.__hfExtra=0;
+        var orig=c.setViewOffset.bind(c);
+        c.__hfOrig=orig;
+        c.setViewOffset=function(fw,fh,x,y,w,h){ c.__hfSVO=1; return orig(fw,fh,x,y+(c.__hfExtra||0),w,h); };
+      }
+      if(!box){ box=new THREE.Box3(); tmp=new THREE.Box3(); corners=[]; for(var i=0;i<8;i++)corners.push(new THREE.Vector3()); }
+      box.makeEmpty(); var has=false;
+      s.updateMatrixWorld(true);
+      s.traverse(function(o){
+        if(!o.visible) return;
+        if(!(o.isMesh||o.isSprite||o.isLine||o.isPoints)) return;
+        var p=o.parent; while(p){ if(p.visible===false) return; p=p.parent; }
+        tmp.setFromObject(o);
+        if(!isFinite(tmp.min.x)||!isFinite(tmp.max.x)) return;
+        var sx=tmp.max.x-tmp.min.x, sy=tmp.max.y-tmp.min.y, sz=tmp.max.z-tmp.min.z;
+        if(sx>60||sy>60||sz>60) return;           /* dev dekor/zemin */
+        if(sy<0.15&&(sx>14||sz>14)) return;        /* duz-genis zemin */
+        box.union(tmp); has=true;
+      });
+      if(!has||box.isEmpty()) return;
+      var mn=box.min,mx=box.max,k=0;
+      for(var xi=0;xi<2;xi++)for(var yi=0;yi<2;yi++)for(var zi=0;zi<2;zi++)corners[k++].set(xi?mx.x:mn.x,yi?mx.y:mn.y,zi?mx.z:mn.z);
+      c.updateMatrixWorld(true);
+      var maxX=0, loY=Infinity, hiY=-Infinity, seen=false;
+      for(var j=0;j<8;j++){
+        var pr=corners[j].clone().project(c);
+        if(isFinite(pr.x)&&isFinite(pr.y)&&pr.z<1){ seen=true;
+          maxX=Math.max(maxX,Math.abs(pr.x));
+          loY=Math.min(loY,pr.y); hiY=Math.max(hiY,pr.y); }
+      }
+      if(!seen) return;
+      var H=window.innerHeight||1;
+      /* 1) konum: alt kenar bandin altina sarkiyorsa ek ofsetle yukari al */
+      var needUp=BOTB-loY, needDown=hiY-TOPB;
+      if(needUp>0.02){
+        c.__hfExtra=Math.min((c.__hfExtra||0)+needUp*0.9*(H/2), H*0.35);
+      } else if(needDown>0.02 && loY>BOTB+0.04){
+        var back=Math.min(needDown, loY-BOTB);
+        c.__hfExtra=Math.max((c.__hfExtra||0)-back*0.9*(H/2), -H*0.15);
+      }
+      /* sayfa setViewOffset kullanmiyorsa ofseti kendimiz uygula */
+      if(!c.__hfSVO && Math.abs(c.__hfExtra||0)>1){
+        c.__hfOrig(window.innerWidth,H,0,c.__hfExtra,window.innerWidth,H);
+      }
+      /* 2) boyut: banda sigmiyorsa zoom-out, cok kucukse sinirli zoom-in */
+      if(c.__hfBase==null) c.__hfBase=c.zoom||1;
+      var mY=(hiY-loY)/(TOPB-BOTB);
+      var m=Math.max(maxX/XREF, mY);
+      var t=c.zoom;
+      if(m>1.02) t=Math.max(0.35, c.zoom/m);
+      else if(m<0.88) t=Math.min(c.__hfBase*1.6, c.zoom*(0.95/Math.max(m,0.05)));
+      if(Math.abs(t-c.zoom)/(c.zoom||1)>0.03){ c.zoom=t; c.updateProjectionMatrix(); }
+    }catch(e){}
+  }
+  /* Bilgi panelini buyut/kucult tutamaci: artik --info-h yerine DOCK
+     yuksekligini ayarlar (liste flex ile paneli doldurdugu icin). Tavan 50vh,
+     taban 22vh — yazi hicbir zaman alt sekmelerin altina inmez. */
+  (function(){
+    function wire(){
+      var h=document.getElementById('infoResizeHandle'), d=document.getElementById('bottomDock');
+      if(!h||!d||h.__hfWired) return true;
+      h.__hfWired=1;
+      var drag=false,sy=0,sh=0;
+      function cap(){ return Math.round(window.innerHeight*0.50); }
+      function floorH(){ return Math.round(window.innerHeight*0.22); }
+      function down(e){ drag=true; sy=(e.touches?e.touches[0].clientY:e.clientY);
+        sh=d.getBoundingClientRect().height||cap(); }
+      function move(e){ if(!drag) return;
+        var y=(e.touches?e.touches[0].clientY:e.clientY);
+        var nh=Math.max(floorH(),Math.min(cap(),sh+(sy-y)));
+        d.style.setProperty('height',nh+'px','important');
+        d.style.setProperty('max-height',nh+'px','important'); }
+      function up(){ drag=false; }
+      h.addEventListener('touchstart',down,{passive:true});
+      window.addEventListener('touchmove',move,{passive:true});
+      window.addEventListener('touchend',up);
+      h.addEventListener('mousedown',down);
+      window.addEventListener('mousemove',move);
+      window.addEventListener('mouseup',up);
+      return true;
+    }
+    if(!wire()){ var n=0,iv=setInterval(function(){ if(wire()||++n>20) clearInterval(iv); },400); }
+  })();
+  /* ── Palet arka plani TUM sahnelerde kalici ─────────────────────────────
+     Sahne degisiminde sayfa kodu scene.background'i yeniden atiyor ve
+     kullanicinin sectigi rengi eziyordu. Secim varsa okuma kilitlenir;
+     sahne kodu yazmaya devam eder ama gorunen renk kullanicininki kalir. */
+  (function(){
+    var locked=null;
+    function lockScene(s){
+      if(!s||s.__bgLock) return;
+      s.__bgLock=1;
+      var val=s.background;
+      try{
+        Object.defineProperty(s,'background',{
+          configurable:true,
+          get:function(){ return locked!==null?locked:val; },
+          set:function(v){ val=v; }
+        });
+      }catch(e){ s.__bgLock=0; }
+    }
+    function setLocked(c){
+      try{ if(c&&window.THREE) locked=new window.THREE.Color(c); }catch(e){}
+    }
+    function readSaved(){
+      try{ if(typeof _palState==='object'&&_palState&&_palState.bg) return _palState.bg; }catch(e){}
+      return null;
+    }
+    function wire(){
+      var s=scn(); if(s) lockScene(s);
+      try{
+        if(typeof applyPaletteColor==='function'&&!applyPaletteColor.__bgPersist){
+          var orig=applyPaletteColor;
+          var w=function(t,c,skip){
+            var r=orig(t,c,skip);
+            if(t==='bg'){ lockScene(scn()); setLocked(c); }
+            return r;
+          };
+          w.__bgPersist=1; applyPaletteColor=w;
+        }
+      }catch(e){}
+      try{
+        if(typeof resetPalette==='function'&&!resetPalette.__bgPersist){
+          var origR=resetPalette;
+          var wr=function(){ locked=null; return origR.apply(this,arguments); };
+          wr.__bgPersist=1; resetPalette=wr;
+        }
+      }catch(e){}
+      /* sayfa acilisinda kayitli secim (localStorage) zaten _palState'e yuklenmis olur */
+      if(locked===null){ var sv=readSaved(); if(sv){ lockScene(scn()); setLocked(sv); } }
+    }
+    wire();
+    var n=0, iv=setInterval(function(){ wire(); if(++n>=12) clearInterval(iv); },500);
+  })();
+  setInterval(fit,700);
+  [400,900,1500,2200].forEach(function(ms){setTimeout(fit,ms);});
+  document.addEventListener('pointerup',function(){[250,600,1100].forEach(function(ms){setTimeout(fit,ms);});},true);
+})();
+</script>
+
+<script id="tableShareNativeV1">
+/* ── TABLO / KIYASLAMA "GÖNDER" DÜZELTMESİ ────────────────────────────────
+   Eski davranış: shareCardEl() yalnız kart öğesini html2canvas ile çizmeye
+   çalışıyordu. html2canvas yoksa fonksiyon SESSİZCE geri dönüyordu (düğme
+   ölü görünüyordu); yüklü olduğunda da kaydırmalı tablo içeriği ve arkadaki
+   3B sahne doğru çıkmıyor, kimi cihazda "Görüntü alınamadı" veriyordu.
+   Yeni davranış: cihazın kendi ekran görüntüsü alınır → ekranda ne varsa
+   (açık tablo, panel, sahne) tek karede paylaşılır. Native kanal yoksa
+   eski akış aynen çalışmaya devam eder (hiçbir şey kaybolmaz). */
+(function(){
+  if(window.__tblShareNative) return; window.__tblShareNative=1;
+  /* Dinleyici DOKÜMAN düzeyinde ve capture fazında: düğmenin kendi onclick
+     handler'ından ÖNCE çalışır (düğme üzerine eklenseydi sayfanın daha önce
+     atanmış onclick'i önce çalışır, eski hatalı akış devreye girerdi). */
+  document.addEventListener('click', function(ev){
+    var t=ev.target;
+    var b=(t && t.closest) ? t.closest('#tableSend,#compareSend') : null;
+    if(!b) return;
+    if(!(window.FlutterNativeShot && window.FlutterNativeShot.postMessage)) return; /* eski akışa bırak */
+    ev.stopImmediatePropagation(); ev.preventDefault();
+    try{ if(window._showGestureToast) window._showGestureToast('📸 Gönderiliyor...'); }catch(e){}
+    setTimeout(function(){
+      try{ window.FlutterNativeShot.postMessage('1'); }catch(e){}
+    }, 60);
+  }, true);
 })();
 </script>
 </body>

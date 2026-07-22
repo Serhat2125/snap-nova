@@ -96,14 +96,39 @@ class _AutoLocationDetector {
           orElse: () => LocationCatalog.countries.first,
         );
         final countryName = entry.code == cc ? entry.name : cc;
-        final cityRaw = ((info.extra['city'] as String?) ?? '').trim();
+        var cityRaw = ((info.extra['city'] as String?) ?? '').trim();
+        String cityCode =
+            cityRaw.isEmpty ? '' : cityRaw.toLowerCase().replaceAll(' ', '-');
+        // Ülkenin il kataloğu varsa IP şehri katalogla eşleşmeli — IP çoğu
+        // zaman İLÇE döndürür (örn. "Dalaman"); eşleşmiyorsa şehir BOŞ
+        // bırakılır ve kullanıcı ilini kendisi seçer (bölge yalnızca
+        // il/ülke/dünya olabilir).
+        final catalogCities = entry.code == cc
+            ? entry.cities
+            : const <CityEntry>[];
+        if (catalogCities.isNotEmpty && cityRaw.isNotEmpty) {
+          final norm = cityRaw.toLowerCase();
+          CityEntry? matched;
+          for (final c in catalogCities) {
+            if (c.name.toLowerCase() == norm ||
+                c.code == norm.replaceAll(' ', '_')) {
+              matched = c;
+              break;
+            }
+          }
+          if (matched != null) {
+            cityRaw = matched.name;
+            cityCode = matched.code;
+          } else {
+            cityRaw = '';
+            cityCode = '';
+          }
+        }
         return UserLocation(
           country: countryName,
           countryCode: cc,
           city: cityRaw,
-          cityCode: cityRaw.isEmpty
-              ? ''
-              : cityRaw.toLowerCase().replaceAll(' ', '-'),
+          cityCode: cityCode,
         );
       }
     } catch (e, st) {

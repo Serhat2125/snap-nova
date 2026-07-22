@@ -21,7 +21,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
@@ -84,8 +84,10 @@ class PushService {
       debugPrint('[Push] permission: ${settings.authorizationStatus}');
 
       // ── Local notifications channel (Android) ────────────────────────────
+      // Bildirim ikonu: tek renk QuAlsar silüeti (res/drawable/ic_notification).
+      // Renkli launcher ikonu status bar'da düz gri kare görünüyordu.
       const androidInit =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
+          AndroidInitializationSettings('ic_notification');
       const iosInit = DarwinInitializationSettings();
       await _local.initialize(
         const InitializationSettings(android: androidInit, iOS: iosInit),
@@ -140,6 +142,13 @@ class PushService {
       await _persistToken();
       FirebaseMessaging.instance.onTokenRefresh.listen((_) => _persistToken());
       FirebaseAuth.instance.authStateChanges().listen((_) => _persistToken());
+      // Token doc'u sunucu tarafında silinmiş olabilir (geçersiz token
+      // temizliği) — uygulama ÖNE her gelişte yeniden yaz. Aksi halde uzun
+      // süre kapatılmayan oturumda push adresi kaybolunca davetler hiç
+      // ulaşmıyordu ("karşıya bildirim gitmiyor" hatası).
+      WidgetsBinding.instance.addObserver(
+        _PushLifecycleObserver(onResume: _persistToken),
+      );
 
       _initialized = true;
     } catch (e) {
@@ -277,7 +286,8 @@ class PushService {
             channelDescription: _channel.description,
             importance: Importance.high,
             priority: Priority.high,
-            icon: '@mipmap/ic_launcher',
+            icon: 'ic_notification',
+            color: const Color(0xFF00DC3C),
           ),
           iOS: const DarwinNotificationDetails(
             presentAlert: true,
@@ -313,7 +323,8 @@ class PushService {
           _channel.id, _channel.name,
           channelDescription: _channel.description,
           importance: Importance.high, priority: Priority.high,
-          icon: '@mipmap/ic_launcher',
+          icon: 'ic_notification',
+          color: const Color(0xFF00DC3C),
         ),
         iOS: const DarwinNotificationDetails(),
       );
@@ -397,6 +408,20 @@ class PushService {
           .delete();
     } catch (e) {
       debugPrint('[Push] clear token fail: $e');
+    }
+  }
+}
+
+/// Uygulama öne gelince FCM token kaydını tazeleyen gözlemci — sunucu
+/// geçersiz token temizliği yaptıysa doc'u yeniden oluşturur.
+class _PushLifecycleObserver with WidgetsBindingObserver {
+  final Future<void> Function() onResume;
+  _PushLifecycleObserver({required this.onResume});
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      onResume();
     }
   }
 }

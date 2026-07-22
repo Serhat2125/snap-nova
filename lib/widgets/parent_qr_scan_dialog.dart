@@ -70,7 +70,7 @@ class _ParentQrScanDialogState extends State<ParentQrScanDialog> {
     final code = _extractCode(raw);
     if (code == null) {
       setState(() => _error =
-          'Bu QR tanınmadı — çocuğunun ekranındaki QuAlsar QR kodunu okut.');
+          'Bu QR tanınmadı — çocuğunun ekranındaki QuAlsar QR kodunu okut.'.tr());
       return;
     }
     _processed = true;
