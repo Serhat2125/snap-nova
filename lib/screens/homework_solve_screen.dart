@@ -52,8 +52,6 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
   final Map<int, TextEditingController> _openCtrls = {};
   bool _submitted = false;
   bool _submitting = false;
-  int _correctCount = 0;
-  int _wrongCount = 0;
   int _pendingOpen = 0; // öğretmen değerlendirmesi bekleyen açık uçlu sayısı
 
   // ── Zaman takibi ──────────────────────────────────────────────────────
@@ -74,8 +72,6 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
     final existing = widget.submission;
     if (existing != null && existing.isSubmitted) {
       _submitted = true;
-      _correctCount = existing.correct ?? 0;
-      _wrongCount = existing.wrong ?? 0;
       _pendingOpen = existing.answers.where((a) => a.isCorrect == null).length;
       _startedAt = existing.startedAt ?? DateTime.now();
       return;
@@ -204,8 +200,6 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
     setState(() {
       _submitting = false;
       _submitted = ok;
-      _correctCount = correct;
-      _wrongCount = wrong;
       _pendingOpen = pendingOpen;
     });
     if (ok) {
@@ -303,7 +297,14 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
           padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
           child: FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF7C3AED),
+              // Tüm sorular cevaplandıysa YEŞİL — "bitti, teslim edebilirsin"
+              // sinyali; aksi halde marka moru.
+              backgroundColor: qs.isNotEmpty &&
+                      List.generate(
+                              qs.length, (i) => (_answers[i] ?? '').trim())
+                          .every((a) => a.isNotEmpty)
+                  ? const Color(0xFF10B981)
+                  : const Color(0xFF7C3AED),
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -407,21 +408,8 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
                       color: const Color(0xFF7C3AED),
                     )),
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppPalette.bg(context),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(_typeLabel(type),
-                    style: GoogleFonts.poppins(
-                      fontSize: 10, fontWeight: FontWeight.w800,
-                      color: AppPalette.textSecondary(context),
-                      letterSpacing: 0.5,
-                    )),
-              ),
+              // NOT: Soru tipi rozeti ("ÇOKTAN SEÇMELİ" vb.) kaldırıldı —
+              // cevap alanı tipi zaten belli ediyor, satırı kalabalıklaştırıyordu.
             ],
           ),
           const SizedBox(height: 10),
@@ -435,16 +423,6 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
         ],
       ),
     );
-  }
-
-  String _typeLabel(String t) {
-    switch (t) {
-      case 'tf': return 'D/Y'.tr();
-      case 'fill': return 'BOŞLUK DOLDURMA'.tr();
-      case 'open': return 'AÇIK UÇLU'.tr();
-      case 'mc':
-      default: return 'ÇOKTAN SEÇMELİ'.tr();
-    }
   }
 
   Widget _buildAnswerInput(Map<String, dynamic> q, int index, String type) {
@@ -516,7 +494,9 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
       child: TextField(
         controller: ctrl,
         maxLines: type == 'open' ? 4 : 1,
-        onChanged: (v) => _answers[index] = v,
+        // setState: tüm sorular cevaplanınca alttaki Teslim Et düğmesi
+        // yeşile dönsün (canlı takip).
+        onChanged: (v) => setState(() => _answers[index] = v),
         style: GoogleFonts.poppins(
           fontSize: 13, fontWeight: FontWeight.w600,
           color: AppPalette.textPrimary(context),
@@ -560,8 +540,6 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
   }
 
   Widget _buildResult(BuildContext context) {
-    final total = _correctCount + _wrongCount;
-    final pct = total > 0 ? (_correctCount * 100 / total).round() : 0;
     // Sınıf geneli paylaşım VEYA öğretmenin yalnız bu öğrenciye açtığı
     // öğrenci-bazlı paylaşım — ikisinden biri yeterli.
     final answersOpen = widget.homework.answersShared ||
@@ -574,40 +552,38 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
           _teacherNoteCard(context, margin: EdgeInsets.zero),
           const SizedBox(height: 14),
         ],
-        Center(
-          child: Container(
-            width: 120, height: 120,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: pct >= 70
-                    ? const [Color(0xFF10B981), Color(0xFF06B6D4)]
-                    : pct >= 40
-                        ? const [Color(0xFFFBBF24), Color(0xFFFF6A00)]
-                        : const [Color(0xFFEF4444), Color(0xFFEC4899)],
-              ),
-            ),
-            alignment: Alignment.center,
-            child: Text('%$pct',
-                style: GoogleFonts.poppins(
-                  fontSize: 32, fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                )),
-          ),
-        ),
-        const SizedBox(height: 18),
+        // NOT: Doğru/yanlış sayısı ve başarı yüzdesi öğrenciye GÖSTERİLMEZ —
+        // değerlendirme öğretmenin işi; teslim ekranı yalnız onay verir.
+        const SizedBox(height: 6),
         Text('Ödev Teslim Edildi'.tr(),
             textAlign: TextAlign.center,
             style: GoogleFonts.poppins(
-              fontSize: 18, fontWeight: FontWeight.w900,
+              fontSize: 22, fontWeight: FontWeight.w900,
               color: AppPalette.textPrimary(context),
             )),
-        const SizedBox(height: 8),
-        Text('✓ $_correctCount ${'doğru'.tr()} · ✗ $_wrongCount ${'yanlış'.tr()}',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.poppins(
-              fontSize: 13.5, color: AppPalette.textSecondary(context),
-            )),
+        const SizedBox(height: 18),
+        // Yeşil zeminli yuvarlak onay tiki.
+        Center(
+          child: Container(
+            width: 96, height: 96,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: [Color(0xFF34D399), Color(0xFF059669)],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                  blurRadius: 18, offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: const Icon(Icons.check_rounded,
+                size: 54, color: Colors.white),
+          ),
+        ),
         if (_pendingOpen > 0) ...[
           const SizedBox(height: 14),
           Container(
@@ -636,7 +612,7 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
           _buildReviewSection(context)
         else
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
               color: AppPalette.card(context),
               borderRadius: BorderRadius.circular(12),
@@ -645,15 +621,15 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
             child: Row(
               children: [
                 Icon(Icons.lock_clock_rounded,
-                    size: 18, color: AppPalette.textSecondary(context)),
-                const SizedBox(width: 10),
+                    size: 22, color: AppPalette.textPrimary(context)),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Cevaplar ve çözümler, öğretmenin cevap anahtarını '
                     'paylaşmasından sonra burada görünür.'.tr(),
                     style: GoogleFonts.poppins(
-                      fontSize: 12,
-                      color: AppPalette.textSecondary(context), height: 1.4,
+                      fontSize: 13.5, fontWeight: FontWeight.w600,
+                      color: AppPalette.textPrimary(context), height: 1.45,
                     ),
                   ),
                 ),
@@ -662,15 +638,16 @@ class _HomeworkSolveScreenState extends State<HomeworkSolveScreen>
           ),
         const SizedBox(height: 24),
         Center(
-          child: SizedBox(
-            width: 200,
-            child: OutlinedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Dön'.tr(),
-                  style: GoogleFonts.poppins(
-                    fontSize: 13.5, fontWeight: FontWeight.w700,
-                  )),
+          child: OutlinedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 32, vertical: 13),
             ),
+            child: Text('Sınıfına geri dön'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 14, fontWeight: FontWeight.w700,
+                )),
           ),
         ),
       ],

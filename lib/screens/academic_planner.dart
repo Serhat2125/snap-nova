@@ -3042,6 +3042,13 @@ class _LibraryLandingState extends State<LibraryLanding> {
   // Kart bazında metin rengi — slug → color.
   final Map<String, Color> _cardInks = {};
 
+  // ── İlk 2 girişte gösterilen sürükle-bırak ipucu ──────────────────────
+  // Ortada çerçeveli kısa not; 3 sn sonra kendiliğinden veya "Tamam,
+  // anladım"a basınca kaybolur.
+  bool _reorderTipVisible = false;
+  Timer? _reorderTipTimer;
+  static const _kReorderTipKey = 'library_reorder_tip_count_v1';
+
   // Tüm kart slug'ları — Renk Seç panelindeki hedef seçici bu listeyi
   // kullanır; her birine ayrı renk verilebilir.
   static const _cardSlugs = <String, String>{
@@ -3090,6 +3097,34 @@ class _LibraryLandingState extends State<LibraryLanding> {
     super.initState();
     _loadLibraryColors();
     _loadCardOrder();
+    _maybeShowReorderTip();
+  }
+
+  @override
+  void dispose() {
+    _reorderTipTimer?.cancel();
+    super.dispose();
+  }
+
+  /// İlk 2 Kütüphanem ziyaretinde sürükle-bırak ipucunu göster.
+  Future<void> _maybeShowReorderTip() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final count = prefs.getInt(_kReorderTipKey) ?? 0;
+      if (count >= 2) return;
+      await prefs.setInt(_kReorderTipKey, count + 1);
+      if (!mounted) return;
+      setState(() => _reorderTipVisible = true);
+      _reorderTipTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) setState(() => _reorderTipVisible = false);
+      });
+    } catch (_) {/* prefs okunamazsa ipucu atlanır */}
+  }
+
+  void _dismissReorderTip() {
+    _reorderTipTimer?.cancel();
+    _reorderTipTimer = null;
+    if (mounted) setState(() => _reorderTipVisible = false);
   }
 
   Future<void> _loadLibraryColors() async {
@@ -3309,26 +3344,91 @@ class _LibraryLandingState extends State<LibraryLanding> {
       // Renk paneli SCROLL'UN DIŞINDA, üstte SABİT: palet açıkken sayfa
       // kaydırılınca renk çerçevesi yukarıda kalır, alttaki kartlar
       // görünür ve renk sürüklenip bırakılabilir (kullanıcı isteği).
-      body: Column(
+      body: Stack(
         children: [
-          if (_showColorPicker)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: _buildLibraryColorPanel(),
-            ),
-          Expanded(
-            child: SingleChildScrollView(
-        // Alt nav bar (_NavShell) sayfanın üstüne overlay olarak çizildiği için
-        // en alttaki kart/sekme onun arkasında kalıyordu; nav bar yüksekliği +
-        // sistem çubuğu kadar boşluk bırakarak tam görünmesini sağla.
-        padding: EdgeInsets.fromLTRB(
-            16, 12, 16, 16 + 112 + MediaQuery.of(context).padding.bottom),
-        // Kartlar uzun basılıp sürüklenerek yeniden sıralanabilir; sıra
-        // kalıcıdır (library_card_order_v1).
-        child: _buildReorderableCards(),
+          Column(
+            children: [
+              if (_showColorPicker)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: _buildLibraryColorPanel(),
+                ),
+              Expanded(
+                child: SingleChildScrollView(
+            // Alt nav bar (_NavShell) sayfanın üstüne overlay olarak çizildiği
+            // için en alttaki kart/sekme onun arkasında kalıyordu; nav bar
+            // yüksekliği + sistem çubuğu kadar boşluk bırak.
+            padding: EdgeInsets.fromLTRB(
+                16, 12, 16, 16 + 112 + MediaQuery.of(context).padding.bottom),
+            // Kartlar uzun basılıp sürüklenerek yeniden sıralanabilir; sıra
+            // kalıcıdır (library_card_order_v1).
+            child: _buildReorderableCards(),
+                ),
+              ),
+            ],
+          ),
+          if (_reorderTipVisible) _reorderTipOverlay(context),
+        ],
+      ),
+    );
+  }
+
+  /// İlk 2 girişte tam ortada çıkan sürükle-bırak ipucu çerçevesi.
+  Widget _reorderTipOverlay(BuildContext context) {
+    const green = Color(0xFF10B981);
+    return Positioned.fill(
+      child: GestureDetector(
+        onTap: _dismissReorderTip,
+        child: Container(
+          color: Colors.black.withValues(alpha: 0.22),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: GestureDetector(
+            onTap: () {/* çerçeveye dokunuş kapatmasın */},
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              decoration: BoxDecoration(
+                color: AppPalette.card(context),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                    color: _blue.withValues(alpha: 0.45), width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.25),
+                    blurRadius: 24, offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('👆', style: TextStyle(fontSize: 30)),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Ekrandaki sekmelere basılı tutup sürükleyerek '
+                            'yerlerini ve sıralamalarını istediğin gibi '
+                            'değiştirebilirsin.'
+                        .tr(),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13.5, fontWeight: FontWeight.w700,
+                      color: AppPalette.textPrimary(context), height: 1.45,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  TextButton(
+                    onPressed: _dismissReorderTip,
+                    child: Text('Tamam, anladım'.tr(),
+                        style: GoogleFonts.poppins(
+                          fontSize: 14, fontWeight: FontWeight.w800,
+                          color: green,
+                        )),
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

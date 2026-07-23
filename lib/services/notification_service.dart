@@ -31,6 +31,7 @@ enum AppNotifType {
   dueloInvite,
   rankPassed,
   streakMilestone,
+  parentGift,
   unknown,
 }
 
@@ -47,6 +48,8 @@ extension AppNotifTypeX on AppNotifType {
         return '📈';
       case AppNotifType.streakMilestone:
         return '🔥';
+      case AppNotifType.parentGift:
+        return '🎁';
       case AppNotifType.unknown:
         return '🔔';
     }
@@ -64,6 +67,8 @@ extension AppNotifTypeX on AppNotifType {
         return 'Sıralamada geçildin';
       case AppNotifType.streakMilestone:
         return 'Streak ödülü';
+      case AppNotifType.parentGift:
+        return 'Ailenden sürpriz!';
       case AppNotifType.unknown:
         return 'Bildirim';
     }
@@ -82,6 +87,8 @@ AppNotifType _parseType(String? raw) {
       return AppNotifType.rankPassed;
     case 'streak_milestone':
       return AppNotifType.streakMilestone;
+    case 'parent_gift':
+      return AppNotifType.parentGift;
     default:
       return AppNotifType.unknown;
   }
@@ -97,6 +104,9 @@ class AppNotification {
   final String? targetUsername;
   final String? subjectKey;
   final String? topic;
+  // Doc'a hazır yazılmış başlık/gövde (parent_gift vb.) — mesajda kullanılır.
+  final String? title;
+  final String? body;
   final DateTime when;
   final bool read;
 
@@ -112,6 +122,8 @@ class AppNotification {
     this.targetUsername,
     this.subjectKey,
     this.topic,
+    this.title,
+    this.body,
   });
 
   factory AppNotification.fromDoc(
@@ -129,6 +141,8 @@ class AppNotification {
       targetUsername: m['targetUsername']?.toString(),
       subjectKey: m['subjectKey']?.toString(),
       topic: m['topic']?.toString(),
+      title: m['title']?.toString(),
+      body: m['body']?.toString(),
       when: when,
       read: (m['read'] as bool?) ?? false,
     );
@@ -157,8 +171,17 @@ class AppNotification {
         return '$who seni sıralamada geçti';
       case AppNotifType.streakMilestone:
         return 'Streak rekoru';
+      case AppNotifType.parentGift:
+        // Gövde velinin seçtiği sürprizin metnidir — çocuk NEYİ aldığını görsün.
+        return (body?.trim().isNotEmpty ?? false)
+            ? body!.trim()
+            : 'Ailenden bir sürprizin var 🎁';
       case AppNotifType.unknown:
-        return 'Yeni bildirim';
+        // title/body yazılmış genel bildirimler içeriksiz "Yeni bildirim"
+        // olarak kalmasın.
+        return (body?.trim().isNotEmpty ?? false)
+            ? body!.trim()
+            : 'Yeni bildirim';
     }
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'error_logger.dart';
+import 'parent_preview.dart';
 
 /// ════════════════════════════════════════════════════════════════════════
 ///  AiProviderService — Çoklu AI sağlayıcı (ChatGPT/OpenAI, Grok/xAI,
@@ -444,6 +445,8 @@ class AiProviderService {
   // ── Ortak HTTP gönderim (auth token + proxy POST + normalize) ──────────
   static Future<String> _post(
       Map<String, dynamic> payload, Duration timeout, String label) async {
+    // Ebeveyn önizlemesinde HİÇBİR AI çağrısı çıkamaz — kök engel.
+    ParentPreview.blockAi();
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       throw StateError('AI çağrısı için oturum açılmış olmalı.');

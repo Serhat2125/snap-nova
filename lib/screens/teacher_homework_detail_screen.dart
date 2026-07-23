@@ -447,6 +447,54 @@ class _TeacherHomeworkDetailScreenState
         : 'İşlem başarısız, tekrar dene.'.tr());
   }
 
+  /// "Bu notu kim görsün?" seçim çipi — seçiliyken yeşil dolgulu.
+  Widget _audienceChip(BuildContext ctx, String emoji, String label,
+      bool selected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? _kGreen.withValues(alpha: 0.12)
+              : AppPalette.bg(ctx),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? _kGreen : AppPalette.border(ctx),
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              selected
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              size: 17,
+              color: selected
+                  ? _kGreen
+                  : AppPalette.textSecondary(ctx),
+            ),
+            const SizedBox(width: 6),
+            Text(emoji, style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(label,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12.5, fontWeight: FontWeight.w800,
+                    color: selected
+                        ? const Color(0xFF065F46)
+                        : AppPalette.textPrimary(ctx),
+                  )),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _openNoteDialog() async {
     final studentUid = sub?.studentUid ?? '';
     if (studentUid.isEmpty) {
@@ -459,6 +507,10 @@ class _TeacherHomeworkDetailScreenState
       'Güzel ilerleme, böyle devam! 👏',
       'Eksik konulara biraz daha çalışalım.',
     ];
+    // Notu kimin göreceği — öğretmen tek tek ya da ikisini birden seçebilir;
+    // bildirim yalnızca seçilen taraf(lar)a gider.
+    var toParent = true;
+    var toStudent = true;
     final sent = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -488,9 +540,29 @@ class _TeacherHomeworkDetailScreenState
                       fontSize: 16, fontWeight: FontWeight.w900,
                       color: AppPalette.textPrimary(ctx))),
               const SizedBox(height: 4),
-              Text('${widget.studentName} • ${'veli panelinde de görünür'.tr()}',
+              Text(widget.studentName,
                   style: GoogleFonts.poppins(
                       fontSize: 11.5, color: AppPalette.textSecondary(ctx))),
+              const SizedBox(height: 12),
+              // ── Bu notu kim görsün? — Ebeveyn / Öğrenci, tekli veya ikisi ──
+              Text('Bu notu kim görsün?'.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 12.5, fontWeight: FontWeight.w800,
+                      color: AppPalette.textPrimary(ctx))),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _audienceChip(ctx, '👪', 'Ebeveyn'.tr(), toParent,
+                        () => setM(() => toParent = !toParent)),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _audienceChip(ctx, '🧑‍🎓', 'Öğrenci'.tr(), toStudent,
+                        () => setM(() => toStudent = !toStudent)),
+                  ),
+                ],
+              ),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 6, runSpacing: 6,
@@ -552,9 +624,20 @@ class _TeacherHomeworkDetailScreenState
                   ),
                   onPressed: () async {
                     if (ctrl.text.trim().isEmpty) return;
+                    if (!toParent && !toStudent) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                        behavior: SnackBarBehavior.floating,
+                        content: Text(
+                            'En az bir alıcı seç: Ebeveyn veya Öğrenci.'.tr()),
+                      ));
+                      return;
+                    }
                     final ok = await ClassService.addNote(
                         hw.classId, studentUid, ctrl.text.trim(),
-                        kind: 'praise');
+                        kind: 'praise',
+                        sharedWithParent: toParent,
+                        notifyStudent: toStudent,
+                        homeworkTitle: hw.title);
                     if (ctx.mounted) Navigator.pop(ctx, ok);
                   },
                   child: Text('Gönder'.tr(),
@@ -656,28 +739,27 @@ class _TeacherHomeworkDetailScreenState
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // SOL: konu / ödev adı / ödev no
+          // SOL: Ders / Konu / Başlık / Ödev No — etiketli satırlar.
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${hw.subject} · ${hw.topic}',
-                    style: GoogleFonts.poppins(
-                        fontSize: 11.5, fontWeight: FontWeight.w700,
-                        color: muted),
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 5),
-                Text(hw.title,
-                    style: GoogleFonts.poppins(
-                        fontSize: 16, fontWeight: FontWeight.w900,
-                        color: ink, height: 1.2),
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                _leftLine(context, 'Ders'.tr(), hw.subject, ink, muted),
+                const SizedBox(height: 4),
+                _leftLine(context, 'Konu'.tr(), hw.topic, ink, muted),
+                const SizedBox(height: 4),
+                _leftLine(context, 'Başlık'.tr(), hw.title, ink, muted,
+                    valueBold: true),
                 const SizedBox(height: 6),
-                // Ödev no + #2 durum etiketi yan yana.
+                // Ödev No + #2 durum etiketi yan yana.
                 Wrap(
                   spacing: 6, runSpacing: 4,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    Text('${'Ödev No'.tr()}:',
+                        style: GoogleFonts.poppins(
+                            fontSize: 11.5, fontWeight: FontWeight.w800,
+                            color: muted)),
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 2),
@@ -702,12 +784,15 @@ class _TeacherHomeworkDetailScreenState
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _rightInfo(context, '🟢', 'Başlangıç'.tr(),
+              _rightInfo(context, '🟢', 'Başlama tarihi'.tr(),
                   _fmtDate(hw.assignedAt)),
               const SizedBox(height: 6),
-              _rightInfo(context, '🔴', 'Bitiş'.tr(), _fmtDate(hw.dueAt)),
+              _rightInfo(context, '🔴', 'Bitiş tarihi'.tr(),
+                  _fmtDate(hw.dueAt)),
               const SizedBox(height: 6),
-              _rightInfo(context, '❓', 'Soru'.tr(), '${_stats.total}'),
+              // "?" yok — etiket üstte, sayı altında "5 soru" biçiminde.
+              _rightInfo(context, '', 'Soru Sayısı'.tr(),
+                  '${_stats.total} ${'soru'.tr()}'),
               if (_spentMinutes() != null) ...[
                 const SizedBox(height: 6),
                 _rightInfo(context, '⏱️', 'Harcanan süre'.tr(),
@@ -720,18 +805,45 @@ class _TeacherHomeworkDetailScreenState
     );
   }
 
+  /// Sol künye satırı: "Etiket: değer" — etiket soluk kalın, değer koyu.
+  Widget _leftLine(BuildContext context, String label, String value,
+      Color ink, Color muted, {bool valueBold = false}) {
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: '$label: ',
+            style: GoogleFonts.poppins(
+                fontSize: 11.5, fontWeight: FontWeight.w800, color: muted),
+          ),
+          TextSpan(
+            text: value,
+            style: GoogleFonts.poppins(
+              fontSize: valueBold ? 14 : 12.5,
+              fontWeight: valueBold ? FontWeight.w900 : FontWeight.w700,
+              color: ink, height: 1.25,
+            ),
+          ),
+        ],
+      ),
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
   Widget _rightInfo(
       BuildContext context, String emoji, String label, String value) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Text('$emoji $label',
+        // Etiket belirgin: eskiden 8.5px soluk gri, okunmuyordu.
+        Text(emoji.isEmpty ? label : '$emoji $label',
             style: GoogleFonts.poppins(
-                fontSize: 8.5, fontWeight: FontWeight.w600,
-                color: AppPalette.textSecondary(context))),
+                fontSize: 10.5, fontWeight: FontWeight.w800,
+                color: AppPalette.textPrimary(context))),
         Text(value,
             style: GoogleFonts.poppins(
-                fontSize: 11, fontWeight: FontWeight.w800,
+                fontSize: 12, fontWeight: FontWeight.w900,
                 color: AppPalette.textPrimary(context))),
       ],
     );
@@ -1169,7 +1281,11 @@ class _TeacherHomeworkDetailScreenState
         label: Text(
             _answersExpanded
                 ? 'Cevapları gizle'.tr()
-                : 'Öğrencinin verdiği cevaplara bak'.tr(),
+                // Öğrenci kendi sonucuna bakıyorsa (readOnly) "öğrencinin
+                // verdiği cevaplar" saçma kaçar — ona kendi diliyle seslen.
+                : widget.readOnly
+                    ? 'Yanlış yaptığın soruları ve çözümleri incele'.tr()
+                    : 'Öğrencinin verdiği cevaplara bak'.tr(),
             style: GoogleFonts.poppins(
                 fontSize: 13.5, fontWeight: FontWeight.w800,
                 color: Colors.white)),

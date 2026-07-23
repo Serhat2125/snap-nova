@@ -7,6 +7,8 @@
 //  Firestore kuralları ihlal edilmez.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -33,19 +35,40 @@ class _TeacherInviteStudentScreenState
   final Set<String> _invited = {};
   bool _searching = false;
   bool _searched = false;
+  // Canlı arama: her tuşta 250 ms bekleyip sorgular; geciken eski sorgu
+  // cevabı yenisini ezmesin diye token kontrolü yapılır.
+  Timer? _debounce;
+  int _queryToken = 0;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  /// Yazarken tetiklenir — "ser" yazınca ser… ile başlayanlar hemen gelir.
+  void _onQueryChanged(String v) {
+    _debounce?.cancel();
+    final q = v.trim();
+    if (q.length < 2) {
+      setState(() {
+        _results = const [];
+        _searched = false;
+        _searching = false;
+      });
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 250), _search);
   }
 
   Future<void> _search() async {
     final q = _searchCtrl.text.trim();
     if (q.isEmpty) return;
+    final token = ++_queryToken;
     setState(() => _searching = true);
     final res = await ClassService.searchStudents(q);
-    if (!mounted) return;
+    if (!mounted || token != _queryToken) return;
     setState(() {
       _results = res;
       _searching = false;
@@ -63,7 +86,13 @@ class _TeacherInviteStudentScreenState
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     if (ok) {
-      setState(() => _invited.add(r.uid));
+      // Davet gitti → arama alanını TEMİZLE; sıradaki öğrenci için yer aç.
+      setState(() {
+        _invited.add(r.uid);
+        _results = const [];
+        _searched = false;
+        _searchCtrl.clear();
+      });
       messenger.showSnackBar(SnackBar(
         // İsim .tr() DIŞINDA — interpolasyonlu anahtar sözlükte eşleşmez.
         content: Text('${'Davet gönderildi'.tr()}: @${r.username}'),
@@ -99,75 +128,105 @@ class _TeacherInviteStudentScreenState
         ),
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Arama kutusu
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+        // Arama paneli EKRANIN TAM ORTASINDA — kutu + canlı sonuçlar tek
+        // çerçevede; sonuç geldikçe panel aşağı doğru büyür.
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
               child: Container(
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: AppPalette.card(context),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppPalette.border(context)),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                      color: _kBrand.withValues(alpha: 0.30)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.10),
+                      blurRadius: 18, offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.search_rounded, color: muted, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _searchCtrl,
-                        textInputAction: TextInputAction.search,
-                        onSubmitted: (_) => _search(),
-                        style: GoogleFonts.poppins(
-                          fontSize: 13.5, fontWeight: FontWeight.w600,
-                          color: ink,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Kullanıcı adı ara...'.tr(),
-                          hintStyle: GoogleFonts.poppins(
-                              fontSize: 13, color: muted),
-                          border: InputBorder.none,
-                          isDense: true,
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 13),
-                        ),
+                    // Arama kutusu — yazdıkça sonuçlar canlı gelir.
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppPalette.bg(context),
+                        borderRadius: BorderRadius.circular(14),
+                        border:
+                            Border.all(color: AppPalette.border(context)),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.search_rounded,
+                              color: muted, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextField(
+                              controller: _searchCtrl,
+                              autofocus: true,
+                              textInputAction: TextInputAction.search,
+                              onChanged: _onQueryChanged,
+                              onSubmitted: (_) => _search(),
+                              style: GoogleFonts.poppins(
+                                fontSize: 13.5, fontWeight: FontWeight.w600,
+                                color: ink,
+                              ),
+                              decoration: InputDecoration(
+                                hintText:
+                                    'Kullanıcı adı yaz — sonuçlar anında gelir'
+                                        .tr(),
+                                hintStyle: GoogleFonts.poppins(
+                                    fontSize: 13, color: muted),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 13),
+                              ),
+                            ),
+                          ),
+                          if (_searching)
+                            const SizedBox(
+                              width: 16, height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: _kBrand),
+                            ),
+                        ],
                       ),
                     ),
-                    TextButton(
-                      onPressed: _searching ? null : _search,
-                      child: Text('Ara'.tr(),
-                          style: GoogleFonts.poppins(
-                            fontSize: 13, fontWeight: FontWeight.w800,
-                            color: _kBrand,
-                          )),
+                    const SizedBox(height: 10),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 380),
+                      child: _buildResults(context, ink, muted),
                     ),
                   ],
                 ),
               ),
             ),
-            Expanded(child: _buildResults(context, ink, muted)),
-          ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildResults(BuildContext context, Color ink, Color muted) {
-    if (_searching) {
-      return const Center(child: CircularProgressIndicator());
-    }
     if (!_searched) {
       return _hint(context, '🔍',
-          'Sınıfına eklemek istediğin öğrencinin kullanıcı adını ara.'.tr());
+          'Sınıfına eklemek istediğin öğrencinin kullanıcı adını yazmaya '
+          'başla — eşleşenler anında listelenir.'.tr());
     }
     if (_results.isEmpty) {
       return _hint(context, '🤷',
           'Bu kullanıcı adıyla öğrenci bulunamadı.'.tr());
     }
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      shrinkWrap: true,
+      padding: const EdgeInsets.only(top: 2),
       itemCount: _results.length,
       itemBuilder: (ctx, i) {
         final r = _results[i];
@@ -243,22 +302,20 @@ class _TeacherInviteStudentScreenState
   }
 
   Widget _hint(BuildContext c, String emoji, String text) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 40)),
-            const SizedBox(height: 12),
-            Text(text,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.poppins(
-                  fontSize: 13, color: AppPalette.textSecondary(c),
-                  height: 1.45,
-                )),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 34)),
+          const SizedBox(height: 10),
+          Text(text,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 13, color: AppPalette.textSecondary(c),
+                height: 1.45,
+              )),
+        ],
       ),
     );
   }

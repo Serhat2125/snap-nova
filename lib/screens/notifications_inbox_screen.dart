@@ -18,6 +18,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:google_fonts/google_fonts.dart';
 
 import '../services/account_service.dart';
@@ -127,7 +128,10 @@ class NotificationsInboxScreen extends StatelessWidget {
                   final docs = (snap.data?.docs ?? const []).where((d) {
                     final t = (d.data()['type'] ?? '').toString();
                     if (isTeacher) return _kTeacherNotifTypes.contains(t);
-                    if (isParent) return kParentNotifTypes.contains(t);
+                    // EBEVEYN: kutusuna düşen HER bildirimi görür — beyaz
+                    // liste dışında kalan tipler (örn. çocuk hesabından fan
+                    // edilen yeni bir tip) sessizce kaybolmasın.
+                    if (isParent) return true;
                     return !_kTeacherNotifTypes.contains(t) &&
                         !_kParentOnlyTypes.contains(t);
                   }).toList();
@@ -191,6 +195,7 @@ class _NotificationCard extends StatelessWidget {
       case 'parent_ack':          return Icons.mark_email_read_rounded;
       case 'parent_gift':         return Icons.card_giftcard_rounded;
       case 'teacher_note':        return Icons.rate_review_rounded;
+      case 'material':            return Icons.attach_file_rounded;
       case 'child_homework':      return Icons.assignment_rounded;
       case 'child_submission':    return Icons.task_alt_rounded;
       case 'child_class_invite':  return Icons.group_add_rounded;
@@ -226,6 +231,7 @@ class _NotificationCard extends StatelessWidget {
       case 'parent_ack':          return const Color(0xFF10B981);
       case 'parent_gift':         return const Color(0xFFEC4899);
       case 'teacher_note':        return const Color(0xFF10B981);
+      case 'material':            return const Color(0xFF14B8A6);
       case 'child_homework':      return const Color(0xFF7C3AED);
       case 'child_submission':    return const Color(0xFF10B981);
       case 'child_class_invite':  return const Color(0xFF7C3AED);
@@ -286,6 +292,9 @@ class _NotificationCard extends StatelessWidget {
       case 'teacher_note':
         // addNote / pushOnTeacherNote title alanını doğrudan yazar.
         return (data['title'] ?? 'Öğretmeninden not 📝'.tr()).toString();
+      case 'material':
+        // shareMaterial title alanını doğrudan yazar.
+        return (data['title'] ?? 'Yeni kaynak 📎'.tr()).toString();
       case 'child_homework':
       case 'child_submission':
       case 'child_class_invite':
@@ -307,14 +316,43 @@ class _NotificationCard extends StatelessWidget {
     }
   }
 
+  /// "Ad Soyad (kullanıcıadı)" — displayName boşsa username, o da boşsa
+  /// "Bir öğrenci". displayName == username ise parantez tekrar edilmez.
+  String _studentWhoFull(Map<String, dynamic> data) {
+    final name = (data['fromDisplayName'] ?? '').toString().trim();
+    final uname = (data['fromUsername'] ?? '').toString().trim();
+    final who = name.isNotEmpty
+        ? name
+        : (uname.isNotEmpty ? uname : 'Bir öğrenci'.tr());
+    return uname.isNotEmpty && who != uname ? '$who ($uname)' : who;
+  }
+
   String _subtitleFor(String type, Map<String, dynamic> data) {
     switch (type) {
       case 'parent_link_request':
         return '${data['fromDisplayName'] ?? data['fromUsername'] ?? ''} ${'senin için izin istedi.'.tr()}';
       case 'parent_linked':
         return '${data['fromDisplayName'] ?? data['fromUsername'] ?? ''} ${'paylaştığın kodla bağlandı — artık gelişimini görebilir.'.tr()}';
-      case 'homework_assigned':
-        return 'Sınıfa yeni ödev geldi — bitişe kadar tamamla.'.tr();
+      case 'homework_assigned': {
+        // "Ayşe Yılmaz öğretmenin Fizik dersinden 'Dalgalar' konulu yeni bir
+        // ödev gönderdi — başarılar!" — eski kayıtlarda bu alanlar yoksa
+        // genel metne düşülür.
+        final tName = (data['teacherName'] ?? '').toString().trim();
+        final subj = (data['subject'] ?? '').toString().trim();
+        final top = (data['topic'] ?? '').toString().trim();
+        if (tName.isEmpty && subj.isEmpty && top.isEmpty) {
+          return 'Sınıfa yeni ödev geldi — bitişe kadar tamamla.'.tr();
+        }
+        final who = tName.isNotEmpty
+            ? '$tName ${'öğretmenin'.tr()}'
+            : 'Öğretmenin'.tr();
+        return [
+          who,
+          if (subj.isNotEmpty) '$subj ${'dersinden'.tr()}',
+          if (top.isNotEmpty) '"$top" ${'konulu'.tr()}',
+          '${'yeni bir ödev gönderdi — başarılar!'.tr()} 🍀',
+        ].join(' ');
+      }
       case 'homework_reminder':
         return 'Bu ödevin bitişine 2 saatten az kaldı.'.tr();
       case 'streak_milestone':
@@ -325,14 +363,21 @@ class _NotificationCard extends StatelessWidget {
             '${data['subject'] ?? ''} ${'dersine davet etti. Katılmak için dokun.'.tr()}';
       case 'class_announcement':
         return (data['message'] ?? '').toString();
-      case 'homework_submission':
-        return '${data['fromDisplayName'] ?? 'Bir öğrenci'.tr()} '
+      case 'homework_submission': {
+        // "Zeynep (zeynep123), 'Dalgalar' konulu 'kolay odev' ödevini teslim
+        // etti." — öğretmen kimin hangi konuda ne teslim ettiğini net görsün.
+        final hsTopic = (data['topic'] ?? '').toString().trim();
+        return '${_studentWhoFull(data)}, '
+            '${hsTopic.isNotEmpty ? '"$hsTopic" ${'konulu'.tr()} ' : ''}'
             '"${data['homeworkTitle'] ?? ''}" ${'ödevini teslim etti.'.tr()}';
+      }
       case 'student_joined':
         return '${data['className'] ?? ''} ${'sınıfından'.tr()} '
-            '${data['fromDisplayName'] ?? 'bir öğrenci'.tr()} ${'katıldı.'.tr()}';
+            '${_studentWhoFull(data)} ${'katıldı.'.tr()}';
       case 'student_join_request':
-        return '${data['fromDisplayName'] ?? 'Bir öğrenci'.tr()} '
+        // Ad Soyad (kullanıcıadı) — öğretmen isteğin kimden geldiğini net
+        // görsün; kod yabancının eline geçtiyse tanımadığını reddedebilsin.
+        return '${_studentWhoFull(data)} '
             '"${data['className'] ?? ''}" '
             '${'sınıfına kodla katılmak istiyor. Onaylamak için dokun.'.tr()}';
       case 'class_join_approved':
@@ -365,6 +410,7 @@ class _NotificationCard extends StatelessWidget {
       case 'teacher_note':
       case 'parent_ack':
       case 'parent_gift':
+      case 'material':
         return (data['body'] ?? data['message'] ?? '').toString();
       case 'child_homework':
       case 'child_submission':
@@ -476,8 +522,7 @@ class _NotificationCard extends StatelessWidget {
       BuildContext context, Map<String, dynamic> data) async {
     final classId = (data['classId'] ?? '').toString();
     final studentUid = (data['studentUid'] ?? '').toString();
-    final studentName =
-        (data['fromDisplayName'] ?? 'Bir öğrenci'.tr()).toString();
+    final studentName = _studentWhoFull(data);
     final className = (data['className'] ?? '').toString();
     if (classId.isEmpty || studentUid.isEmpty) return;
     // Öğrenci hâlâ onay bekliyor mu? (Başka cihazdan işlenmiş olabilir.)
@@ -580,6 +625,49 @@ class _NotificationCard extends StatelessWidget {
     ));
   }
 
+  /// Uzun basınca: bildirim eylemleri — Sil.
+  Future<void> _showActions(BuildContext context) async {
+    HapticFeedback.mediumImpact();
+    final del = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: AppPalette.card(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: AppPalette.border(ctx),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 4),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded,
+                  color: Color(0xFFEF4444)),
+              title: Text('Bildirimi sil'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 14, fontWeight: FontWeight.w700,
+                    color: const Color(0xFFEF4444),
+                  )),
+              onTap: () => Navigator.pop(ctx, true),
+            ),
+            const SizedBox(height: 4),
+          ],
+        ),
+      ),
+    );
+    if (del != true) return;
+    try {
+      await doc.reference.delete();
+    } catch (_) {/* offline vb. — sessiz geç, stream zaten günceller */}
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = doc.data();
@@ -595,6 +683,7 @@ class _NotificationCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: () => _onTap(context),
+        onLongPress: () => _showActions(context),
         child: Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),

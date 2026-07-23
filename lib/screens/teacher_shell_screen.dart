@@ -87,7 +87,12 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
         foregroundColor: Colors.white,
         elevation: 3,
         shape: const CircleBorder(),
-        onPressed: () => _openCreateMenu(context),
+        onPressed: () {
+          // Profil sekmesindeyken ➕ → önce Sınıflar sekmesine geç; menü
+          // kapanınca öğretmen kendini profilde değil sınıflarında bulur.
+          if (_index != 0) setState(() => _index = 0);
+          _openCreateMenu(context);
+        },
         child: const Icon(Icons.add_rounded, size: 30),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -145,7 +150,12 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       elevation: 0,
-      builder: (ctx) => SafeArea(
+      builder: (ctx) => GestureDetector(
+        // Kart DIŞINDA kalan şeffaf alanlar da sheet'in parçası — oralara
+        // dokununca da menü hemen kapansın (yalnız üstteki barrier değil).
+        behavior: HitTestBehavior.translucent,
+        onTap: () => Navigator.pop(ctx),
+        child: SafeArea(
         child: Padding(
           // Ortadaki ➕ FAB + alt bar üstünde, hizasında yukarı açılır.
           padding: const EdgeInsets.only(bottom: 78, left: 16, right: 16),
@@ -153,7 +163,9 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
             alignment: Alignment.bottomCenter,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 280),
-              child: Container(
+              child: GestureDetector(
+                onTap: () {/* kartın kendisine dokunuş menüyü kapatmasın */},
+                child: Container(
                 // Tüm seçenekleri saran tek dış çerçeve.
                 padding: const EdgeInsets.fromLTRB(10, 10, 10, 2),
                 decoration: BoxDecoration(
@@ -208,9 +220,11 @@ class _TeacherShellScreenState extends State<TeacherShellScreen> {
                   }),
                   ],
                 ),
+                ),
               ),
             ),
           ),
+        ),
         ),
       ),
     );
@@ -970,6 +984,13 @@ const _teacherGreetings = <String>[
   "Bir öğretmenin bakışı bazen bin kelimeden güçlüdür 👀",
   "Sınıfın enerjisi yükselirse sakin kal, sen kaptansın 🚢",
   "Öğretmenlik: Aynı anda psikolog, rehber, lider ve dedektif olmak 🕵️",
+  // Uzun & etkileyici
+  "Bugün de ilham olmaya hazır mısın? Sınıfına gireceğin o an, birilerinin gününü ve belki geleceğini değiştirecek 🚀",
+  "Yıllar sonra bir öğrencin bugünü hatırlayacak ve 'O gün öğretmenim bana inanmıştı' diyecek — o günü bugün yazıyorsun 💛",
+  "Anlattığın konu unutulabilir ama sınıfına kattığın güven, cesaret ve merak bir ömür boyu taşınır 🌟",
+  "Kimi gün yorulur, kimi gün tükendiğini hissedersin; ama unutma, senin 'sıradan' bir dersin bile bir çocuğun en iyi anısı olabilir ☀️",
+  "Bir sınıf dolusu farklı hayal, farklı hikâye ve farklı potansiyel seni bekliyor — hepsinin ortak noktası sensin 🧩",
+  "Bugün soracağın tek bir güzel soru, bir öğrencinin zihninde yıllarca sürecek bir merak ateşi yakabilir 🔥",
 ];
 // Sıralı gösterim: son gösterilen indeks (bellek) + prefs ilk yükleme bayrağı.
 // Her girişte sıradaki cümle gösterilir; uygulama kapansa da kaldığı yerden devam.
@@ -1035,41 +1056,26 @@ class _TeacherHomeHeaderState extends State<_TeacherHomeHeader> {
         Container(
           width: double.infinity,
           margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           decoration: BoxDecoration(
+            // Solda KOYU yeşil → sağa doğru açılan yeşil (kullanıcı isteği).
             gradient: const LinearGradient(
-              colors: [Color(0xFF7C3AED), Color(0xFF6366F1), Color(0xFF06B6D4)],
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
+              colors: [Color(0xFF064E3B), Color(0xFF059669), Color(0xFF34D399)],
+              begin: Alignment.centerLeft, end: Alignment.centerRight,
             ),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: _kBrand.withValues(alpha: 0.35),
+                color: const Color(0xFF10B981).withValues(alpha: 0.35),
                 blurRadius: 16, offset: const Offset(0, 6),
               ),
             ],
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 38, height: 38,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.22),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: const Icon(Icons.auto_awesome_rounded,
-                    color: Colors.white, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(_greeting.tr(),
-                    style: GoogleFonts.poppins(
-                        fontSize: 14, fontWeight: FontWeight.w800,
-                        height: 1.3, color: Colors.white)),
-              ),
-            ],
-          ),
+          // Logo/ikon YOK — cümle tüm karta yayılır.
+          child: Text(_greeting.tr(),
+              style: GoogleFonts.poppins(
+                  fontSize: 14, fontWeight: FontWeight.w800,
+                  height: 1.35, color: Colors.white)),
         ),
         // ── Günün özeti + istatistik rozetleri (ayrı sade kart) ──
         Container(

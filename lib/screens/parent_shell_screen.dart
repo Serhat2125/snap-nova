@@ -17,6 +17,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -88,7 +89,12 @@ class _ParentShellScreenState extends State<ParentShellScreen> {
         foregroundColor: Colors.white,
         elevation: 3,
         shape: const CircleBorder(),
-        onPressed: () => _openCreateMenu(context),
+        onPressed: () {
+          // Profil sekmesindeyken ➕ → önce ANA SAYFAYA (Çocuklarım) geç;
+          // menü kapanınca ebeveyn kendini profilde değil ana sayfada bulur.
+          if (_index != 0) setState(() => _index = 0);
+          _openCreateMenu(context);
+        },
         child: const Icon(Icons.add_rounded, size: 30),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -204,11 +210,14 @@ class _ParentShellScreenState extends State<ParentShellScreen> {
                     }),
                     _createChip(ctx, '🎁', 'Sürpriz Gönder'.tr(), () async {
                       Navigator.pop(ctx);
+                      // Bildirimin GERÇEKTEN gitmesi için bağlı çocuk şart —
+                      // yoksa kullanıcıyı bilgilendir (sessiz boş-uid akışı
+                      // "gönderildi sanma" yanılgısı yaratıyordu).
                       final child =
-                          await _pickChild(context, warnIfEmpty: false);
-                      if (!context.mounted) return;
+                          await _pickChild(context, warnIfEmpty: true);
+                      if (child == null || !context.mounted) return;
                       showParentSurpriseSheet(context,
-                          realChildUid: child?.uid ?? '',
+                          realChildUid: child.uid,
                           childName: _childLabel(child));
                     }),
                     _createChip(ctx, '📄', 'PDF Karne'.tr(), () async {
@@ -771,6 +780,8 @@ class _ParentHomeTabState extends State<_ParentHomeTab>
     super.dispose();
   }
 
+  // Yüzer düğme ☰ menüye taşındı — konum kaydı şimdilik kullanılmıyor.
+  // ignore: unused_element
   void _saveStudentBtnPos() {
     final pos = _studentBtnPos.value;
     if (pos == null) return;
@@ -1290,7 +1301,9 @@ class _ParentHomeTabState extends State<_ParentHomeTab>
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  Center(
+                  // Başlık tam ortadan BİRAZ SOLA kaydırıldı (kullanıcı isteği).
+                  Align(
+                    alignment: const Alignment(-0.35, 0),
                     child: Text('Ebeveyn Paneli'.tr(),
                         style: GoogleFonts.poppins(
                           fontSize: 20,
@@ -1667,53 +1680,9 @@ class _ParentHomeTabState extends State<_ParentHomeTab>
                     ),
                   ),
                 ),
-              // ── SÜRÜKLENEBİLİR "Öğrenci Paneli" düğmesi ─────────────
-              //    Eski işleviyle (salt-izleme önizleme); basılı tutup
-              //    sürükleyerek istediğin yere bırakılabilir, yeri kalıcı.
-              //    ValueListenableBuilder: sürüklerken yalnız bu düğme
-              //    yeniden çizilir; delta notifier üzerinde biriktirilir
-              //    (kare atlansa bile hareket kaybolmaz).
-              ValueListenableBuilder<Offset?>(
-                valueListenable: _studentBtnPos,
-                builder: (context, p, child) {
-                  final pos = p ??
-                      Offset(cons.maxWidth - 178, cons.maxHeight - 64);
-                  return Positioned(
-                    left: pos.dx.clamp(4.0, cons.maxWidth - 160),
-                    top: pos.dy.clamp(4.0, cons.maxHeight - 44),
-                    child: GestureDetector(
-                      onTap: _openStudentPreview,
-                      onPanUpdate: (d) => _studentBtnPos.value =
-                          (_studentBtnPos.value ?? pos) + d.delta,
-                      onPanEnd: (_) => _saveStudentBtnPos(),
-                      child: child!,
-                    ),
-                  );
-                },
-                child: Material(
-                    color: _kBrand,
-                    elevation: 6,
-                    borderRadius: BorderRadius.circular(999),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.school_rounded,
-                              size: 17, color: Colors.white),
-                          const SizedBox(width: 6),
-                          Text('Öğrenci Paneli'.tr(),
-                              style: GoogleFonts.poppins(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                              )),
-                        ],
-                      ),
-                    ),
-                  ),
-              ),
+              // NOT: Yüzer "Öğrenci Paneli" düğmesi kaldırıldı — aynı işlev
+              // artık ☰ menüde "Öğrenci Paneli" olarak (Yeni Çocuk Ekle'nin
+              // hemen altında) yaşıyor.
             ],
           );
         });
@@ -1970,6 +1939,9 @@ class _ParentHomeTabState extends State<_ParentHomeTab>
                           item(ctx, 0, '🎨', 'Renk Paletini Değiştir'.tr()),
                           item(ctx, 1, '✈️', 'Gönder'.tr()),
                           item(ctx, 2, '👶', 'Yeni Çocuk Ekle'.tr()),
+                          // Yüzer düğmeden buraya taşındı — salt-izleme
+                          // öğrenci deneyimi önizlemesi.
+                          item(ctx, 4, '🎓', 'Öğrenci Paneli'.tr()),
                           item(ctx, 3, '❓', 'Nasıl Çalışır?'.tr()),
                         ],
                       ),
@@ -1990,6 +1962,8 @@ class _ParentHomeTabState extends State<_ParentHomeTab>
         sharePageShot(context, _shotKey, '${'Ebeveyn Paneli'.tr()} 📊');
       case 2:
         _showAddChildDialog();
+      case 4:
+        _openStudentPreview();
       case 3:
         showTeacherHelpDialog(context,
             title: 'Bu sayfa nasıl çalışır?',
@@ -2114,10 +2088,9 @@ class _ParentHomeTabState extends State<_ParentHomeTab>
           .limit(30)
           .snapshots(),
       builder: (context, snap) {
-        final unread = snap.data?.docs.where((d) {
-          final t = (d.data()['type'] ?? '').toString();
-          return kParentNotifTypes.contains(t);
-        }).length ?? 0;
+        // Kutusuna düşen TÜM okunmamışlar sayılır — gelen kutusu da artık
+        // tip süzmeden hepsini gösteriyor (rozet ve liste tutarlı olsun).
+        final unread = snap.data?.docs.length ?? 0;
         if (unread == 0) return bell;
         return Stack(
           clipBehavior: Clip.none,
@@ -2705,21 +2678,49 @@ class _ParentHomeTabState extends State<_ParentHomeTab>
 //  ParentPreview.active bu rota açıkken true; üretim/yarışma eylemleri her
 //  ekranda ParentPreview.guard ile kapalı.
 // ═══════════════════════════════════════════════════════════════════════════
-class _StudentPreviewShell extends StatelessWidget {
+class _StudentPreviewShell extends StatefulWidget {
   const _StudentPreviewShell();
 
   @override
+  State<_StudentPreviewShell> createState() => _StudentPreviewShellState();
+}
+
+class _StudentPreviewShellState extends State<_StudentPreviewShell> {
+  // İÇ İÇE Navigator: önizlemede açılan TÜM sayfalar bu navigator'a push
+  // edilir — dönüş çipi Stack'in üstünde olduğundan hangi sayfaya girilirse
+  // girilsin görünür kalır (eskiden kök navigator'a push edilip çipi
+  // örtüyordu).
+  final _navKey = GlobalKey<NavigatorState>();
+  // Dönüş çipi SÜRÜKLENEBİLİR — basılı tutup istediğin yere taşı.
+  Offset? _chipPos;
+
+  @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        CameraScreen(),
-        // Dönüş çipi — öğrenci görünümünün üstünde her zaman erişilebilir.
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 18,
-          child: SafeArea(
-            child: Center(
+    return LayoutBuilder(builder: (context, cons) {
+      const chipW = 250.0, chipH = 46.0;
+      // Varsayılan konum alt sekme çubuğunun ÜSTÜ — çip, öğrenci panelindeki
+      // alt gezinme sekmelerini kapatmasın (istenirse sürüklenip taşınır).
+      final pos = _chipPos ??
+          Offset((cons.maxWidth - chipW) / 2, cons.maxHeight - chipH - 150);
+      return Stack(
+        children: [
+          NavigatorPopHandler(
+            // Sistem geri tuşu önce İÇTEKİ sayfaları kapatsın; içeride sayfa
+            // kalmayınca önizleme rotasının kendisi kapanır.
+            onPopWithResult: (_) => _navKey.currentState?.maybePop(),
+            child: Navigator(
+              key: _navKey,
+              onGenerateRoute: (settings) =>
+                  MaterialPageRoute(builder: (_) => CameraScreen()),
+            ),
+          ),
+          // Dönüş çipi — HER sayfada görünür; sürüklenerek taşınabilir.
+          Positioned(
+            left: pos.dx.clamp(4.0, math.max(4.0, cons.maxWidth - chipW)),
+            top: pos.dy.clamp(4.0, math.max(4.0, cons.maxHeight - chipH)),
+            child: GestureDetector(
+              onPanUpdate: (d) =>
+                  setState(() => _chipPos = (_chipPos ?? pos) + d.delta),
               child: Material(
                 color: _kBrand,
                 borderRadius: BorderRadius.circular(999),
@@ -2733,30 +2734,18 @@ class _StudentPreviewShell extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        const Icon(Icons.drag_indicator_rounded,
+                            size: 15, color: Colors.white70),
+                        const SizedBox(width: 4),
                         const Icon(Icons.family_restroom_rounded,
                             size: 18, color: Colors.white),
                         const SizedBox(width: 8),
-                        Text('Ebeveyn Paneli'.tr(),
+                        Text('Ebeveyn paneline geri dön'.tr(),
                             style: GoogleFonts.poppins(
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
                               color: Colors.white,
                             )),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.20),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text('önizleme'.tr(),
-                              style: GoogleFonts.poppins(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              )),
-                        ),
                       ],
                     ),
                   ),
@@ -2764,8 +2753,8 @@ class _StudentPreviewShell extends StatelessWidget {
               ),
             ),
           ),
-        ),
-      ],
-    );
+        ],
+      );
+    });
   }
 }

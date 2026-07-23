@@ -30,6 +30,7 @@ import '../services/exam_catalog.dart' show ExamDefinition, examGroupsFor;
 import '../services/labirent_pool_service.dart';
 import '../services/labyrinth_quiz_gen.dart';
 import '../services/locale_service.dart';
+import '../services/parent_preview.dart';
 import '../services/school_structure.dart';
 import '../services/runtime_translator.dart';
 import '../services/tts_service.dart';
@@ -828,6 +829,39 @@ obs.observe(document.body,{childList:true,subtree:true,characterData:true});walk
 
   @override
   Widget build(BuildContext context) {
+    // Ebeveyn önizlemesi: oyun OYNANMAZ — yalnız ne olduğu anlatılır.
+    if (ParentPreview.active) {
+      return Scaffold(
+        backgroundColor: _bg,
+        appBar: AppBar(
+          backgroundColor: _bg,
+          foregroundColor: const Color(0xFFF3E9D2),
+          elevation: 0,
+          title: Text('Bilgi Labirenti'.tr()),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('👁️', style: TextStyle(fontSize: 44)),
+                const SizedBox(height: 12),
+                Text(
+                  'Öğrenci paneli önizlemesi — oyunlar yalnızca öğrenci '
+                          'hesabında oynanabilir. Çocuğun burada 3D labirentte '
+                          'ilerleyip müfredat sorularını çözerek öğrenir.'
+                      .tr(),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      color: Color(0xFFF3E9D2), fontSize: 14, height: 1.5),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return RepaintBoundary(
       key: _shotKey,
       child: PopScope(

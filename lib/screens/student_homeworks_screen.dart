@@ -49,11 +49,30 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
   static const int _bgCount = 5;
   int? _bgIndex;
 
+  // ── Düzen katmanları: filtre çipleri + arama + geçmiş arşivi ────────────
+  // Kurallar: arama aktifken gruplar/arşiv düzleşir; çip+arama VE mantığıyla
+  // çalışır; boş grup başlığı gizlenir.
+  String? _filterSubject; // null = tüm dersler
+  String? _filterClassId; // null = tüm sınıflar
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _search = '';
+  bool _archiveOpen = false;
+  /// Arama kutusu bu sayıdan çok ödev olunca görünür (azken yer israfı).
+  static const int _kSearchThreshold = 15;
+  /// Teslim edilmiş ve bitişi bu kadar geçmiş ödevler arşive katlanır.
+  static const Duration _kArchiveAfter = Duration(days: 21);
+
   @override
   void initState() {
     super.initState();
     _loadBgPref();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadBgPref() async {
@@ -278,6 +297,54 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
     // Bitiş tarihine göre sırala — en yakın bitenler önce
     allHws.sort((a, b) => a.$2.dueAt.compareTo(b.$2.dueAt));
 
+    // ── Çip verileri (eldeki ödevlerden otomatik türetilir) ────────────────
+    final chipSubjects = allHws
+        .map((e) => e.$2.subject.trim())
+        .where((s) => s.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    final chipClasses = _classes
+        .where((c) => (_byClass[c.classId] ?? const []).isNotEmpty)
+        .toList();
+
+    // ── Filtre + arama (VE mantığı) ────────────────────────────────────────
+    final q = _search.trim().toLowerCase();
+    bool matches((JoinedClass, HomeworkModel) e) {
+      if (_filterSubject != null &&
+          e.$2.subject.trim() != _filterSubject) {
+        return false;
+      }
+      if (_filterClassId != null && e.$1.classId != _filterClassId) {
+        return false;
+      }
+      if (q.isNotEmpty) {
+        final hay = '${e.$2.title} ${e.$2.topic} ${e.$2.subject} '
+                '${e.$1.className} ${e.$1.teacherDisplayName}'
+            .toLowerCase();
+        if (!hay.contains(q)) return false;
+      }
+      return true;
+    }
+
+    final filtered = allHws.where(matches).toList();
+    // Gruplar: Yapılacaklar (bitişe göre artan) / Teslim edilenler (yeni→eski)
+    // / Geçmiş arşivi (teslim edilmiş + bitişi 3 haftadan eski).
+    final now = DateTime.now();
+    final todo = filtered
+        .where((e) => !(_mySubmissions[e.$2.id]?.isSubmitted ?? false))
+        .toList();
+    final doneAll = filtered
+        .where((e) => _mySubmissions[e.$2.id]?.isSubmitted ?? false)
+        .toList()
+      ..sort((a, b) => b.$2.dueAt.compareTo(a.$2.dueAt));
+    final archiveCut = now.subtract(_kArchiveAfter);
+    final archived =
+        doneAll.where((e) => e.$2.dueAt.isBefore(archiveCut)).toList();
+    final done =
+        doneAll.where((e) => !e.$2.dueAt.isBefore(archiveCut)).toList();
+    final searching = q.isNotEmpty;
+
     return Scaffold(
       backgroundColor: AppPalette.bg(context),
       appBar: AppBar(
@@ -330,10 +397,17 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
                   // Onay bekleyen sınıflar — ödevler öğretmen onayına kadar gizli.
                   for (final c in _pendingClasses)
                     _buildPendingBanner(context, c),
+                  // Arama kutusu — yalnızca liste kalabalıklaşınca görünür.
+                  if (allHws.length > _kSearchThreshold)
+                    _buildSearchBar(context),
+                  // Ders + sınıf filtre çipleri (birden çok seçenek varsa).
+                  if (allHws.isNotEmpty &&
+                      (chipSubjects.length > 1 || chipClasses.length > 1))
+                    _buildFilterChips(context, chipSubjects, chipClasses),
                   Expanded(child: RefreshIndicator(
                 onRefresh: _load,
-                child: allHws.isEmpty
-                    // Boş/hata durumunda da aşağı çekilebilsin diye
+                child: allHws.isEmpty || filtered.isEmpty
+                    // Boş/hata/sonuçsuz durumda da aşağı çekilebilsin diye
                     // kaydırılabilir sarmalayıcı.
                     ? LayoutBuilder(
                         builder: (ctx, cons) => SingleChildScrollView(
@@ -342,33 +416,299 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
                             height: cons.maxHeight,
                             child: _error
                                 ? _buildError(context)
-                                : _buildEmpty(context),
+                                : allHws.isEmpty
+                                    ? _buildEmpty(context)
+                                    : _buildNoResults(context),
                           ),
                         ),
                       )
-                    : ListView.builder(
+                    : ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                        itemCount: allHws.length,
-                        itemBuilder: (ctx, i) {
-                          final (cls, hw) = allHws[i];
-                          final sub = _mySubmissions[hw.id];
-                          // Sınıf içi "kaçıncı ödev" — bitiş tarihine göre
-                          // eski→yeni sıra (analiz ekranı başlığı için).
-                          final sameClass = allHws
-                              .where((e) => e.$1.classId == cls.classId)
-                              .map((e) => e.$2)
-                              .toList()
-                            ..sort((a, b) => a.dueAt.compareTo(b.dueAt));
-                          final orderNo =
-                              sameClass.indexWhere((h) => h.id == hw.id) + 1;
-                          return _buildHwCard(context, cls, hw, sub, ink,
-                              muted, orderNo);
-                        },
+                        children: [
+                          if (searching)
+                            // Arama aktif → düz sonuç listesi (grup/arşiv yok;
+                            // sonuç arşiv içinde "gizli kalmasın").
+                            for (final e in filtered)
+                              _hwCardFor(context, e, allHws, ink, muted)
+                          else ...[
+                            if (todo.isNotEmpty) ...[
+                              _sectionHeader(context, '📌', 'Yapılacaklar'.tr(),
+                                  todo.length, const Color(0xFFF59E0B)),
+                              for (final e in todo)
+                                _hwCardFor(context, e, allHws, ink, muted),
+                            ],
+                            if (done.isNotEmpty) ...[
+                              _sectionHeader(context, '✅',
+                                  'Teslim edilenler'.tr(), done.length,
+                                  const Color(0xFF10B981)),
+                              for (final e in done)
+                                _hwCardFor(context, e, allHws, ink, muted),
+                            ],
+                            if (archived.isNotEmpty) ...[
+                              _archiveHeader(context, archived.length),
+                              if (_archiveOpen)
+                                for (final e in archived)
+                                  _hwCardFor(context, e, allHws, ink, muted),
+                            ],
+                          ],
+                        ],
                       ),
               )),
                 ],
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Kart + sınıf içi sıra numarası (analiz ekranı başlığı için).
+  Widget _hwCardFor(
+      BuildContext context,
+      (JoinedClass, HomeworkModel) e,
+      List<(JoinedClass, HomeworkModel)> allHws,
+      Color ink,
+      Color muted) {
+    final (cls, hw) = e;
+    final sameClass = allHws
+        .where((x) => x.$1.classId == cls.classId)
+        .map((x) => x.$2)
+        .toList()
+      ..sort((a, b) => a.dueAt.compareTo(b.dueAt));
+    final orderNo = sameClass.indexWhere((h) => h.id == hw.id) + 1;
+    return _buildHwCard(
+        context, cls, hw, _mySubmissions[hw.id], ink, muted, orderNo);
+  }
+
+  /// Grup başlığı: emoji + ad + adet rozeti.
+  Widget _sectionHeader(BuildContext context, String emoji, String title,
+      int count, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 10),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 15)),
+          const SizedBox(width: 7),
+          Text(title,
+              style: GoogleFonts.poppins(
+                fontSize: 13.5, fontWeight: FontWeight.w900,
+                color: AppPalette.textPrimary(context),
+              )),
+          const SizedBox(width: 7),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1.5),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text('$count',
+                style: GoogleFonts.poppins(
+                  fontSize: 11, fontWeight: FontWeight.w800, color: color,
+                )),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Divider(color: AppPalette.border(context), height: 1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Geçmiş ödevler — katlanabilir arşiv başlığı.
+  Widget _archiveHeader(BuildContext context, int count) {
+    final muted = AppPalette.textSecondary(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => setState(() => _archiveOpen = !_archiveOpen),
+        child: Container(
+          margin: const EdgeInsets.only(top: 4, bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            color: AppPalette.card(context).withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppPalette.border(context)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.inventory_2_outlined, size: 17, color: muted),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('${'Geçmiş ödevler'.tr()} ($count)',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12.5, fontWeight: FontWeight.w800,
+                      color: AppPalette.textPrimary(context),
+                    )),
+              ),
+              Icon(
+                _archiveOpen
+                    ? Icons.expand_less_rounded
+                    : Icons.expand_more_rounded,
+                size: 20, color: muted,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Arama kutusu — başlık/konu/ders/sınıf/öğretmen adında arar.
+  Widget _buildSearchBar(BuildContext context) {
+    final muted = AppPalette.textSecondary(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppPalette.card(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppPalette.border(context)),
+        ),
+        child: TextField(
+          controller: _searchCtrl,
+          onChanged: (v) => setState(() => _search = v),
+          style: GoogleFonts.poppins(
+              fontSize: 13, fontWeight: FontWeight.w600,
+              color: AppPalette.textPrimary(context)),
+          decoration: InputDecoration(
+            hintText: 'Ödev, konu, ders veya öğretmen ara…'.tr(),
+            hintStyle: GoogleFonts.poppins(fontSize: 12.5, color: muted),
+            prefixIcon: Icon(Icons.search_rounded, size: 20, color: muted),
+            suffixIcon: _search.isEmpty
+                ? null
+                : IconButton(
+                    icon: Icon(Icons.close_rounded, size: 18, color: muted),
+                    onPressed: () => setState(() {
+                      _searchCtrl.clear();
+                      _search = '';
+                    }),
+                  ),
+            border: InputBorder.none,
+            isDense: true,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Ders + sınıf filtre çipleri — "Tümü" + otomatik türetilen seçenekler.
+  Widget _buildFilterChips(BuildContext context, List<String> subjects,
+      List<JoinedClass> classes) {
+    Widget chip(String label, bool selected, VoidCallback onTap,
+        {String? emoji}) {
+      const brand = Color(0xFF7C3AED);
+      return Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+            decoration: BoxDecoration(
+              color: selected
+                  ? brand.withValues(alpha: 0.14)
+                  : AppPalette.card(context),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: selected ? brand : AppPalette.border(context),
+                width: selected ? 1.4 : 1,
+              ),
+            ),
+            child: Text(
+              emoji == null ? label : '$emoji $label',
+              style: GoogleFonts.poppins(
+                fontSize: 11.5, fontWeight: FontWeight.w800,
+                color: selected ? brand : AppPalette.textPrimary(context),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+        children: [
+          chip('Tümü'.tr(), _filterSubject == null && _filterClassId == null,
+              () => setState(() {
+                    _filterSubject = null;
+                    _filterClassId = null;
+                  })),
+          // Sınıf çipleri — etikette sınıf adı DEĞİL, sınıfın DERSİ yazar
+          // (öğrenci zaten tek fiziksel sınıfta; ayrım derse göre anlamlı).
+          // Aynı dersten iki sınıf varsa yanına sınıf adı eklenir.
+          if (classes.length > 1)
+            for (final c in classes)
+              chip(_classChipLabel(c, classes),
+                  _filterClassId == c.classId,
+                  () => setState(() => _filterClassId =
+                      _filterClassId == c.classId ? null : c.classId),
+                  emoji: '📘'),
+          // Ödev konusu bazlı ders çipleri — sınıf çipiyle aynı adı taşıyan
+          // ders atlanır (ikiz çip olmasın).
+          if (subjects.length > 1)
+            for (final s in subjects)
+              if (!classes.any((c) => c.subject.trim() == s))
+                chip(s, _filterSubject == s,
+                    () => setState(() =>
+                        _filterSubject = _filterSubject == s ? null : s),
+                    emoji: '📚'),
+        ],
+      ),
+    );
+  }
+
+  /// Sınıf çipi etiketi: sınıfın dersi; ders boşsa sınıf adı. Aynı dersten
+  /// birden çok sınıf varsa "Fizik (10/A)" biçiminde ayrıştırılır.
+  String _classChipLabel(JoinedClass c, List<JoinedClass> all) {
+    final subj = c.subject.trim();
+    if (subj.isEmpty) return c.className;
+    final dup = all.where((x) => x.subject.trim() == subj).length > 1;
+    return dup ? '$subj (${c.className})' : subj;
+  }
+
+  /// Filtre/arama sonuç vermedi — temizleme kısayollu boş durum.
+  Widget _buildNoResults(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('🔎', style: TextStyle(fontSize: 44)),
+            const SizedBox(height: 10),
+            Text('Sonuç bulunamadı'.tr(),
+                style: GoogleFonts.poppins(
+                  fontSize: 15, fontWeight: FontWeight.w900,
+                  color: AppPalette.textPrimary(context),
+                )),
+            const SizedBox(height: 6),
+            Text('Filtreyi veya aramayı değiştirip tekrar dene.'.tr(),
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 12.5,
+                  color: AppPalette.textSecondary(context),
+                )),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: () => setState(() {
+                _filterSubject = null;
+                _filterClassId = null;
+                _searchCtrl.clear();
+                _search = '';
+              }),
+              child: Text('Filtreleri temizle'.tr(),
+                  style: GoogleFonts.poppins(
+                      fontSize: 12.5, fontWeight: FontWeight.w700)),
+            ),
           ],
         ),
       ),
@@ -436,11 +776,25 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () async {
-          // TESLİM EDİLMİŞ ödev → öğretmenin gördüğü analiz ekranının aynısı
-          // (grafik/tablo, tarih künyesi, süre, AI analizi + sağ üstte
-          // ekran görüntüsü paylaş). readOnly: sınıf ortalaması sorgusu ve
-          // öğretmen aksiyonları atlanır (öğrenci izinleriyle uyumlu).
+          // TESLİM EDİLMİŞ ödev:
+          //  • Öğretmen cevap anahtarını PAYLAŞMADIYSA → yalnız "Ödev Teslim
+          //    Edildi" onay sayfası (skor/grafik/soru-cevap GÖRÜNMEZ —
+          //    değerlendirme açıklanana dek öğrenciye kapalı).
+          //  • Paylaştıysa → öğretmenin gördüğü analiz ekranının aynısı
+          //    (grafik/tablo, künye, süre, AI analizi). readOnly: sınıf
+          //    ortalaması sorgusu ve öğretmen aksiyonları atlanır.
           if (sub?.isSubmitted ?? false) {
+            final answersOpen =
+                hw.answersShared || (sub?.answersShared ?? false);
+            if (!answersOpen) {
+              await Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => HomeworkSolveScreen(
+                  classId: cls.classId, homework: hw, submission: sub,
+                ),
+              ));
+              _load();
+              return;
+            }
             final me = UserProfileService.instance;
             await Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => TeacherHomeworkDetailScreen(
@@ -498,9 +852,14 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
                   Text(remainingStr,
                       style: GoogleFonts.poppins(
                         fontSize: 11, fontWeight: FontWeight.w700,
+                        // Son 24 saat ve teslim edilmedi → acil vurgusu.
                         color: hw.isOverdue
                             ? const Color(0xFFEF4444)
-                            : muted,
+                            : (!(sub?.isSubmitted ?? false) &&
+                                    !remaining.isNegative &&
+                                    remaining.inHours < 24)
+                                ? const Color(0xFFF97316)
+                                : muted,
                       )),
                 ],
               ),
@@ -526,7 +885,11 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
                         fontSize: 11, color: muted,
                       )),
                   const SizedBox(width: 12),
-                  if (sub?.scorePercent != null) ...[
+                  // Skor, öğretmen cevap anahtarını paylaşana kadar GİZLİ —
+                  // değerlendirme açıklanmadan öğrenci yüzde görmesin.
+                  if (sub?.scorePercent != null &&
+                      (hw.answersShared ||
+                          (sub?.answersShared ?? false))) ...[
                     Icon(Icons.star_rounded, size: 14,
                         color: const Color(0xFFFBBF24)),
                     const SizedBox(width: 4),

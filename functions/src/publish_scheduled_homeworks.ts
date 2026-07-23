@@ -53,8 +53,24 @@ export const publishScheduledHomeworks = onSchedule(
       if (!classRef) continue;
       const title = (data.title as string) || "Yeni ödev";
       const dueAt = data.dueAt as Timestamp | undefined;
+      const subject = ((data.subject as string) || "").trim();
+      const topic = ((data.topic as string) || "").trim();
 
       try {
+        // Öğretmen adı + sınıf adı — kişisel bildirim metni için (best-effort).
+        let teacherName = "";
+        let className = "";
+        try {
+          const teacherUid = (data.teacherUid as string) || "";
+          if (teacherUid) {
+            const t = await db.collection("users").doc(teacherUid).get();
+            teacherName = ((t.data()?.displayName as string) ||
+              (t.data()?.username as string) || "").trim();
+          }
+          const cls = await classRef.get();
+          className = ((cls.data()?.name as string) || "").trim();
+        } catch (_) {/* isim yoksa genel metne düşülür */}
+
         const students = await classRef.collection("students").get();
         const batch = db.batch();
         for (const s of students.docs) {
@@ -69,7 +85,13 @@ export const publishScheduledHomeworks = onSchedule(
           batch.set(notifRef, {
             type: "homework_assigned",
             fromUsername: "Öğretmen",
+            // Eski sürümler başlığı fromDisplayName'den okur — koru.
             fromDisplayName: title,
+            homeworkTitle: title,
+            teacherName,
+            subject,
+            topic,
+            className,
             when: FieldValue.serverTimestamp(),
             read: false,
             classId: classRef.id,

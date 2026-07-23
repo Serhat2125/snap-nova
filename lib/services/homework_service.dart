@@ -79,7 +79,7 @@ class HomeworkService {
       if (!draft) {
         await _materializeAssignment(
           classId: classId, hwId: hwRef.id, title: title, dueAt: dueAt,
-          publishAt: publishAt,
+          publishAt: publishAt, subject: subject, topic: topic,
         );
         // Öğretmene "ödev yayınlandı" geri bildirimi (hemen yayınlandıysa).
         final publishedNow =
@@ -118,6 +118,8 @@ class HomeworkService {
     required String title,
     required DateTime dueAt,
     DateTime? publishAt,
+    String subject = '',
+    String topic = '',
   }) async {
     // Yayın zamanı gelecekteyse ödev gizli atanır; öğrenciye o ana kadar
     // bildirim de gitmez (öğrenci listesi publishAt'a göre filtreler;
@@ -128,6 +130,23 @@ class HomeworkService {
         .collection('homeworks').doc(hwId);
     final students = await _fs.collection('classes').doc(classId)
         .collection('students').get();
+    // Bildirim metni için öğretmen adı + sınıf adı (best-effort) — öğrenci
+    // "kim, hangi dersten, hangi konudan" gönderdiğini görsün.
+    var teacherName = '';
+    var className = '';
+    if (publishedNow) {
+      try {
+        final myUid = _myUid;
+        if (myUid != null) {
+          final t = await _fs.collection('users').doc(myUid).get();
+          teacherName = (t.data()?['displayName'] ??
+                  t.data()?['username'] ?? '')
+              .toString().trim();
+        }
+        final cls = await _fs.collection('classes').doc(classId).get();
+        className = (cls.data()?['name'] ?? '').toString().trim();
+      } catch (_) {/* isim bulunamazsa genel metne düşülür */}
+    }
     final batch = _fs.batch();
     for (final s in students.docs) {
       final sd = s.data();
@@ -151,7 +170,13 @@ class HomeworkService {
           {
             'type': 'homework_assigned',
             'fromUsername': 'Öğretmen',
+            // Eski sürümler başlığı fromDisplayName'den okur — koru.
             'fromDisplayName': title,
+            'homeworkTitle': title,
+            'teacherName': teacherName,
+            'subject': subject,
+            'topic': topic,
+            'className': className,
             'when': FieldValue.serverTimestamp(),
             'read': false,
             'classId': classId,
@@ -244,6 +269,7 @@ class HomeworkService {
       await _materializeAssignment(
         classId: classId, hwId: hwId, title: hw.title, dueAt: newDue,
         publishAt: newPublish,
+        subject: hw.subject, topic: hw.topic,
       );
       // Öğretmene "ödev yayınlandı" geri bildirimi (hemen yayınlandıysa).
       final publishedNow =
@@ -590,16 +616,40 @@ class HomeworkService {
         final teacherUid = (hwDoc.data()?['teacherUid'] ?? '').toString();
         if (teacherUid.isNotEmpty && teacherUid != myUid) {
           final hwTitle = (hwDoc.data()?['title'] ?? 'Ödev').toString();
+          final hwTopic = (hwDoc.data()?['topic'] ?? '').toString().trim();
           final stu = await _fs.collection('classes').doc(classId)
               .collection('students').doc(myUid).get();
           final sd = stu.data() ?? const <String, dynamic>{};
-          final sName = (sd['teacherAlias'] ??
-              sd['displayName'] ?? sd['username'] ?? 'Bir öğrenci').toString();
+          // Boş string'e karşı ?? yetmez — ilk DOLU değeri seç; üyelik kaydı
+          // boşsa users doc'una düş (öğretmen KİMİN teslim ettiğini görsün).
+          String firstFilled(Iterable<dynamic> vals) {
+            for (final v in vals) {
+              final s = (v ?? '').toString().trim();
+              if (s.isNotEmpty) return s;
+            }
+            return '';
+          }
+          var sName = firstFilled(
+              [sd['teacherAlias'], sd['displayName'], sd['username']]);
+          var sUname = (sd['username'] ?? '').toString().trim();
+          if (sName.isEmpty || sUname.isEmpty) {
+            final u = await _fs.collection('users').doc(myUid).get();
+            final ud = u.data() ?? const <String, dynamic>{};
+            if (sName.isEmpty) {
+              sName = firstFilled([ud['displayName'], ud['username']]);
+            }
+            if (sUname.isEmpty) {
+              sUname = (ud['username'] ?? '').toString().trim();
+            }
+          }
+          if (sName.isEmpty) sName = 'Bir öğrenci';
           await _fs.collection('notifications').doc(teacherUid)
               .collection('items').doc().set({
             'type': 'homework_submission',
             'fromDisplayName': sName,
+            'fromUsername': sUname,
             'homeworkTitle': hwTitle,
+            'topic': hwTopic,
             'classId': classId,
             'homeworkId': homeworkId,
             'when': FieldValue.serverTimestamp(),

@@ -15,11 +15,14 @@ const _kBrand = Color(0xFF7C3AED);
 
 /// Tek yardım maddesi: emoji + başlık. [body] verilirse alt açıklama gösterilir
 /// (başlık kalın, açıklama soluk). Verilmezse tek satır madde olarak görünür.
+/// [color] verilirse kart o renkle vurgulanır (zemin + çerçeve + emoji rozeti);
+/// verilmezse marka moru kullanılır.
 class TeacherHelpItem {
   final String emoji;
   final String title;
   final String? body;
-  const TeacherHelpItem(this.emoji, this.title, [this.body]);
+  final Color? color;
+  const TeacherHelpItem(this.emoji, this.title, [this.body, this.color]);
 }
 
 /// Ekranın ortasında açılan, derli toplu yardım penceresi.
@@ -109,19 +112,29 @@ Future<void> showTeacherHelpDialog(
 
 Widget _helpCard(
     BuildContext ctx, TeacherHelpItem it, Color ink, Color muted) {
+  final accent = it.color ?? _kBrand;
   return Container(
     width: double.infinity,
     margin: const EdgeInsets.only(bottom: 8),
     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
     decoration: BoxDecoration(
-      color: AppPalette.bg(ctx),
+      // Renkli vurgu: hafif renkli zemin + aynı tonda çerçeve.
+      color: accent.withValues(alpha: 0.06),
       borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: AppPalette.border(ctx)),
+      border: Border.all(color: accent.withValues(alpha: 0.35)),
     ),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(it.emoji, style: const TextStyle(fontSize: 18)),
+        Container(
+          width: 32, height: 32,
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.14),
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text(it.emoji, style: const TextStyle(fontSize: 16)),
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: it.body == null
@@ -135,7 +148,7 @@ Widget _helpCard(
                     Text(it.title.tr(),
                         style: GoogleFonts.poppins(
                             fontSize: 13, fontWeight: FontWeight.w800,
-                            color: ink)),
+                            color: accent)),
                     const SizedBox(height: 2),
                     Text(it.body!.tr(),
                         style: GoogleFonts.poppins(

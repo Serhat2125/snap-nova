@@ -212,25 +212,21 @@ class _TeacherMaterialScreenState extends State<TeacherMaterialScreen> {
                       style: GoogleFonts.poppins(
                         fontSize: 13, fontWeight: FontWeight.w800, color: ink)),
                   const SizedBox(height: 10),
-                  // Kademeli/merdiven diziliş: her sekme bir öncekinin bittiği
-                  // yerden başlar (sağa kayar). Sekmeler geniş; dikey akış.
+                  // Yan yana üç YUVARLAK seçenek — her biri kendi uyumlu
+                  // renginde (mavi/kırmızı/yeşil); seçili olan dolgun + gölgeli.
                   LayoutBuilder(builder: (context, c) {
-                    final a = c.maxWidth;
-                    // Geniş sekmeler: satırın ~%64'ü. İki kademe için sağa kayma
-                    // payı (a - tabW) ikiye bölünür → 3. sekme tam sağ kenarda.
-                    final tabW = (a * 0.64).clamp(190.0, 300.0);
-                    final step = ((a - tabW) / 2).clamp(0.0, a);
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    final d = ((c.maxWidth - 2 * 14) / 3).clamp(88.0, 132.0);
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _kindTab('link', Icons.link_rounded,
-                            'Web Linki'.tr(), tabW, 0),
-                        const SizedBox(height: 10),
-                        _kindTab('pdf', Icons.picture_as_pdf_rounded,
-                            'PDF Linki'.tr(), tabW, step),
-                        const SizedBox(height: 10),
-                        _kindTab('note', Icons.sticky_note_2_rounded,
-                            'Ders Notu'.tr(), tabW, step * 2),
+                        _kindCircle('link', Icons.link_rounded,
+                            'Web Linki'.tr(), const Color(0xFF0EA5E9), d),
+                        const SizedBox(width: 14),
+                        _kindCircle('pdf', Icons.picture_as_pdf_rounded,
+                            'PDF Linki'.tr(), const Color(0xFFEF4444), d),
+                        const SizedBox(width: 14),
+                        _kindCircle('note', Icons.sticky_note_2_rounded,
+                            'Ders Notu'.tr(), const Color(0xFF10B981), d),
                       ],
                     );
                   }),
@@ -303,45 +299,51 @@ class _TeacherMaterialScreenState extends State<TeacherMaterialScreen> {
     );
   }
 
-  Widget _kindTab(String kind, IconData icon, String label,
-      double width, double leftOffset) {
+  /// Yuvarlak kaynak-türü seçeneği — [color] o dairenin kendi rengi.
+  /// Seçiliyken zemin koyulaşır, çerçeve kalınlaşır ve yumuşak gölge gelir.
+  Widget _kindCircle(
+      String kind, IconData icon, String label, Color color, double size) {
     final sel = _kind == kind;
-    // Geniş dikdörtgen çerçeve; merdiven dizilim için sol kaydırma + genişlik.
-    return Padding(
-      padding: EdgeInsets.only(left: leftOffset),
-      child: SizedBox(
-        width: width,
-        child: GestureDetector(
-          onTap: () => setState(() => _kind = kind),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-          decoration: BoxDecoration(
-            color: sel ? _kBrand.withValues(alpha: 0.12) : AppPalette.card(context),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: sel ? _kBrand : AppPalette.border(context),
-              width: sel ? 1.8 : 1.2,
-            ),
+    return GestureDetector(
+      onTap: () => setState(() => _kind = kind),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: size, height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color.withValues(alpha: sel ? 0.20 : 0.08),
+          border: Border.all(
+            color: sel ? color : color.withValues(alpha: 0.35),
+            width: sel ? 2.4 : 1.2,
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 19,
-                  color: sel ? _kBrand : AppPalette.textSecondary(context)),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(label,
-                    textAlign: TextAlign.center,
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.poppins(
-                      fontSize: 12.5, fontWeight: FontWeight.w700,
-                      color: sel ? _kBrand : AppPalette.textPrimary(context),
-                    )),
-              ),
-            ],
-          ),
+          boxShadow: sel
+              ? [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.35),
+                    blurRadius: 14, offset: const Offset(0, 5),
+                  ),
+                ]
+              : null,
         ),
-      ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: size * 0.26, color: color),
+            SizedBox(height: size * 0.05),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.poppins(
+                    fontSize: (size * 0.115).clamp(10.5, 13.0),
+                    fontWeight: FontWeight.w800,
+                    height: 1.1,
+                    color: sel ? color : AppPalette.textPrimary(context),
+                  )),
+            ),
+          ],
+        ),
       ),
     );
   }

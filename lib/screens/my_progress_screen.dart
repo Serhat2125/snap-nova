@@ -690,6 +690,8 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
   }
 
   // Yeni çocuk ekle — ortada blur arka planlı modal (✕ ile kapat).
+  // Kaldırılan "+" butonunun eylemi — istenirse geri bağlanabilir.
+  // ignore: unused_element
   Future<void> _addChild() async {
     if (_childCount >= 6) {
       _snack('En fazla 6 çocuk eklenebilir.'.tr());
@@ -1027,6 +1029,8 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
   // "ölü" görünüyor, dialog hiç açılmıyordu. Artık ortak ParentLinkSheet
   // anında açılır; kod sheet'in içinde hazırlanır (hata → Tekrar Dene),
   // her an kapatılabilir. Profildeki "Veliyi Bağla" ile AYNI bileşen.
+  // Kaldırılan "Ebeveynine bağlanma kodu ver" düğmesinin eylemi.
+  // ignore: unused_element
   Future<void> _generateMyCode() {
     return showParentLinkSheet(context);
   }
@@ -1518,17 +1522,8 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Yeni çocuk ekle — yeşil "+"
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    constraints:
-                        const BoxConstraints(minWidth: 36, minHeight: 36),
-                    padding: EdgeInsets.zero,
-                    icon: const Icon(Icons.add_circle_rounded,
-                        color: Color(0xFF10B981)),
-                    tooltip: 'Çocuk ekle'.tr(),
-                    onPressed: _addChild,
-                  ),
+                  // NOT: "Çocuk ekle" (+) buradan kaldırıldı — çocuk ekleme
+                  // ebeveyn ana sayfasından yapılır (çift giriş kafa karıştırıyordu).
                   // Paylaş — ekran görüntüsü alıp paylaşım sayfasını açar.
                   IconButton(
                     visualDensity: VisualDensity.compact,
@@ -1591,11 +1586,9 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
                   onAcceptWithDetails: (d) => _setOv('bg', d.data),
                   builder: (ctx, cand, rej) => Column(
                     children: [
-                      // Çocuk profilleri SABİT (sayfa kaysa da üstte kalır).
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
-                        child: _childTabs(context),
-                      ),
+                      // NOT: "1. Çocuk / 2. Çocuk" sekme şeridi kaldırıldı —
+                      // ebeveyn ana sayfada çocuğu seçip geliyor; burada
+                      // tekrar sekme göstermek kalabalıktan başka şey değildi.
                       // Geri kalan içerik kaydırılır.
                       Expanded(
                         child: RefreshIndicator(
@@ -1755,16 +1748,9 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
     }
 
     // Çocuk tarafı — kendi ebeveyn bağlanma kodunu üret.
-    out.addAll([
-      const SizedBox(height: 16),
-      Center(
-        child: TextButton.icon(
-          onPressed: _generateMyCode,
-          icon: const Icon(Icons.qr_code_rounded, size: 16),
-          label: Text('Ebeveynine bağlanma kodu ver'.tr()),
-        ),
-      ),
-    ]);
+    // NOT: "Ebeveynine bağlanma kodu ver" düğmesi kaldırıldı — bu ekran
+    // yalnızca EBEVEYN panelinden açılıyor; kod üretme çocuk tarafına ait.
+    out.add(const SizedBox(height: 16));
     return out;
   }
 
@@ -2218,7 +2204,8 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
     final answered = _weekCorrect + _weekWrong;
     final pct = answered > 0 ? (_weekCorrect * 100 / answered).round() : 0;
     final headerOv = _ovColor('header');
-    return Container(
+    // _drop: paletten renk SÜRÜKLEYİP bu kartın üstüne bırakınca da boyanır.
+    return _drop('header', Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: headerOv,
@@ -2264,7 +2251,7 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
           ),
         ],
       ),
-    );
+    ), radius: 18);
   }
 
   Widget _stat(String value, String label) {
@@ -2289,6 +2276,8 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
 
   // ── İki çocuk sekmesi (sol 1. çocuk · sağ 2. çocuk) ─────────────────────
   // ── Çocuk profil şeridi ─────────────────────────────────────────────────
+  // Kaldırılan çocuk sekme şeridi — istenirse geri bağlanabilir.
+  // ignore: unused_element
   Widget _childTabs(BuildContext context) {
     if (_childCount == 1) return _singleChildBar(context);
     if (_profileExpanded) return _expandedChildCard(context);
@@ -2696,7 +2685,8 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
     Color barColor(int pct) => pct < 50
         ? const Color(0xFFEF4444)
         : (pct < 70 ? const Color(0xFFF59E0B) : const Color(0xFF10B981));
-    return Container(
+    // _drop: paletten sürüklenen renk bu çerçeveye bırakılabilir.
+    return _drop('struggling', Container(
       padding: const EdgeInsets.fromLTRB(14, 13, 14, 14),
       decoration: BoxDecoration(
         color: _resolve(['struggling', 'infopanel'], AppPalette.card(context)),
@@ -2813,7 +2803,7 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
           ],
         ],
       ),
-    );
+    ), radius: 16);
   }
 
   Widget _zReport(BuildContext context) {
@@ -3588,7 +3578,9 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
       {int? selectedDay, void Function(int)? onDayTap}) {
     final unitMax = c.isCount ? maxV : (maxV / 60.0);
     return SizedBox(
-      height: 130,
+      // 130'da çok dersli günlerde (2 kısaltma satırı) 2px alt taşma
+      // oluyordu — nefes payı bırakıldı.
+      height: 142,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: List.generate(7, (i) {

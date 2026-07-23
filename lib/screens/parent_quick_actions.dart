@@ -12,11 +12,14 @@
 //    temiz bir PDF karne üretir ve paylaşım menüsünü açar (pdf + printing).
 // ═══════════════════════════════════════════════════════════════════════════
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -56,6 +59,13 @@ class _ParentAdvisorChatScreenState extends State<ParentAdvisorChatScreen> {
   final List<({bool me, String text})> _msgs = [];
   bool _sending = false;
 
+  // ── Geçmiş sohbetler (cihazda kalıcı) ────────────────────────────────
+  // {id, title, when(ISO), msgs:[{me,text}]} listesi; en yeni başta.
+  static const _kChatsKey = 'parent_advisor_chats_v1';
+  static const _kMaxSavedChats = 30;
+  List<Map<String, dynamic>> _savedChats = [];
+  String? _chatId; // aktif sohbetin kayıt kimliği (ilk mesajla oluşur)
+
   /// Ekran açılışında havuzdan karıştırılarak seçilen öneri soruları.
   late final List<String> _suggestions;
 
@@ -89,12 +99,8 @@ class _ParentAdvisorChatScreenState extends State<ParentAdvisorChatScreen> {
     super.initState();
     _suggestions =
         (_buildSuggestionPool()..shuffle()).take(6).toList(growable: false);
-    // Karşılama — AI çağrısı olmadan, anında.
-    _msgs.add((
-      me: false,
-      text:
-          '${'Merhaba! Ben QuAlsar Eğitim Danışmanı 🤖'.tr()}\n${'Çocuğunun durumu, eksikleri veya onu nasıl destekleyebileceğin hakkında bana istediğini sorabilirsin.'.tr()}'
-    ));
+    _resetToGreeting();
+    _loadSavedChats();
   }
 
   @override
@@ -102,6 +108,233 @@ class _ParentAdvisorChatScreenState extends State<ParentAdvisorChatScreen> {
     _ctrl.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  String get _greeting =>
+      '${'Merhaba! Ben QuAlsar Eğitim Danışmanı 🤖'.tr()}\n${'Çocuğunun durumu, eksikleri veya onu nasıl destekleyebileceğin hakkında bana istediğini sorabilirsin.'.tr()}';
+
+  void _resetToGreeting() {
+    _msgs
+      ..clear()
+      ..add((me: false, text: _greeting));
+    _chatId = null;
+  }
+
+  Future<void> _loadSavedChats() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_kChatsKey);
+      if (raw == null || raw.isEmpty) return;
+      final list = (jsonDecode(raw) as List)
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+      if (mounted) setState(() => _savedChats = list);
+    } catch (_) {/* bozuk kayıt → boş listeyle devam */}
+  }
+
+  Future<void> _persistChats() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kChatsKey, jsonEncode(_savedChats));
+    } catch (_) {}
+  }
+
+  /// Aktif sohbeti kayda geçir (ilk kullanıcı mesajıyla oluşur, her yanıt
+  /// sonrasında güncellenir). Başlık = ilk kullanıcı mesajının kısaltması.
+  void _autoSaveCurrent() {
+    final firstUser = _msgs.where((m) => m.me).toList();
+    if (firstUser.isEmpty) return;
+    _chatId ??= DateTime.now().millisecondsSinceEpoch.toString();
+    var title = firstUser.first.text.replaceAll('\n', ' ').trim();
+    if (title.length > 42) title = '${title.substring(0, 42)}…';
+    final entry = <String, dynamic>{
+      'id': _chatId,
+      'title': title,
+      'when': DateTime.now().toIso8601String(),
+      'msgs': [
+        for (final m in _msgs) {'me': m.me, 'text': m.text},
+      ],
+    };
+    _savedChats.removeWhere((c) => c['id'] == _chatId);
+    _savedChats.insert(0, entry);
+    if (_savedChats.length > _kMaxSavedChats) {
+      _savedChats = _savedChats.sublist(0, _kMaxSavedChats);
+    }
+    _persistChats();
+  }
+
+  void _loadChat(Map<String, dynamic> c) {
+    setState(() {
+      _msgs
+        ..clear()
+        ..addAll([
+          for (final m in (c['msgs'] as List? ?? const []))
+            if (m is Map)
+              (me: m['me'] == true, text: (m['text'] ?? '').toString()),
+        ]);
+      _chatId = (c['id'] ?? '').toString();
+    });
+    _scrollToEnd();
+  }
+
+  /// ☰ — geçmiş sohbetler paneli: BEYAZ zemin, dokun→yükle,
+  /// basılı tut→sil, üstte "Yeni sohbet".
+  Future<void> _openHistory() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5E7EB),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Geçmiş Sohbetler'.tr(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 15, fontWeight: FontWeight.w900,
+                            color: const Color(0xFF111827),
+                          )),
+                    ),
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        setState(_resetToGreeting);
+                      },
+                      icon: const Icon(Icons.add_comment_rounded,
+                          size: 16, color: _kBrand),
+                      label: Text('Yeni sohbet'.tr(),
+                          style: GoogleFonts.poppins(
+                            fontSize: 12, fontWeight: FontWeight.w800,
+                            color: _kBrand,
+                          )),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                if (_savedChats.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 22),
+                    child: Center(
+                      child: Text(
+                          'Henüz kayıtlı sohbet yok — bir soru sorduğunda otomatik kaydedilir.'
+                              .tr(),
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12, color: const Color(0xFF6B7280),
+                          )),
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 420),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: _savedChats.length,
+                      itemBuilder: (_, i) {
+                        final c = _savedChats[i];
+                        final when =
+                            DateTime.tryParse((c['when'] ?? '').toString());
+                        final whenStr = when == null
+                            ? ''
+                            : '${when.day.toString().padLeft(2, '0')}.${when.month.toString().padLeft(2, '0')}.${when.year}';
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border:
+                                Border.all(color: const Color(0xFFE5E7EB)),
+                          ),
+                          child: ListTile(
+                            dense: true,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            leading: const Icon(
+                                Icons.chat_bubble_outline_rounded,
+                                size: 18, color: _kBrand),
+                            title: Text((c['title'] ?? '').toString(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF111827),
+                                )),
+                            subtitle: Text(whenStr,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 10.5,
+                                  color: const Color(0xFF6B7280),
+                                )),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              _loadChat(c);
+                            },
+                            onLongPress: () async {
+                              final ok = await showDialog<bool>(
+                                context: ctx,
+                                builder: (dctx) => AlertDialog(
+                                  backgroundColor: Colors.white,
+                                  title: Text('Sohbeti sil'.tr()),
+                                  content: Text(
+                                      'Bu sohbet kalıcı olarak silinsin mi?'
+                                          .tr()),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.pop(dctx, false),
+                                      child: Text('Vazgeç'.tr()),
+                                    ),
+                                    FilledButton(
+                                      style: FilledButton.styleFrom(
+                                          backgroundColor:
+                                              const Color(0xFFEF4444)),
+                                      onPressed: () =>
+                                          Navigator.pop(dctx, true),
+                                      child: Text('Sil'.tr()),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              if (ok == true) {
+                                _savedChats
+                                    .removeWhere((x) => x['id'] == c['id']);
+                                if (_chatId == c['id']) _chatId = null;
+                                _persistChats();
+                                setSheet(() {});
+                                if (mounted) setState(() {});
+                              }
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _scrollToEnd() {
@@ -126,9 +359,16 @@ class _ParentAdvisorChatScreenState extends State<ParentAdvisorChatScreen> {
     final sys = 'Sen QuAlsar uygulamasının AI Eğitim Danışmanısın. '
         'Bir EBEVEYN ile konuşuyorsun; çocuğunun adı: ${widget.childName}. '
         '${widget.statsContext.isEmpty ? '' : 'Çocuğun güncel verileri: ${widget.statsContext}. '}'
-        'Kurallar: Kısa yaz (en fazla 120 kelime), sıcak ve umut verici ol, '
-        'somut/uygulanabilir 1-2 öneri ver, veliyi asla yargılama, çocukla '
-        'ilgili tıbbi/psikolojik teşhis koyma. Velinin yazdığı dilde yanıtla.';
+        'YANIT BİÇİMİ: Markdown kullan — önemli noktaları **kalın** yaz; '
+        'konu birden fazla parçaya ayrılıyorsa "### Ara Başlık" ve madde '
+        'işaretleri (- veya 1. 2. 3.) kullan; uygun yerlerde anlamlı emoji '
+        'ekle (her maddeye değil, abartmadan). Sade ve net yaz: kısa bir '
+        'giriş cümlesi → maddeler → tek cümlelik uygulanabilir kapanış '
+        'önerisi iyi bir şablondur. Uzunluk soruya göre 60-180 kelime; '
+        'gereksiz tekrar ve dolgu cümlesi yazma. '
+        'ÜSLUP: Sıcak ve umut verici ol, somut/uygulanabilir öneriler ver, '
+        'veliyi asla yargılama, çocukla ilgili tıbbi/psikolojik teşhis '
+        'koyma. Velinin yazdığı dilde yanıtla.';
     String reply;
     try {
       // Son 10 mesaj bağlam olarak gider — danışmanın hafızası olur.
@@ -154,6 +394,7 @@ class _ParentAdvisorChatScreenState extends State<ParentAdvisorChatScreen> {
       _msgs.add((me: false, text: reply.trim()));
       _sending = false;
     });
+    _autoSaveCurrent();
     _scrollToEnd();
   }
 
@@ -165,6 +406,12 @@ class _ParentAdvisorChatScreenState extends State<ParentAdvisorChatScreen> {
       appBar: AppBar(
         backgroundColor: AppPalette.bg(context),
         elevation: 0,
+        // Sol üst: ☰ geçmiş sohbetler (dokun→yükle, basılı tut→sil).
+        leading: IconButton(
+          icon: Icon(Icons.menu_rounded, color: ink),
+          tooltip: 'Geçmiş sohbetler'.tr(),
+          onPressed: _openHistory,
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -176,6 +423,20 @@ class _ParentAdvisorChatScreenState extends State<ParentAdvisorChatScreen> {
                     fontSize: 11, color: AppPalette.textSecondary(context))),
           ],
         ),
+        actions: [
+          // Yeni sohbet — mevcut sohbet zaten kaydedildi.
+          IconButton(
+            icon: Icon(Icons.add_comment_rounded, color: ink, size: 21),
+            tooltip: 'Yeni sohbet'.tr(),
+            onPressed: () => setState(_resetToGreeting),
+          ),
+          // ☰ leading'i kapladığı için çıkışı sağa koyduk.
+          IconButton(
+            icon: Icon(Icons.close_rounded, color: ink),
+            tooltip: 'Kapat'.tr(),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -236,12 +497,54 @@ class _ParentAdvisorChatScreenState extends State<ParentAdvisorChatScreen> {
                             ? null
                             : Border.all(color: AppPalette.border(ctx)),
                       ),
-                      child: Text(m.text,
-                          style: GoogleFonts.poppins(
-                            fontSize: 12.5,
-                            height: 1.45,
-                            color: m.me ? Colors.white : ink,
-                          )),
+                      // AI yanıtları Markdown olarak çizilir — **kalın**,
+                      // ### başlık ve maddeler düzgün görünür ("saçma
+                      // karakterler" ham markdown'dı).
+                      child: m.me
+                          ? Text(m.text,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12.5,
+                                height: 1.45,
+                                color: Colors.white,
+                              ))
+                          : MarkdownBody(
+                              data: m.text,
+                              styleSheet: MarkdownStyleSheet(
+                                p: GoogleFonts.poppins(
+                                    fontSize: 12.5, height: 1.5, color: ink),
+                                strong: GoogleFonts.poppins(
+                                    fontSize: 12.5,
+                                    height: 1.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: ink),
+                                em: GoogleFonts.poppins(
+                                    fontSize: 12.5,
+                                    height: 1.5,
+                                    fontStyle: FontStyle.italic,
+                                    color: ink),
+                                h1: GoogleFonts.poppins(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w900,
+                                    color: ink),
+                                h2: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: ink),
+                                h3: GoogleFonts.poppins(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: _kBrand),
+                                listBullet: GoogleFonts.poppins(
+                                    fontSize: 12.5, height: 1.5, color: ink),
+                                blockquote: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontStyle: FontStyle.italic,
+                                    color:
+                                        AppPalette.textSecondary(ctx)),
+                                listIndent: 18,
+                                blockSpacing: 8,
+                              ),
+                            ),
                     ),
                   );
                 },
@@ -423,6 +726,9 @@ Future<void> showParentSurpriseSheet(BuildContext context,
                         var delivered = false;
                         if (realChildUid.isNotEmpty) {
                           try {
+                            // Çocuğun bildirim kutusuna 'parent_gift' —
+                            // pushOnNotificationCreated title/body'yi aynen
+                            // push'lar; çocuk NEYİN gönderildiğini görür.
                             await FirebaseFirestore.instance
                                 .collection('notifications')
                                 .doc(realChildUid)
@@ -431,11 +737,14 @@ Future<void> showParentSurpriseSheet(BuildContext context,
                               'type': 'parent_gift',
                               'title': '${'Ailenden sürpriz!'.tr()} $emoji',
                               'body': msg.tr(),
+                              'surpriseKind': label,
                               'when': FieldValue.serverTimestamp(),
                               'read': false,
                             });
                             delivered = true;
-                          } catch (_) {}
+                          } catch (e) {
+                            debugPrint('[ParentSurprise] send fail: $e');
+                          }
                         }
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context)
@@ -443,7 +752,7 @@ Future<void> showParentSurpriseSheet(BuildContext context,
                           behavior: SnackBarBehavior.floating,
                           content: Text(delivered
                               ? '$emoji ${'Sürpriz gönderildi — çocuğunun ekranına düşecek!'.tr()}'
-                              : '$emoji ${'Sürpriz kaydedildi (çocuk bağlanınca gerçek bildirim gider).'.tr()}'),
+                              : '$emoji ${'Gönderilemedi — çocuğunun bağlı olduğundan ve internetten emin olup tekrar dene.'.tr()}'),
                         ));
                       },
                       borderRadius: BorderRadius.circular(14),

@@ -41,6 +41,8 @@ interface NotifData {
   // doğrudan yazar; buildContent bunları olduğu gibi kullanır.
   title?: string;
   body?: string;
+  // homework_assigned: öğretmen adı + ders + konu (kişisel bildirim metni).
+  teacherName?: string;
 }
 
 /**
@@ -162,11 +164,27 @@ function buildContent(data: NotifData): { title: string; body: string } {
     // NOT: homework_assigned/homework_reminder yazımında hw başlığı
     // 'fromDisplayName' alanına konuyor (homeworkTitle DEĞİL) — bkz.
     // homework_service.dart assignHomework/checkPendingReminders.
-    case "homework_assigned":
+    case "homework_assigned": {
+      // "Ayşe Yılmaz öğretmenin Fizik dersinden 'Dalgalar' konulu yeni bir
+      // ödev gönderdi — başarılar!" Eski kayıtlarda (alanlar yoksa) genel metin.
+      const tName = (data.teacherName || "").trim();
+      const subj = (data.subject || "").trim();
+      const top = (data.topic || "").trim();
+      const hwTitle = data.homeworkTitle || data.fromDisplayName || "";
+      if (tName || subj || top) {
+        const body = [
+          tName ? `${tName} öğretmenin` : "Öğretmenin",
+          subj ? `${subj} dersinden` : "",
+          top ? `"${top}" konulu` : "",
+          "yeni bir ödev gönderdi — başarılar! 🍀",
+        ].filter(Boolean).join(" ");
+        return { title: `Yeni ödev 📚: ${hwTitle}`, body };
+      }
       return {
         title: "Yeni ödev",
         body: `Sınıfa yeni ödev geldi: ${who}`,
       };
+    }
     case "homework_reminder":
       return {
         title: "Ödev hatırlatma",
@@ -182,20 +200,27 @@ function buildContent(data: NotifData): { title: string; body: string } {
         title: `Duyuru: ${data.className || ""}`,
         body: data.message || `${who} yeni bir duyuru paylaştı`,
       };
-    case "homework_submission":
+    case "homework_submission": {
+      // "Zeynep (zeynep123), 'Dalgalar' konulu 'kolay odev' ödevini teslim etti"
+      const subTopic = (data.topic || "").trim();
       return {
         title: "Ödev teslim edildi",
-        body: `${who} "${data.homeworkTitle || ""}" ödevini teslim etti`,
+        body: subTopic
+          ? `${whoFull}, "${subTopic}" konulu "${data.homeworkTitle || ""}" ödevini teslim etti`
+          : `${whoFull}, "${data.homeworkTitle || ""}" ödevini teslim etti`,
       };
+    }
     case "student_joined":
       return {
         title: "Yeni öğrenci",
-        body: `${data.className || ""} sınıfından ${who} katıldı`,
+        body: `${data.className || ""} sınıfından ${whoFull} katıldı`,
       };
     case "student_join_request":
+      // Ad Soyad (kullanıcıadı) — öğretmen kimin katılmak istediğini push'tan
+      // görsün; kod yabancının eline geçtiyse tanımadığını reddedebilsin.
       return {
         title: "Katılma isteği",
-        body: `${who} "${data.className || ""}" sınıfına katılmak istiyor — onayla`,
+        body: `${whoFull} "${data.className || ""}" sınıfına katılmak istiyor — onayla`,
       };
     case "class_join_approved":
       return {

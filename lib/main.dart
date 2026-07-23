@@ -19,6 +19,7 @@ import 'screens/premium_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/qualsar_arena_screen.dart';
 import 'screens/notifications_inbox_screen.dart';
+import 'screens/student_homeworks_screen.dart';
 import 'theme/app_theme.dart';
 import 'firebase_options.dart';
 import 'services/analytics.dart';
@@ -309,6 +310,17 @@ Khronos Sample Models repo: https://github.com/KhronosGroup/glTF-Sample-Models''
               nav.push(MaterialPageRoute(
                   builder: (_) => const NotificationsInboxScreen()));
             }
+            break;
+          case 'homework_assigned':
+          case 'homework_reminder':
+          case 'homework_graded':
+          case 'homework_answers_shared':
+          case 'class_join_approved':
+            // Ödev bildirimleri → DOĞRUDAN "Sınıf Ödevlerim" — öğrenci
+            // bildirim kutusuna uğramadan ödevlerini görsün (in-app
+            // inbox'taki _onTap ile aynı hedef).
+            nav.push(MaterialPageRoute(
+                builder: (_) => const StudentHomeworksScreen()));
             break;
           default:
             // Diğer türler: bildirim kutusunu aç.

@@ -7,6 +7,7 @@
 //  • ReminderStatusBadge      — Auto-reminder timer aktif mi
 // ═══════════════════════════════════════════════════════════════════════════
 
+import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -368,9 +369,22 @@ class AiHomeworkGeneratorWidget extends StatefulWidget {
   State<AiHomeworkGeneratorWidget> createState() => _AiHomeworkGeneratorWidgetState();
 }
 
-class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
+class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget>
+    with SingleTickerProviderStateMixin {
   final _titleCtrl = TextEditingController();
   final _topicCtrl = TextEditingController();
+
+  /// Üretim sırasında 3 sn arayla dönen aşama mesajları (son mesajda kalır).
+  static const List<String> _kGenPhases = [
+    'Konunuz inceleniyor, kazanımlar belirleniyor…',
+    'Ödeviniz için sorular özenle hazırlanıyor…',
+    'Cevap anahtarı ve çözümler yazılıyor…',
+    'Son kontroller yapılıyor — ödeviniz tamamlanmak üzere!',
+  ];
+  late final AnimationController _spinCtrl = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 2400));
+  Timer? _phaseTimer;
+  int _phaseIdx = 0;
   late String _level;
   late String _subject;
   CurriculumTopic? _selectedTopic;
@@ -401,9 +415,31 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
 
   @override
   void dispose() {
+    _phaseTimer?.cancel();
+    _spinCtrl.dispose();
     _titleCtrl.dispose();
     _topicCtrl.dispose();
     super.dispose();
+  }
+
+  /// Üretim animasyonunu başlat: logo dönmeye, aşama mesajları akmaya başlar.
+  void _startGenAnim() {
+    _phaseIdx = 0;
+    _spinCtrl.repeat();
+    _phaseTimer?.cancel();
+    _phaseTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!mounted) return;
+      if (_phaseIdx < _kGenPhases.length - 1) {
+        setState(() => _phaseIdx++);
+      }
+    });
+  }
+
+  void _stopGenAnim() {
+    _phaseTimer?.cancel();
+    _phaseTimer = null;
+    _spinCtrl.stop();
+    _spinCtrl.reset();
   }
 
   /// Bitiş tarihi — yalnızca gün (saat korunur).
@@ -730,8 +766,9 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
     }
     setState(() {
       _generating = true;
-      _statusMsg = 'AI ödev üretiyor...'.tr();
+      _statusMsg = null; // üretim sırasında animasyonlu banner gösterilir
     });
+    _startGenAnim();
     try {
       final outcome = _selectedTopic?.outcomes.join(' / ') ?? '';
       final questions = await GeminiService.generateHomeworkBatch(
@@ -745,6 +782,7 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
         firstModel: firstModel,
       );
       if (!mounted) return;
+      _stopGenAnim();
       setState(() {
         _generating = false;
         _statusMsg = null;
@@ -773,13 +811,14 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
       );
       if (!mounted) return;
       if (sent == true) {
-        setState(() {
-          _statusMsg = '✅ Ödev sınıfa gönderildi.'.tr();
-          _titleCtrl.clear();
-          _topicCtrl.clear();
-        });
+        _titleCtrl.clear();
+        _topicCtrl.clear();
+        // Gönderim tamam → öğretmeni ANA SAYFAYA (Sınıflarım) döndür;
+        // başarı snackbar'ı önizleme ekranı zaten gösteriyor.
+        Navigator.of(context).popUntil((r) => r.isFirst);
       }
     } catch (e) {
+      _stopGenAnim();
       if (!mounted) return;
       setState(() {
         _generating = false;
@@ -838,8 +877,8 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Icon(icon, size: 20,
+        padding: const EdgeInsets.all(11),
+        child: Icon(icon, size: 26,
             color: onTap != null
                 ? const Color(0xFF7C3AED)
                 : const Color(0xFFCBD5E1)),
@@ -961,7 +1000,7 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
                   children: [
                     Text('Soru sayısı'.tr(),
                         style: GoogleFonts.poppins(
-                          fontSize: 12, fontWeight: FontWeight.w800,
+                          fontSize: 13.5, fontWeight: FontWeight.w800,
                           color: muted,
                         )),
                     const Spacer(),
@@ -981,10 +1020,10 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
                                   : null),
                           Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16),
+                                horizontal: 20),
                             child: Text('$_count',
                                 style: GoogleFonts.poppins(
-                                  fontSize: 16, fontWeight: FontWeight.w900,
+                                  fontSize: 20, fontWeight: FontWeight.w900,
                                   color: ink,
                                 )),
                           ),
@@ -1028,7 +1067,9 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
             ],
           ),
           const SizedBox(height: 12),
-          if (_statusMsg != null)
+          if (_generating)
+            _generatingBanner(context)
+          else if (_statusMsg != null)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(10),
@@ -1066,6 +1107,53 @@ class _AiHomeworkGeneratorWidgetState extends State<AiHomeworkGeneratorWidget> {
                         fontSize: 14, fontWeight: FontWeight.w800,
                         color: Colors.white,
                       )),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Üretim sırasındaki banner: ortada büyük başlık, altında DÖNEN QuAlsar
+  /// logosu, en altta 3 sn arayla değişen aşama mesajı.
+  Widget _generatingBanner(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 14),
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: const Color(0xFF7C3AED).withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        children: [
+          Text('QuAlsar ödevinizi üretiyor'.tr(),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 17, fontWeight: FontWeight.w800,
+                color: AppPalette.textPrimary(context),
+              )),
+          const SizedBox(height: 14),
+          RotationTransition(
+            turns: _spinCtrl,
+            child: const SizedBox(
+              width: 54, height: 54,
+              child: QuAlsarLogoMark(size: 54, showCenterWord: false),
+            ),
+          ),
+          const SizedBox(height: 14),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 400),
+            child: Text(
+              _kGenPhases[_phaseIdx].tr(),
+              key: ValueKey(_phaseIdx),
+              textAlign: TextAlign.center,
+              style: GoogleFonts.poppins(
+                fontSize: 12.5, fontWeight: FontWeight.w600,
+                color: AppPalette.textSecondary(context),
+              ),
             ),
           ),
         ],

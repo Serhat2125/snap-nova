@@ -21,6 +21,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'account_service.dart';
 import 'analytics.dart';
@@ -635,15 +636,27 @@ class ClassService {
     });
   }
 
-  /// Yeni not ekler. [sharedWithParent] true → ebeveyn panelinde görünür.
-  /// [kind] 'praise' → takdir/hızlı geri bildirim (her zaman paylaşılır).
+  /// Yeni not ekler. [sharedWithParent] true → ebeveyn panelinde görünür ve
+  /// veliye bildirim gider (pushOnTeacherNote CF). [notifyStudent] true →
+  /// öğrenciye bildirim yazılır. İkisi de null bırakılırsa eski davranış:
+  /// 'praise' türü her iki tarafa da gider, 'note' türü paylaşım bayrağına uyar.
   static Future<bool> addNote(
       String classId, String studentUid, String text,
-      {bool sharedWithParent = false, String kind = 'note'}) async {
+      {bool? sharedWithParent, bool? notifyStudent,
+      String kind = 'note', String homeworkTitle = ''}) async {
     if (_myUid == null) return false;
     try {
-      final shared = sharedWithParent || kind == 'praise';
+      final shared = sharedWithParent ?? (kind == 'praise');
+      final toStudent = notifyStudent ?? (shared || kind == 'praise');
       final msg = text.trim();
+      // Öğretmen adı — bildirimde "kimden geldiği" net görünsün.
+      var teacherName = '';
+      try {
+        final t = await _fs.collection('users').doc(_myUid).get();
+        teacherName = ((t.data()?['displayName'] ??
+                t.data()?['username'] ?? '')
+            .toString()).trim();
+      } catch (_) {}
       await _fs
           .collection('classes')
           .doc(classId)
@@ -653,18 +666,31 @@ class ClassService {
           .add({
         'text': msg,
         'sharedWithParent': shared,
+        'visibleToStudent': toStudent,
         'kind': kind,
+        // Bağlam — veli bildirimi CF'i (pushOnTeacherNote) bunları okur.
+        'teacherName': teacherName,
+        'homeworkTitle': homeworkTitle.trim(),
         'createdAt': FieldValue.serverTimestamp(),
       });
-      // Paylaşılan not → ÖĞRENCİYE bildirim kaydı (pushOnNotificationCreated
+      // Öğrenci seçildiyse → ÖĞRENCİYE bildirim kaydı (pushOnNotificationCreated
       // doc'taki title/body'yi olduğu gibi push'lar; inbox'ta da görünür).
-      // Özel gözlem notları (shared=false) öğrenciye SIZMAZ. Velilere
-      // bildirim pushOnTeacherNote Cloud Function'ından gider — öğretmen
-      // istemcisi veli uid'lerini okuyamaz (rules).
-      if (shared) {
+      // Özel gözlem notları öğrenciye SIZMAZ. Velilere bildirim
+      // pushOnTeacherNote Cloud Function'ından gider (sharedWithParent'a
+      // bakar) — öğretmen istemcisi veli uid'lerini okuyamaz (rules).
+      if (toStudent) {
         try {
           final cls = await _fs.collection('classes').doc(classId).get();
           final className = (cls.data()?['name'] ?? '').toString();
+          // "Ayşe Yılmaz öğretmenin, 'kolay odev' ödevin için: '…'" —
+          // öğrenci hangi öğretmenin hangi ödev için yazdığını net görsün.
+          final who = teacherName.isNotEmpty
+              ? '$teacherName ${'öğretmenin'.tr()}'
+              : 'Öğretmenin'.tr();
+          final hwT = homeworkTitle.trim();
+          final about = hwT.isNotEmpty
+              ? ', "$hwT" ${'ödevin için'.tr()}'
+              : (className.isNotEmpty ? ' ($className)' : '');
           await _fs
               .collection('notifications')
               .doc(studentUid)
@@ -673,11 +699,13 @@ class ClassService {
             'type': 'teacher_note',
             'className': className,
             'message': msg,
+            'teacherName': teacherName,
+            'homeworkTitle': hwT,
             // .tr() ile — alıcının inbox/push'unda sabit Türkçe kalmasın.
             'title': kind == 'praise'
                 ? 'Öğretmeninden takdir 🌟'.tr()
                 : 'Öğretmeninden not 📝'.tr(),
-            'body': className.isEmpty ? '“$msg”' : '$className: “$msg”',
+            'body': '$who$about: “$msg”',
             'when': FieldValue.serverTimestamp(),
             'read': false,
           });
@@ -1056,6 +1084,36 @@ class ClassService {
     }
   }
 
+  /// Öğrencinin gerçek adı + kullanıcı adı. users/{uid} doc'u boşsa (öğrenci
+  /// onboarding'de username oluşturmamış olabilir) yerel profilden ve
+  /// FirebaseAuth'tan tamamlanır — sınıf listesinde öğrenci "@"/boş görünmesin.
+  static Future<(String, String)> _resolveMyIdentity(
+      Map<String, dynamic> userDoc) async {
+    var name = (userDoc['displayName'] ?? '').toString().trim();
+    var uname = (userDoc['username'] ?? '').toString().trim();
+    if (name.isEmpty || uname.isEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        if (name.isEmpty) {
+          name = (prefs.getString('profile_name') ?? '').trim();
+        }
+        if (uname.isEmpty) {
+          uname = (prefs.getString('user_username_v1') ?? '').trim();
+        }
+      } catch (_) {/* prefs okunamazsa Auth fallback'ine düş */}
+      final fb = FirebaseAuth.instance.currentUser;
+      if (name.isEmpty) name = (fb?.displayName ?? '').trim();
+      if (uname.isEmpty) {
+        final email = (fb?.email ?? '').trim();
+        if (email.contains('@')) {
+          uname = email.substring(0, email.indexOf('@'));
+        }
+      }
+      if (name.isEmpty) name = uname;
+    }
+    return (name, uname);
+  }
+
   /// Ortak katılım mantığı — öğrenci KENDİNİ sınıfa ekler (rules: isOwner).
   /// [requiresApproval] true (kodla katılım) → öğrenci 'pending' yazılır ve
   /// öğretmene ONAY isteği bildirimi gider; öğretmen davetinde (invite) ise
@@ -1080,6 +1138,18 @@ class ClassService {
 
       final myProfile = await _fs.collection('users').doc(myUid).get();
       final myData = myProfile.data() ?? const <String, dynamic>{};
+      // Gerçek ad + kullanıcı adı — users doc boşsa yerel profil/Auth'tan.
+      final (myName, myUsername) = await _resolveMyIdentity(myData);
+      // users doc'unda displayName boştu ama yerelde bulduk → geriye yaz ki
+      // arkadaşlık/lig gibi diğer akışlar da isimsiz kalmasın. (username
+      // YAZILMAZ — onboarding'in username-sheet kontrolü users.username'e
+      // bakar, otomatik değer sheet'i atlatır.)
+      if ((myData['displayName'] ?? '').toString().trim().isEmpty &&
+          myName.isNotEmpty) {
+        unawaited(_fs.collection('users').doc(myUid)
+            .set({'displayName': myName}, SetOptions(merge: true))
+            .catchError((_) {}));
+      }
       final classDoc = await _fs.collection('classes').doc(classId).get();
       final classData = classDoc.data() ?? const <String, dynamic>{};
       final teacherProfile = (teacherUid == null || teacherUid.isEmpty)
@@ -1093,8 +1163,8 @@ class ClassService {
         _fs.collection('classes').doc(classId)
             .collection('students').doc(myUid),
         {
-          'username': myData['username'] ?? '',
-          'displayName': myData['displayName'] ?? '',
+          'username': myUsername,
+          'displayName': myName,
           'avatar': myData['avatar'] ?? '👤',
           // Profilin geri kalanı — öğretmen paneli öğrenciyi profilindeki
           // haliyle (foto, seviye, ülke, durum mesajı) görsün.
@@ -1121,6 +1191,9 @@ class ClassService {
       // Öğretmene bildirim: onay gerekiyorsa "katılma isteği" (Onayla/Reddet),
       // değilse "yeni öğrenci katıldı".
       if (teacherUid != null && teacherUid.isNotEmpty) {
+        // Ad Soyad + kullanıcı adı birlikte yazılır ki öğretmen isteğin
+        // KİMDEN geldiğini görüp öyle onaylasın (kod yabancının eline
+        // geçmiş olabilir).
         batch.set(
           _fs.collection('notifications').doc(teacherUid)
               .collection('items').doc(),
@@ -1128,8 +1201,11 @@ class ClassService {
             'type': requiresApproval
                 ? 'student_join_request'
                 : 'student_joined',
-            'fromDisplayName': myData['displayName'] ??
-                myData['username'] ?? 'Bir öğrenci'.tr(),
+            'fromDisplayName': myName.isNotEmpty
+                ? myName
+                : (myUsername.isNotEmpty ? myUsername : 'Bir öğrenci'.tr()),
+            'fromUsername': myUsername,
+            'fromUid': myUid,
             'className': classData['name'] ?? '',
             'classId': classId,
             'studentUid': myUid,
@@ -1397,13 +1473,56 @@ class ClassService {
           }
           continue;
         }
+        final mdata = member.data() ?? const <String, dynamic>{};
+        // Self-heal: eski katılımlarda username/displayName boş yazılmış
+        // olabilir (öğrenci onboarding'de username oluşturmamıştı) — öğretmen
+        // panelinde "@"/isimsiz görünüyordu. Kendi kaydımızsa tamamla.
+        if (heal &&
+            ((mdata['username'] ?? '').toString().trim().isEmpty ||
+                (mdata['displayName'] ?? '').toString().trim().isEmpty)) {
+          unawaited(_healMemberIdentity(uid, c.classId, mdata));
+        }
         alive.add(c.withStatus(
-            (member.data()?['status'] ?? 'active').toString()));
+            (mdata['status'] ?? 'active').toString()));
       } catch (_) {
         alive.add(c); // okuma hatasında kaydı KORU (yanlışlıkla gizleme yok)
       }
     }
     return alive;
+  }
+
+  /// Aynı üyelik için oturum başına tek onarım denemesi (stream her snapshot'ta
+  /// tetiklenir — tekrar tekrar users doc okunmasın).
+  static final Set<String> _healAttempted = <String>{};
+
+  /// Üyelik kaydındaki boş username/displayName alanlarını users doc + yerel
+  /// profil/Auth'tan doldurur. Rules: öğrenci kendi üyelik dokümanını status'a
+  /// DOKUNMADAN güncelleyebilir.
+  static Future<void> _healMemberIdentity(
+      String uid, String classId, Map<String, dynamic> mdata) async {
+    final key = '$classId/$uid';
+    if (!_healAttempted.add(key)) return;
+    try {
+      final u = await _fs.collection('users').doc(uid).get();
+      final (name, uname) =
+          await _resolveMyIdentity(u.data() ?? const <String, dynamic>{});
+      final patch = <String, dynamic>{
+        if ((mdata['username'] ?? '').toString().trim().isEmpty &&
+            uname.isNotEmpty)
+          'username': uname,
+        if ((mdata['displayName'] ?? '').toString().trim().isEmpty &&
+            name.isNotEmpty)
+          'displayName': name,
+      };
+      if (patch.isEmpty) return;
+      await _fs
+          .collection('classes').doc(classId)
+          .collection('students').doc(uid)
+          .set(patch, SetOptions(merge: true));
+      debugPrint('[ClassService] member identity healed: $key');
+    } catch (e) {
+      debugPrint('[ClassService] heal fail $key: $e');
+    }
   }
 
   /// Belirli bir kullanıcının (örn. bağlı çocuk) katıldığı sınıflar — ebeveyn
@@ -1664,6 +1783,54 @@ class ClassService {
         },
         'sharedAt': FieldValue.serverTimestamp(),
       });
+      // Sınıfın AKTİF öğrencilerine bildirim (best-effort) — title/body
+      // doc'a hazır yazılır; pushOnNotificationCreated olduğu gibi push'lar,
+      // CF değişikliği gerekmez.
+      try {
+        final cls = await _fs.collection('classes').doc(classId).get();
+        final className = (cls.data()?['name'] ?? '').toString().trim();
+        final t = await _fs.collection('users').doc(myUid).get();
+        final teacherName = ((t.data()?['displayName'] ??
+                t.data()?['username'] ?? '')
+            .toString()).trim();
+        final who = teacherName.isNotEmpty
+            ? '$teacherName ${'öğretmenin'.tr()}'
+            : 'Öğretmenin'.tr();
+        final kindLabel = switch (kind) {
+          'pdf' => 'PDF',
+          'note' => 'Ders notu'.tr(),
+          _ => 'Web linki'.tr(),
+        };
+        final students = await _fs.collection('classes').doc(classId)
+            .collection('students').get();
+        final batch = _fs.batch();
+        var n = 0;
+        for (final s in students.docs) {
+          if ((s.data()['status'] ?? 'active').toString() == 'pending') {
+            continue;
+          }
+          batch.set(
+            _fs.collection('notifications').doc(s.id)
+                .collection('items').doc(),
+            {
+              'type': 'material',
+              'className': className,
+              'classId': classId,
+              'teacherName': teacherName,
+              'title': '${'Yeni kaynak'.tr()} 📎: ${title.trim()}',
+              'body': '$who${className.isNotEmpty ? ' ($className)' : ''} '
+                  '${'sınıfla yeni bir kaynak paylaştı'.tr()}: '
+                  '"${title.trim()}" ($kindLabel)',
+              'when': FieldValue.serverTimestamp(),
+              'read': false,
+            },
+          );
+          n++;
+        }
+        if (n > 0) await batch.commit();
+      } catch (e) {
+        debugPrint('[ClassService] material notify fail: $e');
+      }
       return true;
     } catch (e) {
       debugPrint('[ClassService] shareMaterial fail: $e');

@@ -136,45 +136,83 @@ class _TeacherStudentReportScreenState
     super.dispose();
   }
 
-  /// Sağ üstteki "?" → aktif sekmeye göre kısa "nasıl kullanılır" rehberi.
+  /// Sağ üstteki "?" → aktif sekmeye göre "nasıl kullanılır" rehberi.
+  /// Her madde renkli kart: başlık + ayrıntılı açıklama.
   Future<void> _showHelp() async {
+    const purple = Color(0xFF7C3AED);
+    const blue = Color(0xFF0EA5E9);
+    const green = Color(0xFF10B981);
+    const amber = Color(0xFFF59E0B);
+    const red = Color(0xFFEF4444);
+    const pink = Color(0xFFEC4899);
+    const teal = Color(0xFF14B8A6);
     final (title, items) = switch (_tab) {
       1 => (
           'Notlar — nasıl kullanılır?',
           [
-            TeacherHelpItem('📝',
-                '“Yeni not ekle” ile öğrenci hakkında gözlem/öneri yaz.'),
-            TeacherHelpItem('👪',
-                '“Ebeveynle paylaş” açıksa not velinin panelinde görünür; kapalıysa sadece sana özeldir.'),
-            TeacherHelpItem('👏',
-                '“Takdir” ile hazır olumlu geri bildirim gönderebilirsin.'),
-            TeacherHelpItem('✏️',
-                'Bir nota dokunarak düzenleyebilir veya silebilirsin.'),
+            TeacherHelpItem('📝', 'Gözlem notu yaz',
+                '“Yeni not ekle” ile öğrenci hakkında gözlem, öneri veya '
+                'hatırlatma yazarsın — dersteki tutumu, gelişimi, eksikleri.',
+                purple),
+            TeacherHelpItem('👪', 'Ebeveynle paylaş',
+                'Not eklerken “Ebeveynle paylaş” açıksa not velinin panelinde '
+                'de görünür; kapalıysa yalnız sana özeldir.', blue),
+            TeacherHelpItem('👏', 'Takdir gönder',
+                '“Takdir” ile hazır olumlu geri bildirimi tek dokunuşla '
+                'gönderebilirsin — öğrenciyi motive eder.', green),
+            TeacherHelpItem('✏️', 'Düzenle / sil',
+                'Bir nota dokunarak içeriğini düzenleyebilir ya da '
+                'silebilirsin.', amber),
           ],
         ),
       2 => (
           'Yazılılar — nasıl kullanılır?',
           [
-            TeacherHelpItem('➕',
-                'Her dönem çerçevesindeki “Not ekle” ile yazılı/sözlü not girersin; çerçevenin dönemi hazır gelir.'),
-            TeacherHelpItem('🗂️',
-                'Her dönem kendi çerçevesindedir; “Notları göster/gizle” ile aç-kapat.'),
-            TeacherHelpItem('🎯',
-                'Not eklerken “Yüzdelik Katkısı”, o notun dönem ağırlığıdır.'),
-            TeacherHelpItem('🔢',
-                '“Verilen” girdiğin nottur; “Katkı” o notun ortalamaya gerçek payıdır — bir dönemdeki katkıların toplamı Ortalama’ya eşittir.'),
-            TeacherHelpItem('✋', 'Bir nota uzun basarak düzenle veya sil.'),
+            TeacherHelpItem('➕', 'Not gir',
+                'Her dönem çerçevesindeki “Not ekle” ile yazılı/sözlü notu '
+                'girersin; dönem bilgisi çerçeveden hazır gelir.', purple),
+            TeacherHelpItem('🗂️', 'Dönem dönem düzen',
+                'Her dönem kendi çerçevesindedir; “Notları göster/gizle” ile '
+                'açıp kapatabilirsin.', blue),
+            TeacherHelpItem('🎯', 'Ağırlık mantığı',
+                'Not eklerken “Yüzdelik Katkısı”, o notun dönem ortalamasına '
+                'ağırlığıdır (örn. yazılı %40, sözlü %10).', green),
+            TeacherHelpItem('🔢', 'Verilen ve Katkı',
+                '“Verilen” girdiğin nottur; “Katkı” o notun ortalamaya gerçek '
+                'payıdır — bir dönemdeki katkıların toplamı Ortalama’ya '
+                'eşittir.', amber),
+            TeacherHelpItem('✋', 'Uzun bas',
+                'Bir nota uzun basarak düzenleyebilir veya silebilirsin.',
+                pink),
           ],
         ),
       _ => (
           'Ödevler — nasıl kullanılır?',
           [
-            TeacherHelpItem('📊',
-                'Öğrencinin verdiğin ödevlerdeki performansı: skor, süre, durum.'),
-            TeacherHelpItem('📈',
-                'Başarı trendi ve konu bazlı güçlü/zayıf alanlar burada görünür.'),
-            TeacherHelpItem('👇',
-                'Bir ödeve dokunarak ayrıntılı sonucu açabilirsin.'),
+            TeacherHelpItem('🗂️', 'Ödev listesi',
+                'Bu sayfada öğrencinin tüm ödevlerini durumlarıyla görürsün: '
+                'teslim etti mi, skoru kaç, ne kadar süre harcadı.', purple),
+            TeacherHelpItem('👇', 'Ödeve dokun → detay açılır',
+                'Herhangi bir ödeve dokununca o ödevin ayrıntısı açılır: '
+                'soru soru verdiği cevaplar, doğru/yanlış dağılımı, grafik ve '
+                'AI analizi.', blue),
+            TeacherHelpItem('📈', 'Başarı trendi',
+                'Grafik, son ödevlerdeki gidişatı gösterir — yükselişte mi '
+                'düşüşte mi tek bakışta anlarsın.', green),
+            TeacherHelpItem('🧠', 'Güçlü / zayıf konular',
+                'Konu bazlı analiz öğrencinin hangi konularda zorlandığını '
+                'gösterir; eksik konulara yönelik yeni ödev verebilirsin.',
+                teal),
+            TeacherHelpItem('⚠️', 'Risk uyarısı',
+                'Öğrenci son ödevleri kaçırıyorsa veya ortalaması düşükse '
+                'sayfanın üstünde uyarı görürsün — erken müdahale şansı.',
+                red),
+            TeacherHelpItem('📝', 'Notlar sekmesi',
+                'Alttaki “Notlar” ile öğrenci hakkında gözlem yazar, istersen '
+                'ebeveynle paylaşırsın.', amber),
+            TeacherHelpItem('🎯', 'Yazılılar sekmesi',
+                '“Yazılılar” ile yazılı/sözlü notlarını girer, dönem '
+                'ortalamasını müfredat skalasında takip edersin.', pink),
           ],
         ),
     };

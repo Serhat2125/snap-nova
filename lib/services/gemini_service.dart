@@ -10,6 +10,7 @@ import 'ai_quota_service.dart';
 import 'curriculum_catalog.dart';
 import 'education_profile.dart';
 import 'locale_service.dart';
+import 'parent_preview.dart';
 import 'secrets.dart';
 import 'summary_cache_service.dart';
 
@@ -466,6 +467,7 @@ MÜFREDAT DIŞI içerik = HATA → ASLA üretme.''';
     double temperature = 0.3,
     Duration timeout = const Duration(seconds: 60),
   }) async {
+    ParentPreview.blockAi();
     _log('OpenAI isteği → model=$_openaiTextModel');
     try {
       final response = await _http.post(
@@ -512,6 +514,7 @@ MÜFREDAT DIŞI içerik = HATA → ASLA üretme.''';
     int maxTokens = 2048,
     double temperature = 0.3,
   }) async {
+    ParentPreview.blockAi();
     _log('OpenAI Vision isteği → model=$_openaiVisionModel');
     final response = await _http.post(
       Uri.parse(_openaiUrl),
@@ -583,6 +586,8 @@ MÜFREDAT DIŞI içerik = HATA → ASLA üretme.''';
     String? responseMimeType,
     Duration timeout = const Duration(seconds: 90),
   }) async {
+    // Ebeveyn önizlemesinde HİÇBİR AI çağrısı çıkamaz — kök engel.
+    ParentPreview.blockAi();
     final keys = _allGeminiKeys();
     if (keys.isEmpty) {
       _log('Hiç Gemini key yok!');
@@ -1041,6 +1046,7 @@ MÜFREDAT DIŞI içerik = HATA → ASLA üretme.''';
     int thinkingBudget = 0,
     String? modelOverride,
   }) async {
+    ParentPreview.blockAi();
     final keys = _allGeminiKeys();
     if (keys.isEmpty) {
       throw GeminiException.invalidKey();

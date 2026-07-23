@@ -23,6 +23,18 @@ class ParentPreview {
   /// önizleme rotası kapanınca false'a döner.
   static bool active = false;
 
+  /// SERVİS KATMANI kök engeli — BuildContext gerekmez. Önizleme aktifken
+  /// AI sağlayıcılarına giden HER isteğin başında çağrılır; aktifse fırlatır.
+  /// Böylece UI'da gözden kaçan bir giriş noktası olsa bile hiçbir AI modeli
+  /// ebeveyn önizlemesinde ÇALIŞTIRILAMAZ (çağıran hata mesajını gösterir).
+  static void blockAi() {
+    if (active) {
+      throw StateError(
+          '👁️ Öğrenci paneli önizlemesi — AI özellikleri yalnızca öğrenci '
+          'hesabında çalışır.');
+    }
+  }
+
   /// Üretim/yarışma eylemlerinin başında çağrılır. Önizleme aktifse
   /// kullanıcıya kısa bir açıklama gösterir ve true döner (çağıran return
   /// etmeli); değilse false döner ve akış normal devam eder.

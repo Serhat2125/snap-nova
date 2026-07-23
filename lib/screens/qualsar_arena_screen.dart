@@ -15898,7 +15898,9 @@ class _DueloResultsScreenState extends State<_DueloResultsScreen> {
                         child: _bottomAction(
                           icon: Icons.sports_mma_rounded,
                           label: 'Rövanş İste'.tr(),
-                          filled: true,
+                          // Beyaz zemin — diğer butonlarla aynı görünüm
+                          // (eski siyah dolgulu hali dikkat dağıtıyordu).
+                          filled: false,
                           onTap: () => _requestRematch(context),
                         ),
                       ),

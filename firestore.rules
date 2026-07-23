@@ -521,9 +521,16 @@ service cloud.firestore {
           || (isSignedIn()
               && get(/databases/$(database)/documents/classes/$(classId))
                   .data.teacherUid == request.auth.uid);
-        allow update: if isSignedIn()
-          && get(/databases/$(database)/documents/classes/$(classId))
-              .data.teacherUid == request.auth.uid;
+        // Update: öğretmen serbest; öğrenci KENDİ kaydını yalnızca status'a
+        // (ve joinedAt'e) DOKUNMADAN güncelleyebilir — profil bilgisi (isim,
+        // username, avatar) self-heal/senkron için gerekli, ama pending→active
+        // yükseltmesini yalnız öğretmen yapabilir.
+        allow update: if (isSignedIn()
+              && get(/databases/$(database)/documents/classes/$(classId))
+                  .data.teacherUid == request.auth.uid)
+          || (isOwner(studentUid)
+              && !request.resource.data.diff(resource.data)
+                  .affectedKeys().hasAny(['status', 'joinedAt'].toSet()));
 
         // grades alt koleksiyonu — öğrencinin yazılı/sözlü notları.
         //   Read: öğrencinin kendisi, bağlı ebeveyni VE sınıf öğretmeni.

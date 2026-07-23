@@ -20,6 +20,10 @@ interface NoteData {
   text?: string;
   sharedWithParent?: boolean;
   kind?: string;
+  // Bağlam — class_service.addNote yazar; bildirimde "hangi öğretmen,
+  // hangi ödev" net görünsün.
+  teacherName?: string;
+  homeworkTitle?: string;
 }
 
 export const pushOnTeacherNote = onDocumentCreated(
@@ -56,6 +60,17 @@ export const pushOnTeacherNote = onDocumentCreated(
       ).toString();
       const msg = (data.text ?? "").toString();
       const praise = data.kind === "praise";
+      // "Ayşe Yılmaz öğretmeni, 'kolay odev' ödevi için: '…'" — veli hangi
+      // öğretmenin hangi ödev için yazdığını net görsün.
+      const tName = (data.teacherName || "").trim();
+      const hwTitle = (data.homeworkTitle || "").trim();
+      const who = tName ? `${tName} öğretmeni` : "Öğretmeni";
+      const about = hwTitle
+        ? `, "${hwTitle}" ödevi için`
+        : className
+          ? ` (${className})`
+          : "";
+      const body = `${who}${about}: “${msg}”`;
 
       const batch = db.batch();
       for (const p of parents.docs) {
@@ -65,10 +80,12 @@ export const pushOnTeacherNote = onDocumentCreated(
             type: "teacher_note",
             className,
             message: msg,
+            teacherName: tName,
+            homeworkTitle: hwTitle,
             title: praise
               ? `${childName} için öğretmen takdiri 🌟`
               : `${childName} için öğretmen notu 📝`,
-            body: className ? `${className}: “${msg}”` : `“${msg}”`,
+            body,
             when: FieldValue.serverTimestamp(),
             read: false,
           }

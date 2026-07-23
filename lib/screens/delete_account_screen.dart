@@ -72,7 +72,7 @@ class DeleteAccountScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      "Bizi şimdi terk ederseniz sizi özleyeceğiz. QuAlsar'dan çıkmak istediğinizden emin misiniz?"
+                      "Bizi şimdi terk ederseniz sizi özleyeceğiz. Burada geçirdiğin her gün seni hedeflerine bir adım daha yaklaştırıyor — bu yolculuğu birlikte tamamlayalım. 💚"
                           .tr(),
                       style: GoogleFonts.poppins(
                         fontSize: 13.5,
@@ -98,9 +98,36 @@ class DeleteAccountScreen extends StatelessWidget {
                 ),
               ),
             ),
-            // ── Alt buton ────────────────────────────────────────────────
+            // ── Alt butonlar: önce YEŞİL "Ayrılma" (kal), altında turuncu
+            //    "Ayrıl" — aralarında belirgin boşluk. ──────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  // Vazgeç → ekranı kapat, hesap olduğu gibi kalır.
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  child: Text("QuAlsar'dan Ayrılma".tr(),
+                      style: GoogleFonts.poppins(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: 0.2,
+                      )),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
               child: SizedBox(
                 width: double.infinity,
                 height: 56,

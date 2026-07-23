@@ -649,7 +649,12 @@ class _StudentsViewState extends State<_StudentsView> {
   //  Grid'de: [⠿ 📊 Özet].  Özet'te: [⠿ 👥 Öğrenciler | 📋 Ödevler ▾].
   Widget _draggableTab(BuildContext context, BoxConstraints c) {
     const brand = Color(0xFF7C3AED);
+    // Özet modunda pill iki renkli sekmeye ayrılır: Öğrenciler AÇIK mavi,
+    // Ödevler KOYU mavi zeminde — hangisinin hangisi olduğu ilk bakışta görünür.
+    const lightBlue = Color(0xFF38BDF8);
+    const darkBlue = Color(0xFF1D4ED8);
     final summary = _view == 1;
+    final baseColor = summary ? darkBlue : brand;
     return GestureDetector(
       // Sürükle → konumu güncelle (ekran sınırları içinde).
       onPanUpdate: (d) {
@@ -666,9 +671,9 @@ class _StudentsViewState extends State<_StudentsView> {
       },
       child: Material(
         elevation: 6,
-        shadowColor: brand.withValues(alpha: 0.5),
+        shadowColor: baseColor.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(24),
-        color: brand,
+        color: baseColor,
         child: Container(
           width: _fabW, height: _fabH,
           alignment: Alignment.center,
@@ -679,7 +684,8 @@ class _StudentsViewState extends State<_StudentsView> {
               const Icon(Icons.drag_indicator_rounded,
                   size: 16, color: Colors.white70),
               const SizedBox(width: 4),
-              // Sol: görünüm geçişi (Özet ↔ Öğrenciler)
+              // Sol: görünüm geçişi (Özet ↔ Öğrenciler) — Özet modunda
+              // AÇIK MAVİ sekme (Ödevler koyu mavi zeminde kalır).
               Flexible(
                 child: InkWell(
                   onTap: () => setState(() {
@@ -689,9 +695,16 @@ class _StudentsViewState extends State<_StudentsView> {
                           widget.cls.id, homeworkId: _selectedHwId);
                     }
                   }),
-                  child: Padding(
+                  borderRadius: BorderRadius.circular(18),
+                  child: Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 4, vertical: 8),
+                        horizontal: 8, vertical: 8),
+                    decoration: summary
+                        ? BoxDecoration(
+                            color: lightBlue,
+                            borderRadius: BorderRadius.circular(18),
+                          )
+                        : null,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -711,9 +724,9 @@ class _StudentsViewState extends State<_StudentsView> {
                   ),
                 ),
               ),
-              // Özet görünümünde: ayraç + Ödevler seçici
+              // Özet görünümünde: Ödevler seçici (koyu mavi zeminde)
               if (summary) ...[
-                Container(width: 1, height: 22, color: Colors.white30),
+                const SizedBox(width: 6),
                 InkWell(
                   onTap: _pickHomework,
                   child: Padding(
