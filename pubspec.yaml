@@ -3,7 +3,7 @@ description: "A new Flutter project."
 
 publish_to: 'none'
 
-version: 1.0.6+36
+version: 1.0.8+39
 
 environment:
   sdk: '>=3.2.3 <4.0.0'
@@ -98,7 +98,9 @@ dependencies:
 
   # Google Play Billing + App Store StoreKit — premium abone akışı.
   # Production'da MockPaymentScreen yerine SubscriptionService kullanılıyor.
-  in_app_purchase: ^3.2.0
+  # ^3.3.0: in_app_purchase_android 0.5.x → Play Billing Library 8
+  # (Google zorunluluğu, son tarih 31 Ağustos 2026).
+  in_app_purchase: ^3.3.0
 
   # Sosyal altyapı — FCM push, deep link davet, QR scan, rehber sync.
   firebase_messaging: ^15.1.0
@@ -107,7 +109,7 @@ dependencies:
   # mutlak-an (tz.UTC) ile çalışır, cihaz IANA zonu gerektirmez.
   timezone: ^0.9.4
   app_links: ^6.3.2
-  mobile_scanner: ^5.2.3
+  mobile_scanner: ^7.4.0
 
   # WebView — 3D Eğitim Modelleri (HTML + Three.js) çevrimdışı oynatma.
   webview_flutter: ^4.7.0

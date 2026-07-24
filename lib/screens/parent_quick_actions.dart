@@ -14,6 +14,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' show pi;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -486,16 +487,19 @@ class _ParentAdvisorChatScreenState extends State<ParentAdvisorChatScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: m.me ? _kBrand : AppPalette.card(ctx),
+                        // Her iki tarafın balonu da BEYAZ zemin (kullanıcı
+                        // isteği); yön, köşe yarıçaplarından anlaşılır.
+                        color: Colors.white,
                         borderRadius: BorderRadius.only(
                           topLeft: const Radius.circular(16),
                           topRight: const Radius.circular(16),
                           bottomLeft: Radius.circular(m.me ? 16 : 4),
                           bottomRight: Radius.circular(m.me ? 4 : 16),
                         ),
-                        border: m.me
-                            ? null
-                            : Border.all(color: AppPalette.border(ctx)),
+                        border: Border.all(
+                            color: m.me
+                                ? _kBrand.withValues(alpha: 0.45)
+                                : AppPalette.border(ctx)),
                       ),
                       // AI yanıtları Markdown olarak çizilir — **kalın**,
                       // ### başlık ve maddeler düzgün görünür ("saçma
@@ -505,7 +509,8 @@ class _ParentAdvisorChatScreenState extends State<ParentAdvisorChatScreen> {
                               style: GoogleFonts.poppins(
                                 fontSize: 12.5,
                                 height: 1.45,
-                                color: Colors.white,
+                                // Beyaz balonda koyu yazı.
+                                color: const Color(0xFF111827),
                               ))
                           : MarkdownBody(
                               data: m.text,
@@ -563,7 +568,8 @@ class _ParentAdvisorChatScreenState extends State<ParentAdvisorChatScreen> {
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: Material(
-                          color: _kBrand.withValues(alpha: 0.08),
+                          // Hazır mesajlar: BEYAZ zemin + SİYAH çerçeve.
+                          color: Colors.white,
                           borderRadius: BorderRadius.circular(12),
                           child: InkWell(
                             onTap: () => _send(s),
@@ -574,14 +580,14 @@ class _ParentAdvisorChatScreenState extends State<ParentAdvisorChatScreen> {
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                    color: _kBrand.withValues(alpha: 0.30)),
+                                    color: Colors.black87, width: 1),
                               ),
                               child: Row(
                                 children: [
-                                  Icon(Icons.chat_bubble_outline_rounded,
+                                  const Icon(
+                                      Icons.chat_bubble_outline_rounded,
                                       size: 13,
-                                      color:
-                                          _kBrand.withValues(alpha: 0.75)),
+                                      color: Colors.black87),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Text(s,
@@ -589,7 +595,7 @@ class _ParentAdvisorChatScreenState extends State<ParentAdvisorChatScreen> {
                                           fontSize: 10.5,
                                           fontWeight: FontWeight.w600,
                                           height: 1.3,
-                                          color: _kBrand,
+                                          color: Colors.black87,
                                         )),
                                   ),
                                 ],
@@ -638,15 +644,21 @@ class _ParentAdvisorChatScreenState extends State<ParentAdvisorChatScreen> {
                   ),
                   const SizedBox(width: 8),
                   Material(
-                    color: _kBrand,
-                    shape: const CircleBorder(),
+                    // Beyaz daire + siyah çerçeve; ok YEŞİL ve 45° sağ-yukarı
+                    // bakar (kullanıcı isteği).
+                    color: Colors.white,
+                    shape: const CircleBorder(
+                        side: BorderSide(color: Colors.black87)),
                     child: InkWell(
                       onTap: _sending ? null : () => _send(),
                       customBorder: const CircleBorder(),
-                      child: const Padding(
-                        padding: EdgeInsets.all(11),
-                        child: Icon(Icons.send_rounded,
-                            size: 20, color: Colors.white),
+                      child: Padding(
+                        padding: const EdgeInsets.all(11),
+                        child: Transform.rotate(
+                          angle: -pi / 4,
+                          child: const Icon(Icons.send_rounded,
+                              size: 20, color: Color(0xFF10B981)),
+                        ),
                       ),
                     ),
                   ),

@@ -118,7 +118,7 @@ class _ParentQrScanDialogState extends State<ParentQrScanDialog> {
                 child: MobileScanner(
                   controller: _controller,
                   onDetect: _onDetect,
-                  errorBuilder: (ctx, err, _) {
+                  errorBuilder: (ctx, err) {
                     return Container(
                       color: Colors.black,
                       alignment: Alignment.center,

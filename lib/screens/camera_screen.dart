@@ -393,17 +393,8 @@ class _CameraScreenState extends State<CameraScreen>
   // ── Galeri ───────────────────────────────────────────────────────────────────
 
   Future<void> _openGallery() async {
-    final status = await Permission.photos.request();
-    // Kalıcı reddedildiyse sistem seçici hiç açılmaz → sessiz kalmak yerine
-    // kullanıcıyı ayarlara yönlendir (kamera izni reddiyle simetrik).
-    if (status.isPermanentlyDenied && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Galeri izni kapalı. Ayarlardan açabilirsin.'.tr()),
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(label: 'Ayarlar'.tr(), onPressed: openAppSettings),
-      ));
-      return;
-    }
+    // İzin istenmez: Android 13+ sistem Photo Picker'ı, eski sürümlerde
+    // sistem seçici izinsiz çalışır (Play Fotoğraf/Video İzinleri Politikası).
     final file = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 90);
     if (file != null && mounted) {
       await Navigator.push(context, _slideUp(SolutionScreen(imagePath: file.path)));

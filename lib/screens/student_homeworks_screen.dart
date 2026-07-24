@@ -22,6 +22,7 @@ import '../services/runtime_translator.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_theme.dart';
 import 'homework_solve_screen.dart';
+import 'join_class_screen.dart';
 import 'teacher_homework_detail_screen.dart';
 
 class StudentHomeworksScreen extends StatefulWidget {
@@ -460,7 +461,54 @@ class _StudentHomeworksScreenState extends State<StudentHomeworksScreen> {
           ],
         ),
       ),
+      // Alt-orta "Sınıfa Katıl" — Profil'den buraya taşındı. Basınca ekranın
+      // TAM ORTASINDA, mevcut Sınıfa Katıl ekranının birebir aynısı açılır
+      // (çalışma sistemi/prensibi değişmedi; aynı ekran pencere içinde).
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          // Düğme ekranın en altına yakın dursun (kullanıcı isteği).
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
+          child: Center(
+            child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF7C3AED),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 26, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999)),
+              ),
+              onPressed: _openJoinClassDialog,
+              icon: const Text('🏫', style: TextStyle(fontSize: 16)),
+              label: Text('Sınıfa Katıl'.tr(),
+                  style: GoogleFonts.poppins(
+                    fontSize: 13.5, fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  )),
+            ),
+          ),
+        ),
+      ),
     );
+  }
+
+  /// "Sınıfa Katıl" ekranını ortada pencere olarak açar; kapanınca liste
+  /// yenilenir (yeni katılınan sınıfın ödevleri görünsün).
+  Future<void> _openJoinClassDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding:
+            const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440, maxHeight: 620),
+          child: const JoinClassScreen(),
+        ),
+      ),
+    );
+    if (mounted) _load();
   }
 
   /// Kart + sınıf içi sıra numarası (analiz ekranı başlığı için).

@@ -18,7 +18,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'join_class_screen.dart';
 import 'notifications_inbox_screen.dart';
 import 'onboarding_screen.dart';
 import '../widgets/parent_invite_banner.dart';
@@ -652,18 +651,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onTap: () => _showTeacherBranchLevelSheet(),
                 ),
               ],
-              // Sınıfa Katıl — sadece ÖĞRENCİ.
-              // (Sınıf Ödevlerim → Kütüphanem'e taşındı, Pomodoro yanına.)
-              if (isStudent) ...[
-                SizedBox(height: 10),
-                _buildOvalMenuItem(
-                  emoji: '🏫',
-                  title: 'Sınıfa Katıl'.tr(),
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => const JoinClassScreen(),
-                  )),
-                ),
-              ],
+              // NOT: "Sınıfa Katıl" buradan kaldırıldı — artık Sınıf
+              // Ödevlerim ekranının altındaki ortalanmış düğmeden açılıyor.
               SizedBox(height: 10),
               _buildOvalMenuItem(
                 emoji: '🔔',
@@ -3345,10 +3334,12 @@ class _PremiumBannerState extends State<_PremiumBanner>
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
+            // Kullanıcı isteği: aynı ton ailesinde birer kademe AÇIK
+            // (derin mor→mor, pembe→açık pembe, turuncu→açık amber).
             colors: [
-              Color(0xFF4C1D95), // derin mor
-              Color(0xFFDB2777), // canlı pembe
-              Color(0xFFF59E0B), // sıcak turuncu
+              Color(0xFF6D28D9), // mor
+              Color(0xFFEC4899), // pembe
+              Color(0xFFFBBF24), // açık amber
             ],
             stops: [0.0, 0.55, 1.0],
           ),
@@ -3436,14 +3427,10 @@ class _PremiumBannerState extends State<_PremiumBanner>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Premium rozeti ("Sınırlı teklif" çipi kaldırıldı)
-                    Row(
-                      children: [
-                        Flexible(child: _proBadge()),
-                      ],
-                    ),
-                    SizedBox(height: 14),
-                    // Büyük başlık
+                    // Büyük başlık — kartın EN ÜSTÜNDE (üstteki
+                    // "Premiumda tüm avantajlar" rozeti kaldırıldı; aynı
+                    // mesaj zaten alt yazıda var). Kelimeler arası hafif
+                    // ferah boşluk (wordSpacing).
                     Text(
                       localeService.tr('unlimited_power_title'),
                       style: GoogleFonts.poppins(
@@ -3451,6 +3438,7 @@ class _PremiumBannerState extends State<_PremiumBanner>
                         fontWeight: FontWeight.w900,
                         color: Colors.white,
                         letterSpacing: -0.4,
+                        wordSpacing: 3,
                         height: 1.1,
                       ),
                     ),
@@ -3472,7 +3460,16 @@ class _PremiumBannerState extends State<_PremiumBanner>
                       padding:
                           const EdgeInsets.symmetric(vertical: 13),
                       decoration: BoxDecoration(
-            color: AppPalette.card(context),
+                        // Kullanıcı isteği: buton içi hafif turuncu —
+                        // solda koyu, sağa doğru açılan gradyan.
+                        gradient: const LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Color(0xFFF59E0B), // koyu amber (sol)
+                            Color(0xFFFDE68A), // açık amber (sağ)
+                          ],
+                        ),
                         borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
@@ -3521,41 +3518,6 @@ class _PremiumBannerState extends State<_PremiumBanner>
     );
   }
 
-  Widget _proBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.22),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.35),
-          width: 0.8,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.bolt_rounded,
-              color: Color(0xFFFFE44D), size: 13),
-          SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              'Premiumda tüm avantajlar seni bekliyor'.tr(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.poppins(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -3575,6 +3537,9 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   String? _profileImagePath;
   String? _educationLevel;
   String _userId = '';
+  // Gerçek @kullanıcı adı (handle) — arkadaş ekleme bununla çalışır.
+  // Eski işlevsiz 8 haneli "ID" satırının yerine bu gösterilir.
+  String _handle = '';
   String? _nameError;
   String? _statusError;
   // Debounce — kullanıcı her karakter girince cloud'a yazma yapmasın.
@@ -3582,6 +3547,8 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
   Timer? _statusDebounce;
   static const _maxNameLen = 30;
   static const _maxStatusLen = 120;
+  // Eğitim seviyesi kartı görünürlüğü — kullanıcı isteğiyle gizli (kod korunur).
+  static const bool _kShowStudentInfoCard = false;
 
   @override
   void initState() {
@@ -3593,12 +3560,21 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
     final prefs = await SharedPreferences.getInstance();
     final id = await loadOrCreateUserId();
     if (!mounted) return;
+    // Handle — _syncToCloud ile aynı öncelik: kayıtlı handle → e-posta
+    // ön eki. İkisi de yoksa satır gizlenir (misafir).
+    final savedUsername = prefs.getString('user_username_v1') ?? '';
+    final email = FirebaseAuth.instance.currentUser?.email ?? '';
     setState(() {
       _nameCtrl.text = prefs.getString('profile_name') ?? '';
       _statusCtrl.text = prefs.getString('profile_status_message') ?? '';
       _profileImagePath = prefs.getString('profile_image');
       _educationLevel = prefs.getString('profile_education_level');
       _userId = id;
+      _handle = savedUsername.isNotEmpty
+          ? savedUsername
+          : (email.contains('@')
+              ? email.substring(0, email.indexOf('@'))
+              : '');
     });
     // Yerel boşsa cloud'dan restore — telefon değişti senaryosu.
     if (_nameCtrl.text.isEmpty &&
@@ -3888,9 +3864,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
             ),
             SizedBox(height: 28),
 
-            // Sekme 1 — Kullanıcı Adı
+            // Sekme 1 — Görünen Ad (displayName; @handle DEĞİL — o kayıtta
+            // belirlenir ve buradan değişmez)
             _LabeledCard(
-              label: localeService.tr('username'),
+              label: localeService.tr('display_name_label'),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -3921,18 +3898,22 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                     ),
                     onChanged: (_) => _saveName(),
                   ),
+                  // Gerçek @kullanıcı adı (handle) — eski işlevsiz 8 haneli
+                  // yerel "ID" satırının yerine. Arkadaş ekleme bununla
+                  // çalıştığı için kopyalanması gerçekten işe yarar.
+                  if (_handle.isNotEmpty) ...[
                   SizedBox(height: 8),
                   GestureDetector(
                     onTap: () async {
-                      if (_userId.isEmpty) return;
-                      await Clipboard.setData(ClipboardData(text: _userId));
+                      await Clipboard.setData(
+                          ClipboardData(text: '@$_handle'));
                       if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           behavior: SnackBarBehavior.floating,
                           backgroundColor: Color(0xFF1F2937),
                           content: Text(
-                            localeService.tr('id_copied'),
+                            localeService.tr('username_copied'),
                             style: GoogleFonts.poppins(fontSize: 13),
                           ),
                           duration: Duration(seconds: 1),
@@ -3941,17 +3922,21 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                     },
                     child: Row(
                       children: [
-                        Icon(Icons.badge_outlined,
+                        Icon(Icons.alternate_email_rounded,
                             size: 14,
                             color: Colors.grey.shade500),
                         SizedBox(width: 4),
-                        Text(
-                          'ID: $_userId',
-                          style: GoogleFonts.poppins(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade500,
-                            letterSpacing: 0.5,
+                        Flexible(
+                          child: Text(
+                            '@$_handle',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade500,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
                         SizedBox(width: 4),
@@ -3960,6 +3945,7 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
                       ],
                     ),
                   ),
+                  ],
                 ],
               ),
             ),
@@ -4013,7 +3999,10 @@ class _ProfileEditPageState extends State<ProfileEditPage> {
             ),
             // Sekme 3 — Öğrenci Bilgileri (eğitim seviyesi) — öğretmende
             // anlamsız (onun yerine branş + öğrettiği seviye var), gizlenir.
-            if (AccountService.instance.isStudent) ...[
+            // Kullanıcı isteği (2026-07): kart TAMAMEN gizlendi ama kod
+            // duruyor — geri açmak için _kShowStudentInfoCard = true yap.
+            if (AccountService.instance.isStudent &&
+                _kShowStudentInfoCard) ...[
             SizedBox(height: 18),
             _LabeledCard(
               label: localeService.tr('student_info'),

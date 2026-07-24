@@ -1184,12 +1184,22 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
   // Seçili çocuğun ebeveyn tarafından girilen adı önceliklidir; yoksa
   // Firebase profil adı; o da yoksa varsayılan "N. Çocuk".
   String get _studentName {
+    // "Öğrenci" / "N. Çocuk" gibi jenerik etiketler GERÇEK isim sayılmaz —
+    // canlı profil adı varsa o kazanır (başlıkta hep gerçek isim görünsün).
+    bool generic(String s) =>
+        s.isEmpty ||
+        s == 'Öğrenci' ||
+        s == 'Öğrenci'.tr() ||
+        RegExp(r'^\d+\.\s').hasMatch(s);
     final custom = (_names[_childSlot] ?? '').trim();
-    if (custom.isNotEmpty) return custom;
+    if (!generic(custom)) return custom;
     final dn = (_baseStats['displayName'] ?? '').toString().trim();
     if (dn.isNotEmpty) return dn;
     final un = (_baseStats['username'] ?? '').toString().trim();
     if (un.isNotEmpty) return un;
+    final init = (widget.initialChildName ?? '').trim();
+    if (!generic(init)) return init;
+    if (custom.isNotEmpty) return custom;
     return '$_childSlot. ${"Çocuk".tr()}';
   }
 
@@ -1625,6 +1635,8 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
 
   // Çocuğun sınıf ödevlerine geçiş kartı — öğretmenin verdiği ödevleri ve
   // çocuğun sonuçlarını (doğru/yanlış/başarı) gösteren ekranı açar.
+  // Kaldırılan "Çocuğun Ödevleri" kartı — ana sayfadaki sekme aynı işi görüyor.
+  // ignore: unused_element
   Widget _homeworkCard(BuildContext context, String childUid) {
     return Material(
       color: Colors.transparent,
@@ -1724,15 +1736,11 @@ class _MyProgressScreenState extends State<MyProgressScreen> {
         out.add(_demoBadge(context));
         out.add(const SizedBox(height: 10));
       }
-      final childUid = (_childUids[_childSlot] ?? '').trim();
       out.addAll([
         _summaryHeader(context),
         const SizedBox(height: 16),
-        // Çocuğun sınıf ödevleri (öğretmen verdiyse) — bağlı çocuk varsa.
-        if (childUid.isNotEmpty) ...[
-          _homeworkCard(context, childUid),
-          const SizedBox(height: 16),
-        ],
+        // NOT: "Çocuğun Ödevleri" kartı kaldırıldı — ana sayfadaki
+        // "Öğretmenin Verdiği Ödevler" sekmesi aynı yere gidiyordu (mükerrer).
         _sectionTitle(context, 'Çalıştığı Alanlar'.tr()),
         const SizedBox(height: 10),
         _chipsGrid(context),

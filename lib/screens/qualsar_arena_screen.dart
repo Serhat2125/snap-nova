@@ -10406,7 +10406,10 @@ KURALLAR:
     await showDialog<void>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.35),
-      builder: (dctx) => StatefulBuilder(
+      // Pencere açıkken ARKA PLAN FLU (BackdropFilter tüm ekranı kaplar).
+      builder: (dctx) => BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+        child: StatefulBuilder(
         builder: (dctx, setD) {
           void runSearch(String q) {
             debounce?.cancel();
@@ -10757,6 +10760,7 @@ KURALLAR:
               ),
           );
         },
+        ),
       ),
     );
     debounce?.cancel();
@@ -17897,9 +17901,11 @@ class _DueloAvatar extends StatelessWidget {
     final a = avatar.trim();
     final bool asText =
         avatarData.trim().isEmpty && !a.startsWith('http') && a.length <= 4;
+    // Kullanıcı isteği: sol/sağ yarışmacı profilleri azıcık büyütüldü
+    // (avatar 28→34, yazı/bayrak +1.5-2pt).
     final avatarCircle = Container(
-      width: 28,
-      height: 28,
+      width: 34,
+      height: 34,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -17909,18 +17915,18 @@ class _DueloAvatar extends StatelessWidget {
       child: asText
           ? Text(a.isEmpty ? '👤' : a,
               style: _sans(
-                  size: 11, weight: FontWeight.w800, color: Colors.white))
+                  size: 13, weight: FontWeight.w800, color: Colors.white))
           : _GroupMemberAvatar(uid: '', avatar: avatar,
-              avatarData: avatarData, size: 24),
+              avatarData: avatarData, size: 30),
     );
-    final flagText = Text(flag, style: TextStyle(fontSize: 11));
+    final flagText = Text(flag, style: TextStyle(fontSize: 13));
     final nameText = Flexible(
       child: Text(
         '@$name',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         textAlign: mirror ? TextAlign.right : TextAlign.left,
-        style: _sans(size: 11, weight: FontWeight.w700),
+        style: _sans(size: 12.5, weight: FontWeight.w700),
       ),
     );
 
@@ -20269,7 +20275,7 @@ class _QrScanDialogState extends State<_QrScanDialog> {
                     MobileScanner(
                       controller: _controller,
                       onDetect: _onDetect,
-                      errorBuilder: (ctx, err, _) {
+                      errorBuilder: (ctx, err) {
                         return Container(
                           color: Colors.black,
                           alignment: Alignment.center,

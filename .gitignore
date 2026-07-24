@@ -85,3 +85,6 @@ ios/Runner/GoogleService-Info.plist
 # 3D model optimizasyon araci (gltf-transform) - repoya girmesin
 node_modules/
 package-lock.json
+
+# Hosting uzerinden dagitilan APK'lar repoya girmesin
+hosting/*.apk

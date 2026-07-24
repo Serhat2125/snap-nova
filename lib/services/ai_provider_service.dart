@@ -114,6 +114,14 @@ const List<AiHop> _hopsChatFree = [
   AiHop(AiProvider.grok, 'grok-3-mini'),
   AiHop(AiProvider.claude, 'claude-sonnet-4-6'),
 ];
+// Danışman/koç sohbeti — istenen kesin sıra: Gemini cevap veremezse sırayla
+// ChatGPT → Grok, en son çare Claude (en pahalı).
+const List<AiHop> _hopsCoach = [
+  AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
+  AiHop(AiProvider.openai, 'gpt-4o-mini'),
+  AiHop(AiProvider.grok, 'grok-3-mini'),
+  AiHop(AiProvider.claude, 'claude-sonnet-4-6'),
+];
 // Sayısal/çözüm (muhakeme öncelikli) — ücretsiz.
 const List<AiHop> _hopsSolveFree = [
   AiHop(AiProvider.gemini, 'gemini-2.5-flash'),
@@ -159,7 +167,7 @@ const Map<AiTask, AiTaskConfig> kAiTaskConfigFree = {
   AiTask.homeworkSolve:
       AiTaskConfig(_hopsSolveFree, maxTokens: 2048, perProviderTimeoutMs: 10000),
   AiTask.coach:
-      AiTaskConfig(_hopsChatFree, maxTokens: 1536, perProviderTimeoutMs: 8000),
+      AiTaskConfig(_hopsCoach, maxTokens: 1536, perProviderTimeoutMs: 8000),
   AiTask.voice:
       AiTaskConfig(_hopsChatFree, maxTokens: 1024, perProviderTimeoutMs: 6000),
   AiTask.cameraLive:
@@ -223,7 +231,7 @@ const Map<AiTask, AiTaskConfig> kAiTaskConfigPremium = {
   AiTask.examGen:
       AiTaskConfig(_hopsExamGen, maxTokens: 4096, perProviderTimeoutMs: 18000),
   AiTask.coach:
-      AiTaskConfig(_hopsChatPremium, maxTokens: 2048, perProviderTimeoutMs: 6000),
+      AiTaskConfig(_hopsCoach, maxTokens: 2048, perProviderTimeoutMs: 6000),
   AiTask.voice:
       AiTaskConfig(_hopsChatPremium, maxTokens: 1536, perProviderTimeoutMs: 5000),
   AiTask.cameraLive:

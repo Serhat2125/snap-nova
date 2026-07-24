@@ -2827,6 +2827,14 @@ YAPI (sırayla):
 💡 HATIRLATICI: [1-2 cümle — en kritik ezber noktası]
 🔴 TUZAK: [öğrencilerin bu konuda en sık yaptığı 1 hata/kavram yanılgısı
    ve doğrusu — ders kitaplarının "sık yapılan yanlış" kutusu gibi]
+📌 SINAVDA ÇOK SORULANLAR: [3-5 satır; her satır "✅" ile başlayan tek
+   keskin cümle — bu konudan sınavda en sık gelen bilgiler]
+
+GÖRSEL DİL: Her bölüm başlığı yukarıdaki gibi emojilidir. Listelerde
+anlamlı semboller kullan (✅ ❌ → ⬆ ⬇ ≈). Karşılaştırma/sınıflandırma
+varsa 1 küçük Markdown tablo ekle (örn. tip | özellik | örnek).
+Tuzak/istisna için "💡 Önemli Bilgi: …" satırı serbest (UI renkli kutu
+olarak çizer).
 
 GÖRSEL KURALI: Konu bir SÜREÇ/AKIŞ içeriyorsa (besin zinciri, döngü,
 işlem sırası, enerji akışı vb.) TEMEL KAVRAMLAR bölümünden sonra TAM 1
@@ -3909,10 +3917,21 @@ $grade
 - {sembol} — {ne anlama gelir, hangi birim}
 - {sembol} — {açıklama}
 
+NOTASYON — KUSURSUZ KARAKTER KURALI (EN KRİTİK):
+- Formüller GERÇEK Unicode bilim notasyonuyla, ders kitabındaki görünümün
+  AYNISI: üst simge (x², 10⁻³, m/s², c²), alt simge (v₀, q₁, r₂, Eₖ),
+  Yunan harfleri (α β γ Δ θ λ μ π ρ σ ω Ω), işleçler (· × / √ ± ≈ ≠ ≤ ≥ → ∝ Σ ∫ °).
+- Örnek doğru yazım: "v = v₀ + a·t", "E = m·c²", "F = (k·q₁·q₂)/r²",
+  "x = (-b ± √(b² - 4·a·c)) / (2·a)".
+- Kimya: alt simgeli — H₂O, CO₂, C₆H₁₂O₆, NH₃; tepkime oku "→", denge "⇌".
+- KESİN YASAK: LaTeX (\\frac, \\cdot, ^, _, \$...\$, \\( \\)), kod bloğu
+  (```), HTML etiketi, bozuk/anlamsız karakter (Â, Ã, â, □, �).
+  "^2" DEĞİL ², "_0" DEĞİL ₀, "*" DEĞİL ·, "sqrt" DEĞİL √.
+
 KURALLAR:
-- Notasyon: "v = v0 + a·t", "E = m·c²", "F = (k·q1·q2)/r²" gibi düz metin.
 - Sembol açıklamasında BİRİM mutlaka var (m, s, N, kg). Birimsiz → "boyutsuz".
 - Markdown başlık `###` (`####` yasak). Liste `-`.
+- HIZ: Her açıklama TEK kısa cümle — laf kalabalığı, giriş, özet paragrafı YOK.
 - Konuyla alakasız formül EKLEME.
 - Sadece İLGİLİ formüller — şüpheli/eski olanlar yok.
 - Hiçbir giriş cümlesi yazma. Direkt ilk `### ` ile başla.

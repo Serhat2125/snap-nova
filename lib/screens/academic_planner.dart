@@ -3205,7 +3205,7 @@ class _LibraryLandingState extends State<LibraryLanding> {
   static const _cardOrderKey = 'library_card_order_v1';
   static const _kDefaultCardOrder = <String>[
     'summary', 'questions', 'labirent', 'edu3d', 'league', 'contest',
-    'pomodoro', 'homeworks', 'ai_coach', 'calendar', 'materials', 'history',
+    'history', 'homeworks', 'ai_coach', 'calendar', 'materials', 'pomodoro',
   ];
   List<String> _cardOrder = List.of(_kDefaultCardOrder);
 
@@ -3485,8 +3485,8 @@ class _LibraryLandingState extends State<LibraryLanding> {
                         _LabyrinthCardBg(bgColor: _cardBgs['labirent']),
                     tintBg: false,
                     title: 'Bilgi Labirenti'.tr(),
-                    subtitle: 'Yedi Mühür\'ü çöz, labirentten kaç'.tr(),
-                    textNudgeY: 8,
+                    // Alt yazı kaldırıldı — başlık altı temiz beyaz kalsın.
+                    subtitle: '',
                     color: Color(0xFF6D28D9),
                     customBg: _cardBgs['labirent'],
                     // Beyaz zemin üstünde yazılar varsayılan SİYAH.
@@ -3502,28 +3502,24 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     icon: Icons.view_in_ar_rounded,
                     // Güneş sistemi — görselin bej zemini tool/whiten_edu3d
                     // ile BEYAZA çevrildi: kartın içi diğer kartlarla aynı
-                    // tek renk (beyaz). Alt kısımdaki projeksiyon tablası +
-                    // sis kırpılır (heightFactor 0.60), cisimler yukarıda
-                    // durur (kullanıcı isteği: "cisimleri biraz daha yukarı").
-                    // Kullanıcı isteği: -6 hâlâ yüksekti → +6'ya indirildi.
-                    // Sonra tekrar kart boyunun (122) ~%10'u (12px) daha
-                    // aşağı alındı: +6 + 12 = +18.
-                    // %10 küçük görsel (kullanıcı isteği: ikon biraz küçülsün).
-                    backgroundWidget: Transform.scale(
-                      scale: 0.9,
-                      child: Transform.translate(
-                        offset: const Offset(0, 18),
-                        child: Align(
-                          alignment: Alignment.topCenter,
-                          child: ClipRect(
-                            child: Align(
-                              alignment: Alignment.topCenter,
-                              heightFactor: 0.60, // alt %40 (tabla + sis) yok
-                              child: Image.asset(
-                                'assets/library_icons/edu3d_solar.jpg',
-                                width: double.infinity,
-                                fit: BoxFit.fitWidth,
-                              ),
+                    // tek renk (beyaz). Eski fitWidth düzeni görseli kart
+                    // genişliğine (~380px) büyütüyordu → 122px karta sığmayıp
+                    // cisimler kırpılıyordu. Artık SABİT küçük boy: görünür
+                    // alan ~87px, tüm gezegenler tam görünür; alt %38
+                    // (projeksiyon tablası + sis) kırpılır. Üst uç, küre
+                    // kartındaki gibi çerçeve çizgisinin hemen altında (2px).
+                    backgroundWidget: Align(
+                      alignment: Alignment.topCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: ClipRect(
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            heightFactor: 0.62, // alt %38 (tabla + sis) yok
+                            child: Image.asset(
+                              'assets/library_icons/edu3d_solar.jpg',
+                              height: 140,
+                              fit: BoxFit.contain,
                             ),
                           ),
                         ),
@@ -3565,12 +3561,13 @@ class _LibraryLandingState extends State<LibraryLanding> {
                                 ],
                         ),
                       ),
-                      child: Center(
-                        // Küre azıcık yukarı (kullanıcı isteği).
-                        child: Transform.translate(
-                          offset: const Offset(0, -5),
+                      child: Align(
+                        // Küre ESKİ boyutunda; üst ucu kartın üst çerçeve
+                        // çizgisinin hemen altında (neredeyse bitişik).
+                        alignment: Alignment.topCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 2),
                           child: RotatingGlobe(
-                          // 114 → 103: %10 küçük (kullanıcı isteği).
                           height: 103,
                           // Düello Arenası'ndaki gibi: ülke ön yüze gelince
                           // bayrağı belirir (kullanıcı isteği).
@@ -3585,8 +3582,8 @@ class _LibraryLandingState extends State<LibraryLanding> {
                     ),
                     tintBg: false,
                     title: 'Dünya Sıralaması'.tr(),
-                    subtitle: 'Dünyadaki yerini gör'.tr(),
-                    textNudgeY: 8,
+                    // Alt yazı kaldırıldı — yalnız başlık kalsın.
+                    subtitle: '',
                     color: Color(0xFF7C3AED),
                     customBg: _cardBgs['league'],
                     // Beyaz zemin üstünde yazılar varsayılan SİYAH (kullanıcı
@@ -4302,10 +4299,13 @@ class _LandingCardState extends State<_LandingCard> {
                     clipBehavior: Clip.none,
                     children: [
                       Center(
-                        // Kullanıcı isteği: ikon %10 büyük — Transform.scale
-                        // yerleşimi bozmaz, SizedBox tavanını da takılmaz.
+                        // Kullanıcı isteği: ikon %20 büyük — Transform.scale
+                        // yerleşimi bozmaz. Büyüme SADECE YUKARI doğru
+                        // (bottomCenter sabit): alttaki başlıkla çakışmaz,
+                        // üstteki 12px kart dolgusu büyümeyi karşılar.
                         child: Transform.scale(
-                          scale: 1.1,
+                          scale: 1.2,
+                          alignment: Alignment.bottomCenter,
                           child: ClipRRect(
                           borderRadius: BorderRadius.circular(14),
                           child: Image.asset(
@@ -4463,30 +4463,44 @@ class _LabyrinthCardBgState extends State<_LabyrinthCardBg>
               : [base, Color.lerp(base, Colors.black, 0.06)!],
         ),
       ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          AnimatedBuilder(
-            animation: _c,
-            // Açı ~12 adıma/sn kuantalanır: shouldRepaint aradaki karelerde
-            // false döner → 60 FPS yerine sn'de ~12 boyama (ısınma/pil).
-            builder: (_, __) => CustomPaint(
-              painter: _LabyrinthPainter(
-                  (_c.value * 288).floorToDouble() / 288 * 2 * math.pi),
-              size: Size.infinite,
+      // Labirentin ÜST UCU kartın üst çerçevesine neredeyse değsin —
+      // merkez, yarıçapa göre hesaplanır (LayoutBuilder ile karta uyum).
+      child: LayoutBuilder(builder: (context, cons) {
+        final w = cons.maxWidth, h = cons.maxHeight;
+        final maxR = math.min(w, h) * 0.38;
+        final cy = maxR + 4; // üst uç = 4px boşluk
+        final alignY = h <= 0 ? 0.0 : (cy * 2 / h - 1).clamp(-1.0, 1.0);
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            AnimatedBuilder(
+              animation: _c,
+              // Açı ~12 adıma/sn kuantalanır: shouldRepaint aradaki karelerde
+              // false döner → 60 FPS yerine sn'de ~12 boyama (ısınma/pil).
+              builder: (_, __) => CustomPaint(
+                painter: _LabyrinthPainter(
+                    (_c.value * 288).floorToDouble() / 288 * 2 * math.pi,
+                    centerY: cy),
+                size: Size.infinite,
+              ),
             ),
-          ),
-          // Ortada oyunun ejderhası — halkalar onun çevresinde döner.
-          const Text('🐉', style: TextStyle(fontSize: 22)),
-        ],
-      ),
+            // Ejderha labirentin merkezinde.
+            Align(
+              alignment: Alignment(0, alignY.toDouble()),
+              child: const Text('🐉', style: TextStyle(fontSize: 22)),
+            ),
+          ],
+        );
+      }),
     );
   }
 }
 
 class _LabyrinthPainter extends CustomPainter {
   final double angle; // halkaların dönüş açısı
-  const _LabyrinthPainter(this.angle);
+  /// Labirent merkezinin dikey konumu (px). null → dikey orta.
+  final double? centerY;
+  const _LabyrinthPainter(this.angle, {this.centerY});
 
   // Oyunun kendi paleti: altın duvarlar + mor vurgu.
   static const _wall = Color(0xFFC9A24B);
@@ -4495,9 +4509,10 @@ class _LabyrinthPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width / 2, size.height / 2);
-    // %14 küçük labirent (kullanıcı isteği: ikon biraz küçülsün).
+    // Labirent büyük boyutta; merkez dışarıdan verilir (üst uç kart
+    // çerçevesinin hemen altında olacak şekilde).
     final maxR = math.min(size.width, size.height) * 0.38;
+    final c = Offset(size.width / 2, centerY ?? size.height / 2);
     // Arka ışıma — kum saati kartıyla aynı "yüzen" his.
     canvas.drawCircle(
       c,
@@ -5321,6 +5336,22 @@ class _TestConfig {
 /// sistemde bu eski özetler "kısa" sayılır; kullanıcı kapsamlı versiyonu
 /// ekstra olarak oluşturabilir).
 enum _SummaryLength { short, comprehensive }
+
+/// "Tüm formülleri oluştur" panelinde tek formül kartının verisi —
+/// AI çıktısındaki "### Ad / **Formül:** ... / **Semboller:** - ..."
+/// bloklarından ayrıştırılır.
+class _FormulaEntry {
+  final String name;
+  final String formula;
+  final String what;
+  final List<String> symbols;
+  const _FormulaEntry({
+    required this.name,
+    required this.formula,
+    required this.what,
+    required this.symbols,
+  });
+}
 
 class _Summary {
   final String id;
@@ -8463,6 +8494,19 @@ ZENGİN FORMAT (gerektiğinde KULLAN):
     parçaları açıkla.
   • FORMÜL DETAYI: Bir formül veriliyorsa her sembolün anlamı + birimi
     + tipik değer aralığı + ne durumda kullanılır mutlaka belirtilsin.
+
+GÖRSEL DİL — EMOJİ, SEMBOL, RENKLİ KUTU (HER ÖZETTE ZORUNLU):
+  • EMOJİ BAŞLIK: HER ana bölüm başlığı konuya uyan 1 emojiyle başlar
+    (🌍 tanım, 🌡️ faktörler, ☀️ türler, 📌 sınav notları, 📐 formül,
+    🧬 biyoloji, ⚔️ tarih, 🗺️ coğrafya vb.). Emojisiz ana başlık YASAK.
+  • ALT BAŞLIK: Numaralı alt başlıklar "▸ 1. Başlık Adı" biçiminde yazılır
+    (UI bunu renkli vurgulu başlık olarak çizer).
+  • SEMBOL DİLİ: Listelerde anlam taşıyan semboller kullan — ✅ doğru/
+    geçerli, ❌ yanlış/yasak, → sonuç/akış, ⬆ artar, ⬇ azalır, ≈ yaklaşık.
+    Kuru "•" listesi yerine anlamlı sembol tercih et.
+  • RENKLİ KUTULAR: "💡 Önemli Bilgi: …" ve "📦 NOT: …" satırlarını
+    CÖMERTÇE kullan (UI her ikisini renkli çerçeveli kutu çizer) —
+    kapsamlıda en az 2-3 kutu, kısada en az 1.
 ''';
 
     // ── PEDAGOJİK ÖĞE PROTOKOLÜ — özeti "okunan" değil "öğreten" yapan öğeler
@@ -8596,14 +8640,18 @@ KESİNLİKLE YAPMA:
 ✗ Uzun türetme / ispat
 ✗ Birden fazla çözümlü örnek soru (en fazla 1 mini örnek)
 ✗ Tarihsel arka plan / detaylı dönem analizi
-✓ 1-2 küçük tablo serbest (karşılaştırma/sınıflandırma için)
+✓ TABLO: Karşılaştırma/sınıflandırma barındıran konuda EN AZ 1 küçük
+  Markdown tablo ZORUNLU (örn. iklim-bölge-bitki örtüsü); en fazla 2.
 ✓ ŞEMA: görsel-zorunlu konularda (hücre, anatomi, atom, dalga, devre,
   harita, kesir pastası, ilkokul/ortaokul konuları) EN AZ 1, EN FAZLA 2.
   Diğer konularda kısa modda şema YOK.
 ✗ "Bonus", "ileri seviye not", "ek bilgi" gibi opsiyonel kısımlar
 
-ZORUNLU KAPANIŞ (kelime hedefine EK, kısa tut):
-✓ "⭐ Aklında Kalsın" — 3-5 kritik madde (her biri tek satır).
+ZORUNLU KAPANIŞ (kelime hedefine EK, kısa tut — bu sıra ile):
+✓ "📌 Sınavda Çok Sorulanlar" — bu konudan $exam sınavında en sık gelen
+  3-5 bilgi; her satır "✅" ile başlayan tek cümle.
+✓ "⭐ Aklında Kalsın" — 3-5 kritik madde (her biri tek satır, hızlı ezber
+  kalıbı: "Akdeniz = Yaz Kurak + Kış Yağışlı → Maki" gibi eşitlik/ok'lu).
 ✓ "🎯 Kendini Sına" — 1-2 kısa soru + cevap (öğrenci kendini yoklasın).
 
 TON: YOĞUN, KESKİN, FİLTRELİ. Bir öğrenci sınav öncesi son 5 dakikada
@@ -8634,9 +8682,20 @@ ZORUNLU İÇERİK (HEPSİ EKSİKSİZ):
   (hücre, anatomi, atom modeli, dalga, devre, harita, eser kapağı,
   ilkokul/ortaokul müfredatı) MUTLAKA görsel ekle — eksik kalmasın.
 • İLERİ SEVİYE NOTLAR / BONUS — meraklı öğrenci için ekstra derinlik.
-• ZORUNLU KAPANIŞ ÜÇLÜSÜ (en sonda): "⭐ Aklında Kalsın" (5-6 çekirdek madde),
-  "🎯 Kendini Sına" (3-5 soru + cevap; sayısalda 1-2 mini hesap dahil) ve
-  ezberlenecek liste varsa "🧠 Hafıza Tekniği" (akronim/çağrışım).
+• "📌 Sınavda En Çok Sorulanlar" bölümü (kapanıştan hemen önce): bu
+  konudan $exam sınavında en sık sorulan 6-10 bilgi; her satır "✅" ile
+  başlayan tek keskin cümle (dershane hocasının "burası kesin gelir"
+  listesi gibi).
+• "🗂 Ezber Tablosu" (Sınavda En Çok Sorulanlar'dan sonra): konunun TÜM
+  alt tiplerini/öğelerini tek bakışta toplayan Markdown tablo — satırlar
+  alt tipler, sütunlar ayırt edici özellikler (örn. İklim | Yağış Rejimi |
+  Bitki Örtüsü | Ülkede Görülür mü ✅/❌). Bu tablo sınav öncesi son
+  tekrarın tamamıdır; eksik satır bırakma.
+• ZORUNLU KAPANIŞ ÜÇLÜSÜ (en sonda): "⭐ Aklında Kalsın" (5-6 çekirdek
+  madde, hızlı ezber kalıbı: "X = özellik + özellik → sonuç" gibi
+  eşitlik/ok'lu tek satırlar), "🎯 Kendini Sına" (3-5 soru + cevap;
+  sayısalda 1-2 mini hesap dahil) ve ezberlenecek liste varsa
+  "🧠 Hafıza Tekniği" (akronim/çağrışım).
 
 TON: BİR DERSHANE KİTABININ EN AYRINTILI BÖLÜMÜ + akademik makale arası.
 Konuyu hiç bilmeyen biri okuyup sıfırdan uzmanlaşabilmeli. Tekrar etmekten
@@ -17085,42 +17144,163 @@ class _SummaryDetailPageState extends State<_SummaryDetailPage> {
                         : SingleChildScrollView(
                             padding: const EdgeInsets.fromLTRB(
                                 14, 10, 14, 14),
-                            child: MarkdownBody(
-                              data: _formulasContent ?? '',
-                              shrinkWrap: true,
-                              selectable: true,
-                              styleSheet: MarkdownStyleSheet(
-                                p: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    color: ink,
-                                    height: 1.5),
-                                strong: GoogleFonts.poppins(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w800,
-                                    color: ink),
-                                h3: GoogleFonts.poppins(
-                                  fontSize: 14.5,
-                                  fontWeight: FontWeight.w900,
-                                  color: const Color(0xFF7C3AED),
-                                  height: 1.3,
-                                ),
-                                listBullet: GoogleFonts.poppins(
-                                    fontSize: 13, color: ink),
-                                listIndent: 18,
-                                code: GoogleFonts.firaCode(
-                                  fontSize: 12.5,
-                                  color: ink,
-                                  backgroundColor: AppPalette.border(context)
-                                      .withValues(alpha: 0.35),
-                                ),
-                              ),
-                            ),
+                            // Her formül kendi çerçeveli kartında; yapı
+                            // tanınamazsa Markdown fallback (aşağıda).
+                            child: _buildFormulaCards(context, ink),
                           ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  /// AI formül çıktısını ("### Ad" blokları) kartlara ayrıştır. Etiket
+  /// adları dile göre değişebildiğinden konuma göre okunur: bloktaki ilk
+  /// "**Etiket:** değer" satırı = formül, ikincisi = ne işe yarar,
+  /// "- " satırları = sembol açıklamaları.
+  List<_FormulaEntry>? _parseFormulaEntries(String md) {
+    final parts = md.split(RegExp(r'^###\s+', multiLine: true));
+    final out = <_FormulaEntry>[];
+    final labeled = RegExp(r'^\*\*([^*]+):\*\*\s*(.*)$');
+    for (final part in parts) {
+      final block = part.trim();
+      if (block.isEmpty) continue;
+      final lines = block.split('\n');
+      final name = lines.first.replaceAll('*', '').trim();
+      String formula = '';
+      String what = '';
+      final symbols = <String>[];
+      for (final raw in lines.skip(1)) {
+        final t = raw.trim();
+        if (t.isEmpty) continue;
+        final m = labeled.firstMatch(t);
+        if (m != null) {
+          final val = m.group(2)!.trim();
+          if (val.isEmpty) continue; // "**Semboller:**" başlık satırı
+          if (formula.isEmpty) {
+            formula = val;
+          } else if (what.isEmpty) {
+            what = val;
+          }
+          continue;
+        }
+        if (t.startsWith('- ') || t.startsWith('• ')) {
+          symbols.add(t.substring(2).replaceAll('**', '').trim());
+        }
+      }
+      if (name.isNotEmpty && formula.isNotEmpty) {
+        out.add(_FormulaEntry(
+            name: name, formula: formula, what: what, symbols: symbols));
+      }
+    }
+    return out.isEmpty ? null : out;
+  }
+
+  /// Formül kartları: her formül KENDİ çerçevesinde — üstte ad, ortada
+  /// büyük formül kutusu, altında küçük yazıyla sembol açıklamaları.
+  /// Ayrıştırma başarısızsa eski Markdown görünümüne düşer.
+  Widget _buildFormulaCards(BuildContext context, Color ink) {
+    final content = _formulasContent ?? '';
+    final entries = _parseFormulaEntries(content);
+    if (entries == null) {
+      return MarkdownBody(
+        data: content,
+        shrinkWrap: true,
+        selectable: true,
+        styleSheet: MarkdownStyleSheet(
+          p: GoogleFonts.poppins(fontSize: 13, color: ink, height: 1.5),
+          strong: GoogleFonts.poppins(
+              fontSize: 13, fontWeight: FontWeight.w800, color: ink),
+          h3: GoogleFonts.poppins(
+            fontSize: 14.5,
+            fontWeight: FontWeight.w900,
+            color: const Color(0xFF7C3AED),
+            height: 1.3,
+          ),
+          listBullet: GoogleFonts.poppins(fontSize: 13, color: ink),
+          listIndent: 18,
+          code: GoogleFonts.firaCode(
+            fontSize: 12.5,
+            color: ink,
+            backgroundColor:
+                AppPalette.border(context).withValues(alpha: 0.35),
+          ),
+        ),
+      );
+    }
+    const purple = Color(0xFF7C3AED);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final e in entries)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            decoration: BoxDecoration(
+              color: AppPalette.card(context),
+              borderRadius: BorderRadius.circular(12),
+              border:
+                  Border.all(color: purple.withValues(alpha: 0.22), width: 1.1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  e.name,
+                  style: GoogleFonts.poppins(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w800,
+                      color: purple),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: purple.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: SelectableText(
+                    e.formula,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.firaCode(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: ink,
+                        height: 1.35),
+                  ),
+                ),
+                if (e.what.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    e.what,
+                    style: GoogleFonts.poppins(
+                        fontSize: 11.5,
+                        color: ink.withValues(alpha: 0.75),
+                        height: 1.35),
+                  ),
+                ],
+                if (e.symbols.isNotEmpty) ...[
+                  const SizedBox(height: 5),
+                  for (final s in e.symbols)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        '• $s',
+                        style: GoogleFonts.poppins(
+                            fontSize: 10.5,
+                            color: ink.withValues(alpha: 0.6),
+                            height: 1.3),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ),
+      ],
     );
   }
 
@@ -20170,6 +20350,8 @@ class _PomodoroTechniquePageState extends State<_PomodoroTechniquePage>
             SizedBox(height: 14),
             _LandingCard(
               icon: Icons.eco_rounded,
+              // Cam fanus içinde mini bahçe illüstrasyonu (kullanıcı mockup'ı).
+              imageAsset: 'assets/library_icons/pomodoro_colony.png',
               title: 'Yeşil Koloni'.tr(),
               color: Color(0xFF00B070),
               onTap: () => _openWithIntro(
@@ -20191,6 +20373,8 @@ class _PomodoroTechniquePageState extends State<_PomodoroTechniquePage>
             SizedBox(height: 12),
             _LandingCard(
               icon: Icons.rocket_launch_rounded,
+              // Mars üssü + rover illüstrasyonu (kullanıcı mockup'ı).
+              imageAsset: 'assets/library_icons/pomodoro_mars.png',
               title: 'QuAlsar · Mars Protokolü'.tr(),
               color: Color(0xFFFF6A3C),
               onTap: () => _openWithIntro(
